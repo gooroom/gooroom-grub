@@ -1,7 +1,12 @@
 grub2 (2.00-21) UNRELEASED; urgency=low
 
+  [ Robert Millan ]
   * Backport from upstream:
     - Accept ZFS version 5000 (feature based).
+
+  [ Colin Watson ]
+  * Silence error message on initial installation when /etc/default/grub
+    does not yet exist.
 
  -- Robert Millan <rmh@debian.org>  Thu, 21 Nov 2013 23:16:16 +0100
 
