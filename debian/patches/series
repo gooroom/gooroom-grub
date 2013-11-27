@@ -62,3 +62,4 @@ gfxpayload_dynamic.patch
 vt_handoff.patch
 probe_fusionio.patch
 zfs_v5000.patch
+mkconfig_recovery_title.patch

@@ -7,6 +7,8 @@ grub2 (2.00-21) UNRELEASED; urgency=low
   [ Colin Watson ]
   * Silence error message on initial installation when /etc/default/grub
     does not yet exist.
+  * Add GRUB_RECOVERY_TITLE option, to allow the controversial "recovery
+    mode" text to be customised (LP: #1240360).
 
  -- Robert Millan <rmh@debian.org>  Thu, 21 Nov 2013 23:16:16 +0100
 
