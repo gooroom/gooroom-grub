@@ -9,15 +9,17 @@ grub2 (2.00-21) UNRELEASED; urgency=low
     does not yet exist.
   * Add GRUB_RECOVERY_TITLE option, to allow the controversial "recovery
     mode" text to be customised (LP: #1240360).
-  * Revamp hidden timeout handling by adding a new timeout_style environment
-    variable and a corresponding GRUB_TIMEOUT_STYLE configuration key for
-    grub-mkconfig.  This controls hidden-timeout handling more simply than
-    the previous arrangements, and pressing any hotkeys associated with menu
-    entries during the hidden timeout will now boot the corresponding menu
-    entry immediately (LP: #1178618).  As part of merging this, radically
-    simplify the mess that quick_boot.patch had made of
-    /etc/grub.d/30_os-prober; if it finds other OSes it can now just set
-    timeout_style=menu and make sure the timeout is non-zero.
+  * Backport from upstream:
+    - Revamp hidden timeout handling by adding a new timeout_style
+      environment variable and a corresponding GRUB_TIMEOUT_STYLE
+      configuration key for grub-mkconfig.  This controls hidden-timeout
+      handling more simply than the previous arrangements, and pressing any
+      hotkeys associated with menu entries during the hidden timeout will
+      now boot the corresponding menu entry immediately (LP: #1178618).  As
+      part of merging this, radically simplify the mess that
+      quick_boot.patch had made of /etc/grub.d/30_os-prober; if it finds
+      other OSes it can now just set timeout_style=menu and make sure the
+      timeout is non-zero.
 
  -- Robert Millan <rmh@debian.org>  Thu, 21 Nov 2013 23:16:16 +0100
 
