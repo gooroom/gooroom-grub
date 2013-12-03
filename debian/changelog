@@ -20,6 +20,7 @@ grub2 (2.00-21) UNRELEASED; urgency=low
       quick_boot.patch had made of /etc/grub.d/30_os-prober; if it finds
       other OSes it can now just set timeout_style=menu and make sure the
       timeout is non-zero.
+    - Fix build with FreeType 2.5.1.
 
  -- Robert Millan <rmh@debian.org>  Thu, 21 Nov 2013 23:16:16 +0100
 
