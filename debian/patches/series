@@ -49,6 +49,7 @@ acpihalt_improvements.patch
 script_check_no_commands.patch
 texinfo_ordering.patch
 mkconfig_emacs_autosave.patch
+timeout_style.patch
 sleep_shift.patch
 probe_error_handling.patch
 wubi_no_windows.patch
