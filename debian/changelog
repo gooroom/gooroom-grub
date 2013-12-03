@@ -1,4 +1,4 @@
-grub2 (2.00-21) UNRELEASED; urgency=low
+grub2 (2.00-21) unstable; urgency=low
 
   [ Robert Millan ]
   * Backport from upstream:
@@ -22,7 +22,7 @@ grub2 (2.00-21) UNRELEASED; urgency=low
       timeout is non-zero.
     - Fix build with FreeType 2.5.1.
 
- -- Robert Millan <rmh@debian.org>  Thu, 21 Nov 2013 23:16:16 +0100
+ -- Colin Watson <cjwatson@debian.org>  Tue, 03 Dec 2013 16:53:32 +0000
 
 grub2 (2.00-20) unstable; urgency=low
 
