@@ -1,3 +1,11 @@
+grub2 (2.00-22) UNRELEASED; urgency=low
+
+  * Backport from upstream:
+    - On Linux, read partition start offsets from sysfs if possible
+      (LP: #1237519).
+
+ -- Colin Watson <cjwatson@debian.org>  Thu, 05 Dec 2013 14:21:51 +0000
+
 grub2 (2.00-21) unstable; urgency=low
 
   [ Robert Millan ]

@@ -37,6 +37,7 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <limits.h>
@@ -580,10 +581,119 @@ grub_hostdisk_find_partition_start (const char *dev)
 }
 
 #elif defined(__linux__) || defined(__CYGWIN__) || defined(HAVE_DIOCGDINFO) || defined (__sun__)
+#ifdef __linux__
+static char *
+sysfs_partition_path (const char *dev, const char *entry)
+{
+  const char *argv[7];
+  int pipe_fd[2];
+  pid_t pid;
+  FILE *udevadm;
+  char *buf = NULL;
+  size_t len = 0;
+  char *path = NULL;
+
+  argv[0] = "udevadm";
+  argv[1] = "info";
+  argv[2] = "--query";
+  argv[3] = "path";
+  argv[4] = "--name";
+  argv[5] = dev;
+  argv[6] = NULL;
+
+  if (pipe (pipe_fd) < 0)
+    {
+      grub_util_warn (_("Unable to create pipe: %s"), strerror (errno));
+      return NULL;
+    }
+  pid = fork ();
+  if (pid < 0)
+    grub_util_error (_("Unable to fork: %s"), strerror (errno));
+  else if (pid == 0)
+    {
+      /* Child.  */
+      /* Ensure child is not localised.  */
+      setenv ("LC_ALL", "C", 1);
+
+      close (pipe_fd[0]);
+      dup2 (pipe_fd[1], STDOUT_FILENO);
+      close (pipe_fd[1]);
+
+      execvp ((char *) argv[0], (char **) argv);
+      exit (127);
+    }
+  else
+    {
+      /* Parent.  Read udevadm's output.  */
+      close (pipe_fd[1]);
+
+      udevadm = fdopen (pipe_fd[0], "r");
+      if (!udevadm)
+	{
+	  grub_util_warn (_("Unable to open stream from %s: %s"),
+			  "udevadm", strerror (errno));
+	  close (pipe_fd[0]);
+	  goto out;
+	}
+
+      if (getline (&buf, &len, udevadm) > 0)
+	{
+	  char *newline;
+
+	  newline = strchr (buf, '\n');
+	  if (newline)
+	    *newline = '\0';
+	  path = xasprintf ("/sys%s/%s", buf, entry);
+	}
+
+out:
+      if (udevadm)
+	fclose (udevadm);
+      waitpid (pid, NULL, 0);
+      free (buf);
+
+      return path;
+    }
+}
+
+static int
+sysfs_partition_start (const char *dev, grub_disk_addr_t *start)
+{
+  char *path;
+  FILE *fp;
+  unsigned long long val;
+  int ret = 0;
+
+  path = sysfs_partition_path (dev, "start");
+  if (!path)
+    return 0;
+
+  fp = fopen (path, "r");
+  if (!fp)
+    goto out;
+
+  if (fscanf (fp, "%llu", &val) == 1)
+    {
+      *start = (grub_disk_addr_t) val;
+      ret = 1;
+    }
+
+out:
+  free (path);
+  if (fp)
+    fclose (fp);
+
+  return ret;
+}
+#endif /* __linux__ */
+
 grub_disk_addr_t
 grub_hostdisk_find_partition_start (const char *dev)
 {
   int fd;
+#ifdef __linux__
+  grub_disk_addr_t start;
+#endif /* __linux__ */
 #ifdef __sun__
   struct extpart_info pinfo;
 # elif !defined(HAVE_DIOCGDINFO)
@@ -602,6 +712,11 @@ grub_hostdisk_find_partition_start (const char *dev)
       && grub_util_get_dm_node_linear_info (dev, 0, 0, &partition_start))
     return partition_start;
 # endif /* HAVE_DEVICE_MAPPER */
+
+# ifdef __linux__
+  if (sysfs_partition_start (dev, &start))
+    return start;
+# endif /* __linux__ */
 
   fd = open (dev, O_RDONLY);
   if (fd == -1)

@@ -65,3 +65,4 @@ probe_fusionio.patch
 zfs_v5000.patch
 mkconfig_recovery_title.patch
 freetype_includes.patch
+sysfs_partition_start.patch
