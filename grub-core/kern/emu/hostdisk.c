@@ -692,7 +692,7 @@ grub_hostdisk_find_partition_start (const char *dev)
 {
   int fd;
 #ifdef __linux__
-  grub_disk_addr_t start;
+  grub_disk_addr_t start = 0;
 #endif /* __linux__ */
 #ifdef __sun__
   struct extpart_info pinfo;
