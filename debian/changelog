@@ -3,6 +3,7 @@ grub2 (2.00-22) UNRELEASED; urgency=low
   * Backport from upstream:
     - On Linux, read partition start offsets from sysfs if possible
       (LP: #1237519).
+  * Regularise indentation of "recordfail" in /etc/grub.d/10_linux.
 
  -- Colin Watson <cjwatson@debian.org>  Thu, 05 Dec 2013 14:21:51 +0000
 
