@@ -1,4 +1,4 @@
-grub2 (2.00-22) UNRELEASED; urgency=low
+grub2 (2.00-22) unstable; urgency=low
 
   * Backport from upstream:
     - On Linux, read partition start offsets from sysfs if possible
@@ -6,7 +6,7 @@ grub2 (2.00-22) UNRELEASED; urgency=low
     - Fix sector number when writing to non-512B disks (LP: #1253443).
   * Regularise indentation of "recordfail" in /etc/grub.d/10_linux.
 
- -- Colin Watson <cjwatson@debian.org>  Thu, 05 Dec 2013 14:21:51 +0000
+ -- Colin Watson <cjwatson@debian.org>  Thu, 12 Dec 2013 01:24:11 +0000
 
 grub2 (2.00-21) unstable; urgency=low
 
