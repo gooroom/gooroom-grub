@@ -1,11 +1,11 @@
-grub2 (2.02~beta2-9ubuntu1) UNRELEASED; urgency=medium
+grub2 (2.02~beta2-9ubuntu1) trusty; urgency=medium
 
   * Backport patches from upstream to make the network stack more responsive
     on busy networks (LP: #1314134).
   * Add support for nvme device in grub-mkdevicemap (thanks, Dimitri John
     Ledkov; closes: #746396, LP: #1275162).
 
- -- Colin Watson <cjwatson@ubuntu.com>  Tue, 29 Apr 2014 11:12:40 +0100
+ -- Colin Watson <cjwatson@ubuntu.com>  Thu, 08 May 2014 13:09:46 +0100
 
 grub2 (2.02~beta2-9) unstable; urgency=medium
 
