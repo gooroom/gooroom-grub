@@ -198,6 +198,8 @@ kernel = {
   x86_64_efi = kern/x86_64/efi/callwrap.S;
   x86_64_efi = kern/i386/efi/init.c;
   x86_64_efi = bus/pci.c;
+  x86_64_efi = kern/i386/pc/tpm/tpm_kern.c;
+  x86_64_efi = kern/i386/int.S;
 
   xen = kern/i386/tsc.c;
   xen = kern/i386/xen/tsc.c;
@@ -2336,5 +2338,7 @@ module = {
 module = {
   name = tpm;
   i386 = tpm/i386/pc/tpm.c;
+  x86_64= tpm/i386/pc/tpm.c;
+  enable =x86_64;
   enable = i386;
 };
