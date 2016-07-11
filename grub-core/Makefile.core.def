@@ -190,6 +190,8 @@ kernel = {
 
   i386_efi = kern/i386/efi/init.c;
   i386_efi = bus/pci.c;
+  i386_efi = kern/i386/pc/tpm/tpm_kern.c;
+  i386_efi = kern/i286.int.S;
 
   x86_64 = kern/x86_64/dl.c;
   x86_64_xen = kern/x86_64/dl.c;
@@ -2333,6 +2335,6 @@ module = {
 
 module = {
   name = tpm;
-  i386_pc = tpm/i386/pc/tpm.c;
-  enable = i386_pc;
+  i386 = tpm/i386/pc/tpm.c;
+  enable = i386;
 };
