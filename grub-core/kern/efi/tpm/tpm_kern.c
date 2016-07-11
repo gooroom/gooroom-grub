@@ -265,6 +265,33 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
 	return GRUB_ERR_NONE;
 }
 
+/*modified to use in efi*/
+// this is GLOBAL VAR */
+EFI_GUID tpm_guid = EFI_TPM_GUID;
+
+grub_err_t
+grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi ) {
+{
+    grub_efi_status_t status;
+    efi_tpm_protocol_t *tpm;
+
+    tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+
+    status = efi_call_5 (tpm->status_check, tpm, minor, featureFlags, eventLog, edi);
+
+    if(status != GRUB_EFI_SUCCESS)
+        return FALSE;
+#if 0
+    //status = efi_call_5 (tpm->status_check, tpm, &caps, &flags, &eventlog, &lastevent);
+    /* for future work v2.0 */
+    if(status != GRUB_EFI_SUCCESS || caps.TPMDeactivatedFlag
+        || !caps.TPMPresentFlag)
+        return FALSE;
+#endif
+    return TRUE;
+}
+
+
 /* Invokes TCG_PassThroughToTPM
 
    grub_fatal() on error

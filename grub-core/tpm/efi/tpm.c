@@ -160,7 +160,12 @@ grub_TPM_read_tcglog( const unsigned long index ) {
 	grub_uint8_t major, minor;
 
 	/* get event log pointer */
-	grub_TPM_int1A_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi );
+	//grub_TPM_int1A_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi );
+
+        /* Modified to use in efi*/
+        grub_TPM_efi_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi);
+
+
 
 	/* edi = 0 means event log is empty */
 	if( edi == 0 ) {
