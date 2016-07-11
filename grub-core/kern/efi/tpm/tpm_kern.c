@@ -26,9 +26,10 @@
 #include <grub/misc.h>
 
 #include <grub/tpm.h>
-#include <grub/i386/pc/tpm.h>
-#include <grub/i386/pc/memory.h>
-#include <grub/i386/pc/int.h>
+#include <grub/efi/tpm.h>
+// should not be used
+//#include <grub/i386/pc/memory.h>
+//#include <grub/i386/pc/int.h>
 
 #ifdef TGRUB_DEBUG
 	#include <grub/time.h>
@@ -267,7 +268,7 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
 
 /*modified to use in efi*/
 // this is GLOBAL VAR */
-EFI_GUID tpm_guid = EFI_TPM_GUID;
+grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
 
 grub_err_t
 grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi ) {

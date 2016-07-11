@@ -156,7 +156,8 @@ grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **
 static void
 grub_TPM_read_tcglog( const unsigned long index ) {
 
-	grub_uint32_t returnCode, featureFlags, eventLog = 0, logAddr = 0, edi = 0;
+	grub_uint32_t returnCode, featureFlags;
+	grub_addr_t eventLog = 0,logAddr = 0, edi = 0;
 	grub_uint8_t major, minor;
 
 	/* get event log pointer */
