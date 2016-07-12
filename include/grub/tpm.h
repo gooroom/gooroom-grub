@@ -59,6 +59,9 @@ void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* res
 
 void grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, grub_uint8_t** result, grub_size_t* resultSize );
 
+void grub_TPM_efi_statusCheck( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
+
+
 #endif
 
 /* End TCG Extension */

@@ -27,6 +27,8 @@
 
 #include <grub/tpm.h>
 #include <grub/efi/tpm.h>
+#include <grub/efi/api.h>
+
 // should not be used
 //#include <grub/i386/pc/memory.h>
 //#include <grub/i386/pc/int.h>

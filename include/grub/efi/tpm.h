@@ -1,5 +1,8 @@
+#include <grub/efi/api.h>
+
 #define EFI_TPM_GUID {0xf541796d, 0xa62e, 0x4954, {0xa7, 0x75, 0x95, 0x84, 0xf6, 0x1b, 0x9c, 0xdd }};
 #define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
+#define EFIAPI
 
 grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_t pcr,
 			 const unsigned char *description);
@@ -68,8 +71,8 @@ typedef grub_uint32_t EFI_TCG2_EVENT_LOG_FORMAT;
 typedef grub_uint32_t EFI_TCG2_EVENT_ALGORITHM_BITMAP;
 
 typedef struct tdEFI_TCG2_VERSION {
-  uint8_t Major;
-  uint8_t Minor;
+  grub_uint8_t Major;
+  grub_uint8_t Minor;
 } __attribute__ ((packed)) EFI_TCG2_VERSION;
 
 typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 {
