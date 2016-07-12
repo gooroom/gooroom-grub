@@ -9,6 +9,18 @@ grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_
 //EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 //			 const CHAR8 *description);
 
+
+
+
+/************************* macros *************************/
+
+#define CHECK_FOR_NULL_ARGUMENT( argument )                                                                 \
+                        if( ! argument ) {                                                                                                  \
+                                grub_fatal( "BAD_ARGUMENT: argument is NULL" );                                 \
+                        }
+
+/************************* struct typedefs *************************/
+
 typedef struct {
   grub_uint8_t Major;
   grub_uint8_t Minor;
@@ -127,7 +139,7 @@ struct efi_tpm2_protocol
 				      EFI_TCG2_EVENT_LOG_FORMAT EventLogFormat,
 				      EFI_PHYSICAL_ADDRESS *EventLogLocation,
 				      EFI_PHYSICAL_ADDRESS *EventLogLastEntry,
-				      BOOLEAN *EventLogTruncated);
+				      bool *EventLogTruncated);
   grub_efi_status_t (EFIAPI *hash_log_extend_event) (struct efi_tpm2_protocol *this,
 					      grub_uint64_t Flags,
 					      grub_addr_t DataToHash,
