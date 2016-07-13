@@ -97,6 +97,54 @@ typedef struct {
  *  grub_fatal() on error
  *  Page 116 TCG_PCClientImplementation_1-21_1_00
  */
+
+/*modified to use in efi*/
+
+//THIS IS GLOBAL VAR FOR EFI
+grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
+grub_efi_guid_t tpm2_guid = EFI_TPM2_GUID;
+
+static void 
+grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrIndex, const char* descriptions )
+{
+	grub_efi_status_t status;
+	efi_tpm_protocol_t *tpm;
+	efi_tpm2_protocol_t *tpm2;
+
+	status= grub_efi_locate_protocol(&tpm2_guid, (void **)&tpm2);
+
+	/* Prepare Event struct */
+	grub_uint32_t strSize = grub_strlen(description);
+	grub_uint32_t eventStructSize = strSize + sizeof(Event);
+	Event* event = grub_zalloc(eventStructSize);
+
+	if (!event)
+	{
+		grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: memory allocation failed" );
+	}
+
+	event->pcrIndex = pcrIndex;
+	event->eventType = 0x0d; /* EV_IPL */
+	event->eventDataSize = strSize;
+	grub_memcpy(event->digest, inDigest, SHA1_DIGEST_SIZE );
+	grub_memcpy(event->event, description, strSize);
+
+	if(!tpm2_present(tpm2))
+		return EFI_SUCCESS;
+
+	event->Header.Headersize = sizeof(EFI_TCG2_EVENT_HEADER);
+	event->Header.HeaderVersion = 1;
+	event->Size = sizeof(*event) - sizeof(event->Event) + strlen(description) + 1;
+	memcpy(event->Event, description, strlen(description) + 1);
+
+	status = efi_call_5(tpm2->hash_log_extend_event, tpm2, 0, buf, (grub_uint64_t) size, event);
+	
+	return EFI_SUCCESS;
+
+}
+
+
+
 static void
 grub_TPM_int1A_hashLogExtendEvent( const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* description ) {
 
@@ -269,8 +317,6 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
 }
 
 /*modified to use in efi*/
-// this is GLOBAL VAR */
-grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
 
 grub_err_t
 grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi ) {
@@ -372,7 +418,9 @@ grub_TPM_measure_string( const char* string ) {
     DEBUG_PRINT( ( "\n" ) );
 #endif
 
-	grub_TPM_int1A_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );
+    /*modified to use in efi*/
+	grub_TPM_efi_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );    
+	//grub_TPM_int1A_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );
 }
 
 /* grub_fatal() on error */
@@ -423,7 +471,9 @@ grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
 #endif
 
 	/* measure */
-	grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, filename );
+	/* modified to use in efi*/
+    	grub_TPM_efi_hashLogExtendEvent( convertedResult, index, filename );
+    	//grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, filename );
 }
 
 void

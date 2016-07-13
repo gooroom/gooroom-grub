@@ -26,10 +26,13 @@
 #include <grub/file.h>
 
 #include <grub/tpm.h>
-#include <grub/i386/pc/tpm.h>
-#include <grub/i386/pc/boot.h>
-#include <grub/i386/pc/memory.h>
-#include <grub/i386/pc/int.h>
+#include <grub/efi/tpm.h>
+
+// should not be used
+//#include <grub/i386/pc/tpm.h>
+//#include <grub/i386/pc/boot.h>
+//#include <grub/i386/pc/memory.h>
+//#include <grub/i386/pc/int.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
