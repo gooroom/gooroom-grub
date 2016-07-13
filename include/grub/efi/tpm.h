@@ -4,6 +4,11 @@
 #define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
 #define EFIAPI
 
+
+/*modified for grub*/
+/*TYPEDEFS*/
+typedef enum { false = 0, true = 1 } BOOLEAN;
+
 grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_t pcr,
 			 const unsigned char *description);
 //EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
@@ -93,7 +98,7 @@ typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 {
   EFI_TCG2_VERSION ProtocolVersion;
   EFI_TCG2_EVENT_ALGORITHM_BITMAP HashAlgorithmBitmap;
   EFI_TCG2_EVENT_LOG_BITMAP SupportedEventLogs;
-  bool TPMPresentFlag;
+  BOOLEAN TPMPresentFlag;
   grub_uint16_t MaxCommandSize;
   grub_uint16_t MaxResponseSize;
   grub_uint32_t ManufacturerID;
@@ -107,7 +112,7 @@ typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY {
   EFI_TCG2_VERSION ProtocolVersion;
   EFI_TCG2_EVENT_ALGORITHM_BITMAP HashAlgorithmBitmap;
   EFI_TCG2_EVENT_LOG_BITMAP SupportedEventLogs;
-  bool TPMPresentFlag;
+  BOOLEAN TPMPresentFlag;
   grub_uint16_t MaxCommandSize;
   grub_uint16_t MaxResponseSize;
   grub_uint32_t ManufacturerID;
@@ -139,7 +144,7 @@ struct efi_tpm2_protocol
 				      EFI_TCG2_EVENT_LOG_FORMAT EventLogFormat,
 				      EFI_PHYSICAL_ADDRESS *EventLogLocation,
 				      EFI_PHYSICAL_ADDRESS *EventLogLastEntry,
-				      bool *EventLogTruncated);
+				      BOOLEAN *EventLogTruncated);
   grub_efi_status_t (EFIAPI *hash_log_extend_event) (struct efi_tpm2_protocol *this,
 					      grub_uint64_t Flags,
 					      grub_addr_t DataToHash,
