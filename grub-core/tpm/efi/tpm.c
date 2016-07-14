@@ -276,6 +276,22 @@ grub_cmd_measure( grub_command_t cmd __attribute__ ((unused)), int argc, char **
 	return GRUB_ERR_NONE;
 }
 
+/* Modified for efi use*/
+/* Memmory functions as static from ./include/grub/i386/memory.h " */
+
+typedef grub_addr_t grub_phys_addr_t;
+
+static inline void *grub_map_memory (grub_addr_t a, grub_size_t size __attribute__ ((unused)))
+{
+	return (void *) a;
+}
+
+static inline void
+grub_unmap_memory (void *a __attribute__ ((unused)),grub_size_t size __attribute__ ((unused)))
+{
+}
+
+
 /* Invokes TCG_SetMemoryOverwriteRequestBit
 
    grub_fatal() on error

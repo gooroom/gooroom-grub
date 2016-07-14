@@ -15,6 +15,14 @@ grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_
 //			 const CHAR8 *description);
 
 
+ /************************* constants *************************/
+
+/* TODO: 0x10000 does not work for some reason */
+/* is  0x20000 and 0x30000 a good choice? */
+
+#define INPUT_PARAM_BLK_ADDR 0x30000
+#define OUTPUT_PARAM_BLK_ADDR 0x20000
+
 
 
 /************************* macros *************************/
@@ -142,8 +150,8 @@ struct efi_tpm2_protocol
 				       EFI_TCG2_BOOT_SERVICE_CAPABILITY *ProtocolCapability);
   grub_efi_status_t (EFIAPI *get_event_log) (struct efi_tpm2_protocol *this,
 				      EFI_TCG2_EVENT_LOG_FORMAT EventLogFormat,
-				      EFI_PHYSICAL_ADDRESS *EventLogLocation,
-				      EFI_PHYSICAL_ADDRESS *EventLogLastEntry,
+				      grub_addr_t *EventLogLocation,
+				      grub_addr_t *EventLogLastEntry,
 				      BOOLEAN *EventLogTruncated);
   grub_efi_status_t (EFIAPI *hash_log_extend_event) (struct efi_tpm2_protocol *this,
 					      grub_uint64_t Flags,

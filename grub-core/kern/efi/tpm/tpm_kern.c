@@ -103,7 +103,7 @@ typedef struct {
 //THIS IS GLOBAL VAR FOR EFI
 grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
 grub_efi_guid_t tpm2_guid = EFI_TPM2_GUID;
-
+/*
 static void 
 grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrIndex, const char* descriptions )
 {
@@ -113,7 +113,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrI
 
 	status= grub_efi_locate_protocol(&tpm2_guid, (void **)&tpm2);
 
-	/* Prepare Event struct */
+	// Prepare Event struct 
 	grub_uint32_t strSize = grub_strlen(description);
 	grub_uint32_t eventStructSize = strSize + sizeof(Event);
 	Event* event = grub_zalloc(eventStructSize);
@@ -124,7 +124,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrI
 	}
 
 	event->pcrIndex = pcrIndex;
-	event->eventType = 0x0d; /* EV_IPL */
+	event->eventType = 0x0d; // EV_IPL 
 	event->eventDataSize = strSize;
 	grub_memcpy(event->digest, inDigest, SHA1_DIGEST_SIZE );
 	grub_memcpy(event->event, description, strSize);
@@ -143,7 +143,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrI
 
 }
 
-
+*/
 
 static void
 grub_TPM_int1A_hashLogExtendEvent( const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* description ) {
