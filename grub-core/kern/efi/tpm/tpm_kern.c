@@ -102,8 +102,8 @@ typedef struct {
 /*modified to use in efi*/
 
 //THIS IS GLOBAL VAR FOR EFI
-grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
-static BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
+static grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
+BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 {
         grub_efi_status_t status;
         TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
@@ -116,20 +116,20 @@ static BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 
         if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
             || !caps.TPMPresentFlag)
-                return FALSE;
+                return false;
 
-        return TRUE;
+        return true;
 }
 
-static void 
+grub_efi_status_t
 grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrIndex, const char* descriptions )
 {
 	grub_efi_status_t status;
 	efi_tpm_protocol_t *tpm;
 
-	TCG_PCR_EVENT *event;
         grub_uint32_t algorithm, eventnum = 0;
 	grub_addr_t lastevent;
+	Event* event;
 
 	//tpm = grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
 	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
@@ -138,13 +138,13 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 		 return EFI_SUCCESS;
 
 	// Prepare Event struct
-	grub_uint32_t strSize = grub_strlen(description);
+	grub_uint32_t strSize = grub_strlen(descriptions);
 	grub_uint32_t eventStructSize = strSize + sizeof(Event);
-	Event* event = grub_zalloc(eventStructSize);
+	event = grub_zalloc(eventStructSize);
 
 	if (!event)
 	{
-		grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: memory allocation failed" );
+		grub_fatal( "grub_TPM_efi_hashLogExtendEvent: memory allocation failed" );
 	}
 
 	event->pcrIndex = pcrIndex;
@@ -152,8 +152,8 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 	event->eventDataSize = strSize + 1;
 	algorithm = 0x00000004;
 
-	status = efi_call_6(tpm->log_extend_event, buf,
-                                           (UINT64)size, algorithm, event,
+	status = efi_call_6(tpm->log_extend_event, inDigest,
+                                           (grub_uint64_t)eventStructSize, algorithm, event,
                                            &eventnum, &lastevent);
 
 	return status;
@@ -185,9 +185,7 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 	pcrReadIncoming = (void *)passThroughInput->TPMOperandIn;
 	pcrReadIncoming->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
 	pcrReadIncoming->paramSize = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
-	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( T
-			PM_ORD_PcrRead );
-	grub_zalloc(
+	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
 	pcrReadIncoming->pcrIndex = grub_swap_bytes32( (grub_uint32_t) index);
 
 	passThroughOutput = grub_zalloc( outputlen );
@@ -196,7 +194,7 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
         grub_fatal( "readpcr: memory allocation failed" );
 	}
 
-	grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
 	grub_free( passThroughInput );
 
 	pcrReadOutgoing = (void *)passThroughOutput->TPMOperandOut;
@@ -228,64 +226,18 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 
    For more information see page 115 TCG_PCClientImplementation 1.21
 
- */
-grub_err_t
-grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_uint32_t* eventLog, grub_uint32_t* edi ) {
-
-	CHECK_FOR_NULL_ARGUMENT( returnCode )
-	CHECK_FOR_NULL_ARGUMENT( major )
-	CHECK_FOR_NULL_ARGUMENT( minor )
-	CHECK_FOR_NULL_ARGUMENT( featureFlags )
-	CHECK_FOR_NULL_ARGUMENT( eventLog )
-	CHECK_FOR_NULL_ARGUMENT( edi )
-
-	struct grub_bios_int_registers regs;
-	regs.eax = 0xBB00;
-	regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
-
-	grub_bios_interrupt (0x1A, &regs);
-
-	*returnCode = regs.eax;
-
-	if( *returnCode != TCG_PC_OK ) {
-		grub_fatal( "TCG_StatusCheck failed: 0x%x", *returnCode );
-	}
-
-	if( regs.ebx != TCPA ) {
-        grub_fatal( "TCG_StatusCheck failed: ebx != TCPA" );
-	}
-
-	*major = (grub_uint8_t) (regs.ecx >> 8);
-	*minor = (grub_uint8_t) regs.ecx;
-	*featureFlags = regs.edx;
-	*eventLog = regs.esi;
-	*edi = regs.edi;
-
-	return GRUB_ERR_NONE;
-}
-
-/*modified to use in efi*/
+ *//*modified to use in efi*/
 
 grub_err_t
-grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi ) {
+grub_TPM_efi_statusCheck( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi )
 {
-    grub_efi_status_t status;
-    efi_tpm_protocol_t *tpm;
+	grub_err_t status;
+	efi_tpm_protocol_t *tpm;
 
-    tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-
-    status = efi_call_5 (tpm->status_check, tpm, minor, featureFlags, eventLog, edi);
-
-    if(status != GRUB_EFI_SUCCESS)
-        return FALSE;
-#if 0
-    //status = efi_call_5 (tpm->status_check, tpm, &caps, &flags, &eventlog, &lastevent);
-    /* for future work v2.0 */
-    if(status != GRUB_EFI_SUCCESS || caps.TPMDeactivatedFlag
-        || !caps.TPMPresentFlag)
-        return FALSE;
-#endif
-    return TRUE;
+	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+	status = tpm_present(tpm);
+	return status;
+	efi_call_5 (&returnCode, major, minor, featureFlags, eventLog, edi);
 }
 
 
@@ -296,7 +248,7 @@ grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_ui
  */
 
 /* Modified for efi use */
-void
+grub_efi_status_t
 grub_TPM_efi_passThroughToTPM
 	(const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output )
 {
@@ -309,17 +261,15 @@ grub_TPM_efi_passThroughToTPM
 	if ( ! input->IPBLength || ! input->OPBLength ) {
 		 grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
 	}
-	status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
-
-	 if (status != EFI_SUCCESS)
-		 return EFI_SUCCESS;
+	//status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
+	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
 
 	 if (!tpm_present(tpm))
 		 return EFI_SUCCESS;
 
 	 status = efi_call_4 (tpm->pass_through_to_tpm,
-			 	input->IPBLength, &input->TPMOperand[0],
-				input->OPBLength, &output->TPMOprtandOut[0]);
+				input->IPBLength, &input->TPMOperandIn[0],
+				input->OPBLength, &output->TPMOperandOut[0]);
 	 return status;
 }
 
@@ -411,13 +361,13 @@ grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
 }
 
 void
-grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index ) {
-
+grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index )
+{
 	CHECK_FOR_NULL_ARGUMENT( buffer )
-
 	/*EFI doesn't need to hash */
 
 	/* measure */
-	grub_TPM_efi_hashLogExtendEvent( convertedResult, index, "measured buffer" );
+	if (bufferLen != 0)
+		grub_TPM_efi_hashLogExtendEvent( buffer, index, "measured buffer" );
 }
 /* End TCG Extension */

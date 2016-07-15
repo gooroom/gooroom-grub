@@ -126,8 +126,6 @@ kernel = {
   common = kern/rescue_parser.c;
   common = kern/rescue_reader.c;
   common = kern/term.c;
-  common = kern/sha1.c;
-  common = kern/tpm.c;
 
   noemu = kern/compiler-rt.c;
   noemu = kern/mm.c;
@@ -196,7 +194,6 @@ kernel = {
   x86_64_efi = kern/x86_64/efi/callwrap.S;
   x86_64_efi = kern/i386/efi/init.c;
   x86_64_efi = bus/pci.c;
-  x86_64_efi = kern/efi/tpm/tpm_kern.c;
 
   xen = kern/i386/tsc.c;
   xen = kern/i386/xen/tsc.c;
@@ -2334,8 +2331,13 @@ module = {
 
 module = {
   name = tpm;
+  common = kern/sha1.c;
+  common = kern/tpm.c;
+
   i386 = tpm/i386/pc/tpm.c;
   x86_64_efi = tpm/efi/tpm.c;
+  x86_64_efi = kern/efi/tpm/tpm_kern.c;
+
   enable = i386;
   enable = x86_64_efi;
 };
