@@ -102,18 +102,26 @@ typedef struct {
 
 //THIS IS GLOBAL VAR FOR EFI
 grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
-grub_efi_guid_t tpm2_guid = EFI_TPM2_GUID;
-/*
+
 static void 
 grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrIndex, const char* descriptions )
 {
 	grub_efi_status_t status;
 	efi_tpm_protocol_t *tpm;
-	efi_tpm2_protocol_t *tpm2;
 
-	status= grub_efi_locate_protocol(&tpm2_guid, (void **)&tpm2);
+	TCG_PCR_EVENT *event;
+        UINT32 algorithm, eventnum = 0;
+	EFI_PHYSICAL_ADDRESS lastevent;
 
-	// Prepare Event struct 
+	status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
+
+	 if (status != EFI_SUCCESS)
+		 return EFI_SUCCESS;
+
+	 if (!tpm_present(tpm))
+		 return EFI_SUCCESS;
+
+	// Prepare Event struct
 	grub_uint32_t strSize = grub_strlen(description);
 	grub_uint32_t eventStructSize = strSize + sizeof(Event);
 	Event* event = grub_zalloc(eventStructSize);
@@ -124,94 +132,16 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrI
 	}
 
 	event->pcrIndex = pcrIndex;
-	event->eventType = 0x0d; // EV_IPL 
-	event->eventDataSize = strSize;
-	grub_memcpy(event->digest, inDigest, SHA1_DIGEST_SIZE );
-	grub_memcpy(event->event, description, strSize);
+	event->eventType = 0x0d; // EV_IPL
+	event->eventDataSize = strSize + 1;
+	algorithm = 0x00000004;
 
-	if(!tpm2_present(tpm2))
-		return EFI_SUCCESS;
+	status = efi_call_6(tpm->log_extend_event, tpm, buf,
+                                           (UINT64)size, algorithm, event,
+                                           &eventnum, &lastevent);
 
-	event->Header.Headersize = sizeof(EFI_TCG2_EVENT_HEADER);
-	event->Header.HeaderVersion = 1;
-	event->Size = sizeof(*event) - sizeof(event->Event) + strlen(description) + 1;
-	memcpy(event->Event, description, strlen(description) + 1);
-
-	status = efi_call_5(tpm2->hash_log_extend_event, tpm2, 0, buf, (grub_uint64_t) size, event);
-	
-	return EFI_SUCCESS;
-
+	return status;
 }
-
-*/
-
-static void
-grub_TPM_int1A_hashLogExtendEvent( const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* description ) {
-
-	CHECK_FOR_NULL_ARGUMENT( inDigest );
-	CHECK_FOR_NULL_ARGUMENT( description );
-
-	if( pcrIndex > 23 )
-	{
-		grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: pcr > 23 is invalid" );
-	}
-
-	/* Prepare Event struct */
-	grub_uint32_t strSize = grub_strlen(description);
-	grub_uint32_t eventStructSize = strSize + sizeof(Event);
-	Event* event = grub_zalloc(eventStructSize);
-
-	if (!event)
-	{
-		grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: memory allocation failed" );
-	}
-
-	event->pcrIndex = pcrIndex;
-	event->eventType = 0x0d; /* EV_IPL */
-	event->eventDataSize = strSize;
-	grub_memcpy(event->digest, inDigest, SHA1_DIGEST_SIZE );
-	grub_memcpy(event->event, description, strSize);
-
-	/* Prepare EventIncoming struct */
-	EventIncoming incoming;
-	incoming.ipbLength = sizeof(incoming);
-	incoming.hashDataPtr = 0;
-	incoming.hashDataLen = 0;
-	incoming.pcrIndex = pcrIndex;
-	incoming.logDataPtr = (grub_addr_t) event;
-	incoming.logDataLen = eventStructSize;
-
-	EventOutgoing outgoing;
-	struct grub_bios_int_registers regs;
-	regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
-	regs.eax = 0xBB01;
-	regs.ebx = TCPA;
-	regs.ecx = 0;
-	regs.edx = 0;
-	regs.es = (((grub_addr_t) &incoming) & 0xffff0000) >> 4;
-	regs.edi = ((grub_addr_t) &incoming) & 0xffff;
-	regs.ds = (((grub_addr_t) &outgoing) & 0xffff0000) >> 4;
-	regs.esi = ((grub_addr_t) &outgoing) & 0xffff;
-
-	grub_bios_interrupt (0x1A, &regs);
-
-	if ( regs.eax != TCG_PC_OK ) {
-        grub_fatal( "TCG_HashLogExtendEvent failed: 0x%x", regs.eax );
-	}
-
-#ifdef TGRUB_DEBUG
-    DEBUG_PRINT( ( "event number: %u \n", outgoing.eventNum ) );
-	DEBUG_PRINT( ( "New PCR[%u]=", pcrIndex ) );
-	grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
-	grub_TPM_readpcr( pcrIndex, &result[0] );
-	print_sha1( result );
-	DEBUG_PRINT( ( "\n\n" ) );
-	grub_sleep( 4 );
-#endif
-
-	grub_free(event);
-}
-
 /************************* non-static functions *************************/
 
 /* grub_fatal() on error */
@@ -239,7 +169,9 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 	pcrReadIncoming = (void *)passThroughInput->TPMOperandIn;
 	pcrReadIncoming->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
 	pcrReadIncoming->paramSize = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
-	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
+	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( T
+			PM_ORD_PcrRead );
+	grub_zalloc(
 	pcrReadIncoming->pcrIndex = grub_swap_bytes32( (grub_uint32_t) index);
 
 	passThroughOutput = grub_zalloc( outputlen );
@@ -346,6 +278,38 @@ grub_TPM_efi_statusCheck(grub_uint32_t* returnCode, grub_uint8_t* major, grub_ui
    grub_fatal() on error
    Page 112 TCG_PCClientImplementation_1-21_1_00
  */
+
+/* Modified for efi use */
+void
+grub_TPM_efi_passThroughToTPM
+	(const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output )
+{
+	grub_efi_status_t status;
+	efi_tpm_protocol_t *tpm;
+
+	CHECK_FOR_NULL_ARGUMENT( input );
+	CHECK_FOR_NULL_ARGUMENT( output );
+
+	if ( ! input->IPBLength || ! input->OPBLength ) {
+		 grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
+	}
+	status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
+
+	 if (status != EFI_SUCCESS)
+		 return EFI_SUCCESS;
+
+	 if (!tpm_present(tpm))
+		 return EFI_SUCCESS;
+
+	 status = efi_call_4 (tpm->pass_through_to_tpm,
+			 	input->IPBLength, &input->TPMOperand[0],
+				input->OPBLength, &output->TPMOprtandOut[0]);
+	 return status;
+
+
+
+
+
 void
 grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
 
@@ -481,33 +445,9 @@ grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, cons
 
 	CHECK_FOR_NULL_ARGUMENT( buffer )
 
-	/* hash buffer */
-	grub_uint32_t result[5] = { 0 };
-	grub_err_t err = sha1_hash_buffer( buffer, bufferLen, result );
-
-    if( err != GRUB_ERR_NONE ) {
-		grub_fatal( "grub_TPM_measureBuffer: sha1_hash_buffer failed." );
-    }
-
-	/* convert from uint32_t to uint8_t */
-	grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
-	int j, i = 0;
-	for( j = 0; j < 5; j++ ) {
-		convertedResult[i++] = ((result[j]>>24)&0xff);
-		convertedResult[i++] = ((result[j]>>16)&0xff);
-		convertedResult[i++] = ((result[j]>>8)&0xff);
-		convertedResult[i++] = (result[j]&0xff);
-	}
-
-
-#ifdef TGRUB_DEBUG
-    /* print hash */
-	DEBUG_PRINT( ( "SHA1 of buffer: " ) );
-    print_sha1( convertedResult );
-    DEBUG_PRINT( ( "\n" ) );
-#endif
+	/*EFI doesn't need to hash */
 
 	/* measure */
-	grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, "measured buffer" );
+	grub_TPM_efi_hashLogExtendEvent( convertedResult, index, "measured buffer" );
 }
 /* End TCG Extension */

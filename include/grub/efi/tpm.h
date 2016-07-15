@@ -173,3 +173,29 @@ struct efi_tpm2_protocol
 };
 
 typedef struct efi_tpm2_protocol efi_tpm2_protocol_t;
+
+/* TCG_PassThroughToTPM Input Parameter Block */
+typedef struct {
+	grub_uint16_t IPBLength;
+	grub_uint16_t Reserved1;
+	grub_uint16_t OPBLength;
+	grub_uint16_t Reserved2;
+	grub_uint8_t TPMOperandIn[1];
+} GRUB_PACKED PassThroughToTPM_InputParamBlock;
+
+/* TCG_PassThroughToTPM Output Parameter Block */
+typedef struct {
+	grub_uint16_t OPBLength;
+	grub_uint16_t Reserved;
+	grub_uint8_t TPMOperandOut[1];
+} GRUB_PACKED PassThroughToTPM_OutputParamBlock;
+
+/************************* functions *************************/
+
+/* Invokes TCG_StatusCheck Int1A interrupt */
+grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor,
+		grub_uint32_t* featureFlags, grub_uint32_t* eventLog, grub_uint32_t* edi );
+
+/* pass commands to TPM */
+void EXPORT_FUNC(grub_TPM_efi_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,
+		PassThroughToTPM_OutputParamBlock* output );

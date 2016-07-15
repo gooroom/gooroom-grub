@@ -291,7 +291,7 @@ grub_unmap_memory (void *a __attribute__ ((unused)),grub_size_t size __attribute
 {
 }
 
-
+#ifdef tcg_setMOR
 /* Invokes TCG_SetMemoryOverwriteRequestBit
 
    grub_fatal() on error
@@ -378,6 +378,8 @@ grub_cmd_setMOR( grub_command_t cmd __attribute__ ((unused)), int argc, char **a
 	grub_TPM_SetMOR_Bit( disableAutoDetect );
 	return GRUB_ERR_NONE;
 }
+
+#endif
 
 /* grub_fatal() on error */
 static void
