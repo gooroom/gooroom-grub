@@ -28,6 +28,7 @@
 #include <grub/tpm.h>
 #include <grub/efi/tpm.h>
 #include <grub/efi/api.h>
+#include <grub/efi/efi.h>
 
 // should not be used
 //#include <grub/i386/pc/memory.h>
@@ -102,21 +103,36 @@ typedef struct {
 
 //THIS IS GLOBAL VAR FOR EFI
 grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
+static BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
+{
+        grub_efi_status_t status;
+        TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
+        grub_uint32_t flags;
+	grub_addr_t eventlog, lastevent;
+
+        caps.Size = (grub_uint8_t)sizeof(caps);
+        status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
+                                   &eventlog, &lastevent);
+
+        if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
+            || !caps.TPMPresentFlag)
+                return FALSE;
+
+        return TRUE;
+}
 
 static void 
-grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrIndex, const char* descriptions )
+grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrIndex, const char* descriptions )
 {
 	grub_efi_status_t status;
 	efi_tpm_protocol_t *tpm;
 
 	TCG_PCR_EVENT *event;
-        UINT32 algorithm, eventnum = 0;
-	EFI_PHYSICAL_ADDRESS lastevent;
+        grub_uint32_t algorithm, eventnum = 0;
+	grub_addr_t lastevent;
 
-	status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
-
-	 if (status != EFI_SUCCESS)
-		 return EFI_SUCCESS;
+	//tpm = grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
+	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
 
 	 if (!tpm_present(tpm))
 		 return EFI_SUCCESS;
@@ -136,7 +152,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_unit8_t pcrI
 	event->eventDataSize = strSize + 1;
 	algorithm = 0x00000004;
 
-	status = efi_call_6(tpm->log_extend_event, tpm, buf,
+	status = efi_call_6(tpm->log_extend_event, buf,
                                            (UINT64)size, algorithm, event,
                                            &eventnum, &lastevent);
 
@@ -305,52 +321,6 @@ grub_TPM_efi_passThroughToTPM
 			 	input->IPBLength, &input->TPMOperand[0],
 				input->OPBLength, &output->TPMOprtandOut[0]);
 	 return status;
-
-
-
-
-
-void
-grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
-
-	CHECK_FOR_NULL_ARGUMENT( input );
-	CHECK_FOR_NULL_ARGUMENT( output );
-
-	if ( ! input->IPBLength || ! input->OPBLength ) {
-        grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
-	}
-
-	/* copy input buffer */
-	void* p = grub_map_memory( INPUT_PARAM_BLK_ADDR, input->IPBLength );
-	grub_memcpy( p, input, input->IPBLength );
-	grub_unmap_memory( p, input->IPBLength );
-
-	struct grub_bios_int_registers regs;
-	regs.eax = 0xBB02;
-	regs.ebx = TCPA;
-	regs.ecx = 0;
-	regs.edx = 0;
-	regs.esi = OUTPUT_PARAM_BLK_ADDR & 0xF;
-	regs.ds = OUTPUT_PARAM_BLK_ADDR >> 4;
-	regs.edi = INPUT_PARAM_BLK_ADDR & 0xF;
-	regs.es = INPUT_PARAM_BLK_ADDR >> 4;
-	regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
-
-	/*regs.es = (((grub_addr_t) input) & 0xffff0000) >> 4;
-	regs.edi = ((grub_addr_t) input) & 0xffff;
-	regs.ds = (((grub_addr_t) output) & 0xffff0000) >> 4;
-	regs.esi = ((grub_addr_t) output) & 0xffff;*/
-
-	grub_bios_interrupt (0x1A, &regs);
-
-	if ( regs.eax != TCG_PC_OK ) {
-        grub_fatal( "TCG_PassThroughToTPM failed: 0x%x", regs.eax );
-	}
-
-	/* copy output_buffer */
-	p = grub_map_memory( OUTPUT_PARAM_BLK_ADDR, input->OPBLength );
-	grub_memcpy( output, p, input->OPBLength );
-	grub_unmap_memory( p, input->OPBLength );
 }
 
 /* grub_fatal() on error */

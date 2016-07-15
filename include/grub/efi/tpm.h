@@ -4,18 +4,23 @@
 #define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
 #define EFIAPI
 
-
 /*modified for grub*/
-/*TYPEDEFS*/
-typedef enum { false = 0, true = 1 } BOOLEAN;
-
 grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_t pcr,
 			 const unsigned char *description);
 //EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 //			 const CHAR8 *description);
 
 
- /************************* constants *************************/
+/************************* constants *************************/
+
+#define EFI_SUCCESS	0
+
+/* Command return codes */
+#define TPM_BASE 0x0
+#define TPM_SUCCESS TPM_BASE
+#define TPM_AUTHFAIL (TPM_BASE + 0x1)
+#define TPM_BADINDEX (TPM_BASE + 0x2)
+
 
 /* TODO: 0x10000 does not work for some reason */
 /* is  0x20000 and 0x30000 a good choice? */
@@ -23,8 +28,9 @@ grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_
 #define INPUT_PARAM_BLK_ADDR 0x30000
 #define OUTPUT_PARAM_BLK_ADDR 0x20000
 
+#define TPM_TAG_RQU_COMMAND 0x00C1
 
-
+#define TCPA 0x41504354
 /************************* macros *************************/
 
 #define CHECK_FOR_NULL_ARGUMENT( argument )                                                                 \
@@ -193,8 +199,7 @@ typedef struct {
 /************************* functions *************************/
 
 /* Invokes TCG_StatusCheck Int1A interrupt */
-grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor,
-		grub_uint32_t* featureFlags, grub_uint32_t* eventLog, grub_uint32_t* edi );
+void EXPORT_FUNC(grub_TPM_efi_statusCheck)( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
 
 /* pass commands to TPM */
 void EXPORT_FUNC(grub_TPM_efi_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,

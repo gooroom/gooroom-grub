@@ -25,6 +25,7 @@
 
 #include <grub/types.h>
 
+typedef enum { false = 0, true = 1 } BOOLEAN;
 /************************* constants *************************/
 
 #define SHA1_DIGEST_SIZE 20
@@ -58,9 +59,6 @@ void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, grub_uint32_t bu
 void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* result );
 
 void grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, grub_uint8_t** result, grub_size_t* resultSize );
-
-void grub_TPM_efi_statusCheck( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
-
 
 #endif
 

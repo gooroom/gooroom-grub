@@ -424,7 +424,8 @@ grub_TPM_getRandom( const unsigned long randomBytesRequested, grub_uint8_t* resu
 		grub_fatal( "grub_TPM_getRandom: memory allocation failed" );
 	}
 
-	grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
     grub_free( passThroughInput );
 
     getRandomOutput = (void *)passThroughOutput->TPMOperandOut;
@@ -483,7 +484,8 @@ grub_TPM_openOIAP_Session( grub_uint32_t* authHandle, grub_uint8_t* nonceEven ) 
         grub_fatal( "grub_TPM_openOIAP_Session: memory allocation failed");
 	}
 
-	grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
 	grub_free( passThroughInput );
 
 	oiapOutput = (void *)passThroughOutput->TPMOperandOut;
@@ -541,7 +543,8 @@ grub_TPM_openOSAP_Session( const grub_uint16_t entityType, const grub_uint32_t e
         grub_fatal( "grub_TPM_openOSAP_Session: memory allocation failed" );
 	}
 
-	grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
 	grub_free( passThroughInput );
 
 	osapOutput = (void *)passThroughOutput->TPMOperandOut;
@@ -762,7 +765,8 @@ grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, 
         grub_fatal( "grub_TPM_unseal: memory allocation failed" );
 	}
 
-	grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
+	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
 	grub_free( passThroughInput );
 
 	unsealOutput = (void *)passThroughOutput->TPMOperandOut;
@@ -938,7 +942,10 @@ grub_cmd_openOSAP(grub_command_t cmd __attribute__ ((unused)), int argc __attrib
 }
 #endif
 
-static grub_command_t cmd_readpcr, cmd_tcglog, cmd_measure, cmd_setMOR;
+#ifdef tcg_setMOR
+static grub_command_t cmd_setMOR;
+#endif
+static grub_command_t cmd_readpcr, cmd_tcglog, cmd_measure;
 
 #ifdef TGRUB_DEBUG
 	static grub_command_t cmd_random, cmd_oiap, cmd_osap, cmd_unseal;
@@ -956,9 +963,10 @@ GRUB_MOD_INIT(tpm)
 	cmd_measure = grub_register_command( "measure", grub_cmd_measure, N_( "FILE pcrindex" ),
 	  	N_( "Perform TCG measurement operation with the file FILE and with PCR( pcrindex )." ) );
 
+#ifdef tcg_setMOR
 	cmd_setMOR = grub_register_command( "setmor", grub_cmd_setMOR, N_( "disableAutoDetect" ),
 		  	N_( "Sets Memory Overwrite Request Bit with auto detect enabled (0) or disabled (1)" ) );
-
+#endif
 #ifdef TGRUB_DEBUG
 	cmd_random = grub_register_command( "random", grub_cmd_getRandom, N_( "bytesRequested" ),
 			  	N_( "Gets random bytes from TPM." ) );
@@ -977,7 +985,9 @@ GRUB_MOD_FINI(tpm)
 	grub_unregister_command( cmd_readpcr );
 	grub_unregister_command( cmd_tcglog );
 	grub_unregister_command( cmd_measure );
+#ifdef tcg_setMOR
 	grub_unregister_command( cmd_setMOR );
+#endif
 
 #ifdef TGRUB_DEBUG
 	grub_unregister_command( cmd_random );
