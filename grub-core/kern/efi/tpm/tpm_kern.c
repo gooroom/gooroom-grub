@@ -364,10 +364,26 @@ void
 grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index )
 {
 	CHECK_FOR_NULL_ARGUMENT( buffer )
-	/*EFI doesn't need to hash */
 
+	/* hash buffer */
+	grub_uint32_t result[5] = { 0 };
+	grub_err_t err = sha1_hash_buffer( buffer, bufferLen, result );
+
+	if( err != GRUB_ERR_NONE ) {
+		grub_fatal( "grub_TPM_measureBuffer: sha1_hash_buffer failed." );
+	}
+
+	/* convert from uint32_t to uint8_t */
+	grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
+	int j, i = 0;
+	for( j = 0; j < 5; j++ ) {
+		convertedResult[i++] = ((result[j]>>24)&0xff);
+		convertedResult[i++] = ((result[j]>>16)&0xff);
+		convertedResult[i++] = ((result[j]>>8)&0xff);
+		convertedResult[i++] = (result[j]&0xff);
+	}
 	/* measure */
 	if (bufferLen != 0)
-		grub_TPM_efi_hashLogExtendEvent( buffer, index, "measured buffer" );
+		grub_TPM_efi_hashLogExtendEvent( convertedResult, index, "measured buffer" );
 }
 /* End TCG Extension */
