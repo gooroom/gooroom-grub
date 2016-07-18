@@ -178,6 +178,8 @@ kernel = {
   i386_coreboot = kern/acpi.c;
   i386_multiboot = kern/acpi.c;
 
+  x86_64_efi = tpm/efi/tpm.c;
+  x86_64_efi = kern/efi/tpm/tpm_kern.c;
   x86 = kern/i386/tsc.c;
   x86 = kern/i386/tsc_pit.c;
   i386_efi = kern/i386/efi/tsc.c;
@@ -1633,7 +1635,9 @@ module = {
 module = {
   name = multiboot2;
   cppflags = "-DGRUB_USE_MULTIBOOT2";
-
+ 
+  x86_64_efi = tpm/efi/tpm.c;
+  x86_64_efi = kern/efi/tpm/tpm_kern.c;
   common = loader/multiboot.c;
   common = lib/cmdline.c;
   common = loader/multiboot_mbi2.c;
@@ -1647,6 +1651,8 @@ module = {
   common = lib/cmdline.c;
   x86 = loader/i386/multiboot_mbi.c;
   extra_dist = loader/multiboot_elfxx.c;
+  x86_64_efi = tpm/efi/tpm.c;
+  x86_64_efi = kern/efi/tpm/tpm_kern.c;
   enable = x86;
 };
 
@@ -1668,6 +1674,8 @@ module = {
   ia64_efi = loader/ia64/efi/linux.c;
   arm = loader/arm/linux.c;
   arm64 = loader/arm64/linux.c;
+   x86_64_efi = tpm/efi/tpm.c;
+  x86_64_efi = kern/efi/tpm/tpm_kern.c; 
   common = loader/linux.c;
   common = lib/cmdline.c;
   enable = noemu;
