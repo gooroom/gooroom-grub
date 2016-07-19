@@ -166,7 +166,7 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
 KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
 
 KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
-KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pc/tpm.h
+KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/tpm.h
 KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
 endif
 
