@@ -25,7 +25,11 @@
 
 #include <grub/types.h>
 
+#ifndef TPM_BOOLEAN
 typedef enum { false = 0, true = 1 } BOOLEAN;
+#define TPM_BOOLEAN
+#endif
+
 /************************* constants *************************/
 
 #define SHA1_DIGEST_SIZE 20

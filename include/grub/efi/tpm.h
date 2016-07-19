@@ -4,6 +4,10 @@
 #define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
 #define EFIAPI
 
+#ifndef TPM_BOOLEAN
+typedef enum { false = 0, true = 1 } BOOLEAN;
+#define TPM_BOOLEAN
+#endif
 /*modified for grub*/
 grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_t pcr,
 			 const unsigned char *description);
