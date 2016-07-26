@@ -1040,6 +1040,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
       loaded = 1;
 
+      //TPM TESTING
+      grub_printf("loader/i386/linux.c \n");
       DEBUG_PRINT( ("measured linux kernel: \n") );
       grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
     }
