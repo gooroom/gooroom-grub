@@ -110,6 +110,11 @@ BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
         grub_uint32_t flags;
 	grub_addr_t eventlog, lastevent;
 
+	if (tpm == NULL) {
+		grub_fatal ( "grub_TPM not present.");
+		return false;
+	}
+
         caps.Size = (grub_uint8_t)sizeof(caps);
         status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
                                    &eventlog, &lastevent);
@@ -134,8 +139,10 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 	//tpm = grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
 	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
 
-	 if (!tpm_present(tpm))
-		 return EFI_SUCCESS;
+	if (!tpm_present(tpm)) {
+		grub_fatal ( "grub_TPM not present.");
+		return EFI_SUCCESS;
+	}
 
 	// Prepare Event struct
 	grub_uint32_t strSize = grub_strlen(descriptions);
@@ -164,19 +171,19 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 void
 grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 
-    CHECK_FOR_NULL_ARGUMENT( result )
+	CHECK_FOR_NULL_ARGUMENT( result )
 
 	PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
 	PCRReadIncoming* pcrReadIncoming = NULL;
-    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *pcrReadIncoming );
+	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *pcrReadIncoming );
 
 	PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
 	PCRReadOutgoing* pcrReadOutgoing = NULL;
-    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *pcrReadOutgoing );
+	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *pcrReadOutgoing );
 
 	passThroughInput = grub_zalloc( inputlen );
-	if( ! passThroughInput ) {
-        grub_fatal( "readpcr: memory allocation failed" );
+	if( !passThroughInput ) {
+		grub_fatal( "readpcr: memory allocation failed" );
 	}
 
 	passThroughInput->IPBLength = inputlen;
@@ -191,7 +198,7 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 	passThroughOutput = grub_zalloc( outputlen );
 	if( ! passThroughOutput ) {
 		grub_free( passThroughInput );
-        grub_fatal( "readpcr: memory allocation failed" );
+	        grub_fatal( "readpcr: memory allocation failed" );
 	}
 
 	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
@@ -253,7 +260,7 @@ grub_TPM_efi_passThroughToTPM
 	(const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output )
 {
 	grub_efi_status_t status;
-	efi_tpm_protocol_t *tpm;
+	efi_tpm_protocol_t *tpm = NULL;
 
 	CHECK_FOR_NULL_ARGUMENT( input );
 	CHECK_FOR_NULL_ARGUMENT( output );
@@ -263,14 +270,19 @@ grub_TPM_efi_passThroughToTPM
 	}
 	//status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
 	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+	if (tpm == NULL) {
+		grub_fatal ( "grub_TPM not present.");
+	}
 
-	 if (!tpm_present(tpm))
-		 return EFI_SUCCESS;
+	if (!tpm_present(tpm)) {
+		grub_fatal ( "grub_TPM not present.");
+		return EFI_SUCCESS;
+	}
 
-	 status = efi_call_4 (tpm->pass_through_to_tpm,
+	status = efi_call_4 (tpm->pass_through_to_tpm,
 				input->IPBLength, &input->TPMOperandIn[0],
 				input->OPBLength, &output->TPMOperandOut[0]);
-	 return status;
+	return status;
 }
 
 /* grub_fatal() on error */

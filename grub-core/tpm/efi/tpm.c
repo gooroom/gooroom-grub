@@ -143,13 +143,13 @@ grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **
 
 	/* if index is invalid */
 	if( grub_errno != GRUB_ERR_NONE ) {
-        grub_fatal( "grub_cmd_readpcr: invalid format for index" );
+        	grub_fatal( "grub_cmd_readpcr: invalid format for index" );
 	}
 
 	grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
-    grub_TPM_readpcr( index, &result[0] );
+	grub_TPM_readpcr( index, &result[0] );
 
-	grub_printf( "PCR[%lu]=", index );
+	grub_printf( "read value PCR[%lu]=", index );
 	print_sha1( result );
 	grub_printf("\n");
 
