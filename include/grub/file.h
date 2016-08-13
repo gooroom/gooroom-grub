@@ -132,6 +132,7 @@ grub_file_filter_disable_pubkey (void)
 char *EXPORT_FUNC(grub_file_get_device_name) (const char *name);
 
 grub_file_t EXPORT_FUNC(grub_file_open) (const char *name);
+
 grub_ssize_t EXPORT_FUNC(grub_file_read) (grub_file_t file, void *buf,
 					  grub_size_t len);
 grub_off_t EXPORT_FUNC(grub_file_seek) (grub_file_t file, grub_off_t offset);

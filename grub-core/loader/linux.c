@@ -5,6 +5,10 @@
 #include <grub/file.h>
 #include <grub/mm.h>
 
+/* Begin TCG Extension */
+#include <grub/tpm.h>
+/* End TCG Extension */
+
 struct newc_head
 {
   char magic[6];
@@ -158,6 +162,9 @@ grub_initrd_init (int argc, char *argv[],
 
   initrd_ctx->size = 0;
 
+  //TPM testing
+  grub_printf("initrd init\n");
+
   for (i = 0; i < argc; i++)
     {
       const char *fname = argv[i];
@@ -248,6 +255,7 @@ grub_err_t
 grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
 		  char *argv[], void *target)
 {
+	grub_printf("initrd_load\n");
   grub_uint8_t *ptr = target;
   int i;
   int newc = 0;
@@ -288,6 +296,14 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
 	  grub_initrd_close (initrd_ctx);
 	  return grub_errno;
 	}
+
+      //Modified for efi testing
+
+      grub_dprintf("linux","in linux.c before TPM measure buffer\n");
+      /* Begin TCG Extension */
+      grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
+      /* End TCG Extension */
+
       ptr += cursize;
     }
   if (newc)

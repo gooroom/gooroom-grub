@@ -34,6 +34,10 @@
 #include <grub/script_sh.h>
 #include <grub/bufio.h>
 
+/* BEGIN TCG EXTENSION */
+#define TGRUB_VERSION "1.40"
+/* END TCG EXTENSION */
+
 GRUB_MOD_LICENSE ("GPLv3+");
 
 #define GRUB_DEFAULT_HISTORY_SIZE	50
@@ -208,7 +212,7 @@ grub_normal_init_page (struct grub_term_output *term,
  
   grub_term_cls (term);
 
-  msg_formatted = grub_xasprintf (_("GNU GRUB  version %s"), PACKAGE_VERSION);
+  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
   if (!msg_formatted)
     return;
  

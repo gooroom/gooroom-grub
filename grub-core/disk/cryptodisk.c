@@ -25,6 +25,8 @@
 #include <grub/fs.h>
 #include <grub/file.h>
 #include <grub/procfs.h>
+#include <grub/partition.h>
+#include <grub/env.h>
 
 #ifdef GRUB_UTIL
 #include <grub/emu/hostdisk.h>
@@ -40,6 +42,10 @@ static const struct grub_arg_option options[] =
     /* TRANSLATORS: It's still restricted to cryptodisks only.  */
     {"all", 'a', 0, N_("Mount all."), 0, 0},
     {"boot", 'b', 0, N_("Mount all volumes with `boot' flag set."), 0, 0},
+	/* Begin TCG extension */
+	{"keyfile", 'k', 0, N_("Keyfile to use for decrypting."), 0, 0},
+	{"unseal", 's', 0, N_("Unseals the provided keyfile."), 0, 0},
+	/* End TCG extension */
     {0, 0, 0, 0, 0, 0}
   };
 
@@ -379,10 +385,10 @@ grub_cryptodisk_endecrypt (struct grub_cryptodisk *dev,
 	case GRUB_CRYPTODISK_MODE_ECB:
 	  if (do_encrypt)
 	    err = grub_crypto_ecb_encrypt (dev->cipher, data + i, data + i,
-					   (1U << dev->log_sector_size));
+				     (1U << dev->log_sector_size));
 	  else
 	    err = grub_crypto_ecb_decrypt (dev->cipher, data + i, data + i,
-					   (1U << dev->log_sector_size));
+				     (1U << dev->log_sector_size));
 	  if (err)
 	    return err;
 	  break;
@@ -468,7 +474,7 @@ grub_cryptodisk_setkey (grub_cryptodisk_t dev, grub_uint8_t *key, grub_size_t ke
 
 static int
 grub_cryptodisk_iterate (grub_disk_dev_iterate_hook_t hook, void *hook_data,
-			 grub_disk_pull_t pull)
+		   grub_disk_pull_t pull)
 {
   grub_cryptodisk_t i;
 
@@ -656,10 +662,10 @@ grub_cryptodisk_write (grub_disk_t disk, grub_disk_addr_t sector,
   
   if (grub_disk_write_weak)
     err = grub_disk_write_weak (dev->source_disk,
-				(sector << (disk->log_sector_size
+			  (sector << (disk->log_sector_size
 					    - GRUB_DISK_SECTOR_BITS))
 				+ dev->offset,
-				0, size << disk->log_sector_size, tmp);
+			  0, size << disk->log_sector_size, tmp);
   else
     err = grub_error (GRUB_ERR_BUG, "disk.mod not loaded");
   grub_free (tmp);
@@ -718,6 +724,7 @@ grub_cryptodisk_insert (grub_cryptodisk_t newdev, const char *name,
   newdev->id = last_cryptodisk_id++;
   newdev->source_id = source->id;
   newdev->source_dev_id = source->dev->id;
+  newdev->partition_start = grub_partition_get_start (source->partition);
   newdev->next = cryptodisk_list;
   cryptodisk_list = newdev;
 
@@ -740,7 +747,9 @@ grub_cryptodisk_get_by_source_disk (grub_disk_t disk)
   grub_cryptodisk_t dev;
   for (dev = cryptodisk_list; dev != NULL; dev = dev->next)
     if (dev->source_id == disk->id && dev->source_dev_id == disk->dev->id)
-      return dev;
+      if ((disk->partition && grub_partition_get_start (disk->partition) == dev->partition_start) ||
+          (!disk->partition && dev->partition_start == 0))
+        return dev;
   return NULL;
 }
 
@@ -761,6 +770,7 @@ grub_cryptodisk_cheat_insert (grub_cryptodisk_t newdev, const char *name,
   newdev->cheat_fd = GRUB_UTIL_FD_INVALID;
   newdev->source_id = source->id;
   newdev->source_dev_id = source->dev->id;
+  newdev->partition_start = grub_partition_get_start (source->partition);
   newdev->id = last_cryptodisk_id++;
   newdev->next = cryptodisk_list;
   cryptodisk_list = newdev;
@@ -927,6 +937,19 @@ grub_cmd_cryptomount (grub_extcmd_context_t ctxt, int argc, char **args)
 
   if (argc < 1 && !state[1].set && !state[2].set)
     return grub_error (GRUB_ERR_BAD_ARGUMENT, "device name required");
+
+  /* Begin TCG extension */
+  /* keyFile path */
+  if( state[3].set ) {
+	  grub_env_set ("keyfile", args[1] );
+
+	  if( state[4].set ) {
+		  grub_env_set ("unsealmount", "true" );
+	  } else {
+		  grub_env_set ("unsealmount", "false" );
+	  }
+  }
+  /* End TCG extension */
 
   have_it = 0;
   if (state[0].set)
@@ -1135,8 +1158,10 @@ GRUB_MOD_INIT (cryptodisk)
 {
   grub_disk_dev_register (&grub_cryptodisk_dev);
   cmd = grub_register_extcmd ("cryptomount", grub_cmd_cryptomount, 0,
-			      N_("SOURCE|-u UUID|-a|-b"),
+		  /* Begin TCG extension */
+			      N_("SOURCE|-u UUID|-a|-b|-k KEYFILE|-s"),
 			      N_("Mount a crypto device."), options);
+  	  	  /* End TCG extension */
   grub_procfs_register ("luks_script", &luks_script);
 }
 
