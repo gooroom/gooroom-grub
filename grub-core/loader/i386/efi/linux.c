@@ -27,6 +27,9 @@
 #include <grub/lib/cmdline.h>
 #include <grub/efi/efi.h>
 #include <grub/efi/linux.h>
+/* Begin TCG Extension */
+#include <grub/tpm.h>
+/* End TCG Extension */
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -135,6 +138,13 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
     }
 
   params->ramdisk_size = size;
+
+  /* Begin TCG Extension */
+  grub_TPM_measure_buffer( initrd_mem, size, TPM_LOADER_MEASUREMENT_PCR );
+  // from TrustedGRUB2 loader/linux.c
+  // measure from the beginning (initrd_mem),
+  // not ptr
+  /* End TCG Extension */
 
  fail:
   for (i = 0; i < nfiles; i++)
@@ -260,6 +270,10 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       goto fail;
     }
 
+  /* Begin TCG Extension */
+  // Measure before copy?
+  grub_TPM_measure_buffer( (char *)kernel + start, len, TPM_LOADER_MEASUREMENT_PCR );
+  /* End TCG Extension */
   grub_memcpy (kernel_mem, (char *)kernel + start, len);
   grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
   loaded=1;
