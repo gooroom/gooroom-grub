@@ -203,7 +203,7 @@ typedef struct {
 /************************* functions *************************/
 
 /* Invokes TCG_StatusCheck */
-grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
+grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
 
 BOOLEAN EXPORT_FUNC(tpm_present)(efi_tpm_protocol_t *tpm);
 

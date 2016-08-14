@@ -174,6 +174,7 @@ grub_TPM_read_tcglog( const unsigned long index ) {
 	efi_tpm_protocol_t *tpm;
 
 	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+
 	tpm_present(tpm);
 	// TODO-seehwan
 

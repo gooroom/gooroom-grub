@@ -105,9 +105,10 @@ typedef struct {
 static grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
 BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 {
-        grub_efi_status_t status;
-        TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
-        grub_uint32_t flags;
+
+	grub_efi_status_t status;
+	TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
+	grub_uint32_t flags;
 	grub_addr_t eventlog, lastevent;
 
 	if (tpm == NULL) {
@@ -115,15 +116,15 @@ BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 		return false;
 	}
 
-        caps.Size = (grub_uint8_t)sizeof(caps);
-        status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
-                                   &eventlog, &lastevent);
+	caps.Size = (grub_uint8_t)sizeof(caps);
+	status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
+							   &eventlog, &lastevent);
 
-        if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
-            || !caps.TPMPresentFlag)
-                return false;
+	if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
+		|| !caps.TPMPresentFlag)
+			return false;
 
-        return true;
+	return true;
 }
 
 grub_efi_status_t
@@ -134,7 +135,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 	grub_efi_status_t status;
 	efi_tpm_protocol_t *tpm;
 
-        grub_uint32_t algorithm, eventnum = 0;
+	grub_uint32_t algorithm, eventnum = 0;
 	grub_addr_t lastevent;
 	Event* event;
 
@@ -238,17 +239,40 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
  *//*modified to use in efi*/
 
 grub_err_t
-grub_TPM_efi_statusCheck( const grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_addr_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi )
+grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi )
 {
 	//TPM TESTING
 	grub_printf("grub_TPM_efi_statusCheck \n");
-	grub_err_t status;
 	efi_tpm_protocol_t *tpm;
+	grub_efi_status_t status;
+	TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
+	grub_uint32_t flags;
+	grub_addr_t *eventlog, *lastevent;
 
 	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-	status = tpm_present(tpm);
-	return status;
-	efi_call_5 (&returnCode, major, minor, featureFlags, eventLog, edi);
+	if (tpm == NULL) {
+		grub_fatal ( "grub_TPM not present._TPM_PRESENT");
+		return false;
+	}
+
+	caps.Size = (grub_uint8_t)sizeof(caps);
+	status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
+							   &eventlog, &lastevent);
+
+	if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
+		|| !caps.TPMPresentFlag)
+			return false;
+
+	*featureFlags = flags;
+	*eventLog = *eventlog;
+	*edi = *lastevent;
+
+	*returnCode = status;
+	return true;
+	// never reached here
+	// major,minor for compatibility
+	// ignore errors
+	if ( major == minor ) return true;
 }
 
 
