@@ -139,11 +139,22 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 	grub_addr_t lastevent;
 	Event* event;
 
-	//tpm = grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
-	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		grub_fatal ( "grub_efi locate_handle failed. TPM not present._hashlogextendevent");
+		return EFI_SUCCESS;
+	}
+
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
 
 	if (!tpm_present(tpm)) {
-		grub_fatal ( "grub_TPM not present._hashlogextendevent");
+		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present._hashlogextendevent");
 		return EFI_SUCCESS;
 	}
 

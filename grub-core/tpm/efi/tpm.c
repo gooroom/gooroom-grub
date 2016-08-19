@@ -156,26 +156,23 @@ grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **
 	return GRUB_ERR_NONE;
 }
 
-static grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
 /* grub_fatal() on error */
 static void
 grub_TPM_read_tcglog( const unsigned long index ) {
 
-	//grub_uint32_t returnCode;
-	//grub_addr_t featureFlags, eventLog = 0,logAddr = 0, edi = 0;
-	//grub_uint8_t major, minor;
+	grub_uint32_t returnCode;
+	grub_uint32_t featureFlags;
 	grub_addr_t eventLog = 0,logAddr = 0, edi = 0;
+	grub_uint8_t major, minor;
 
 	/* get event log pointer */
         /* Modified to use in efi*/
 	//grub_TPM_int1A_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi );
-        //grub_TPM_efi_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi);
+    grub_TPM_efi_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi);
 
-	efi_tpm_protocol_t *tpm;
-
-	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-
-	tpm_present(tpm);
+	//efi_tpm_protocol_t *tpm;
+	//tpm = grub_efi_locate_protocol(&tpm_guid, 0);
+	//tpm_present(tpm);
 	// TODO-seehwan
 
 	/* edi = 0 means event log is empty */
