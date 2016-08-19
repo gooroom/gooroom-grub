@@ -133,17 +133,20 @@ grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **
 
 	if ( argc == 0 ) {
 		grub_fatal( "grub_cmd_readpcr: index expected" );
+		return GRUB_ERR_NONE;
 	}
 
 	if ( argc > 1 ) {
 		grub_fatal( "grub_cmd_readpcr: Too many arguments" );
+		return GRUB_ERR_NONE;
 	}
 
 	unsigned long index = grub_strtoul( args[0], NULL, 10 );
 
 	/* if index is invalid */
 	if( grub_errno != GRUB_ERR_NONE ) {
-        	grub_fatal( "grub_cmd_readpcr: invalid format for index" );
+		grub_fatal( "grub_cmd_readpcr: invalid format for index" );
+		return GRUB_ERR_NONE;
 	}
 
 	grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
@@ -166,14 +169,7 @@ grub_TPM_read_tcglog( const unsigned long index ) {
 	grub_uint8_t major, minor;
 
 	/* get event log pointer */
-        /* Modified to use in efi*/
-	//grub_TPM_int1A_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi );
     grub_TPM_efi_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi);
-
-	//efi_tpm_protocol_t *tpm;
-	//tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-	//tpm_present(tpm);
-	// TODO-seehwan
 
 	/* edi = 0 means event log is empty */
 	if( edi == 0 ) {
@@ -242,10 +238,12 @@ grub_cmd_tcglog( grub_command_t cmd __attribute__ ((unused)), int argc, char **a
 
 	if ( argc == 0 ) {
 		grub_fatal( "grub_cmd_tcglog: index expected" );
+		return GRUB_ERR_NONE;
 	}
 
 	if ( argc > 1 ) {
 		grub_fatal( "grub_cmd_tcglog: Too many arguments" );
+		return GRUB_ERR_NONE;
 	}
 
 	unsigned long index = grub_strtoul( args[0], NULL, 10 );
@@ -253,6 +251,7 @@ grub_cmd_tcglog( grub_command_t cmd __attribute__ ((unused)), int argc, char **a
     /* if index is invalid */
     if( grub_errno != GRUB_ERR_NONE ) {
         grub_fatal( "grub_cmd_tcglog: invalid format for index" );
+		return GRUB_ERR_NONE;
     }
 
 	grub_TPM_read_tcglog( index ) ;

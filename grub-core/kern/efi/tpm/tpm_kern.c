@@ -188,7 +188,8 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 	CHECK_FOR_NULL_ARGUMENT( result )
 
 	PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
-	PCRReadIncoming* pcrReadIncoming = NULL;
+	PCRReadIncoming *pcrReadIncoming = NULL;
+	PCRReadIncoming Incoming;
 	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *pcrReadIncoming );
 
 	PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
@@ -202,13 +203,49 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 
 	passThroughInput->IPBLength = inputlen;
 	passThroughInput->OPBLength = outputlen;
+	grub_printf("passThroughInput->IPBLength %d\n", inputlen);
 
-	pcrReadIncoming = (void *)passThroughInput->TPMOperandIn;
+	pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
+	grub_printf("ReadIncoming(%p)\n", pcrReadIncoming);
+	Incoming.tag = TPM_TAG_RQU_COMMAND;
+	Incoming.paramSize = sizeof( *pcrReadIncoming );
+	Incoming.ordinal = TPM_ORD_PcrRead;
+	Incoming.pcrIndex = index;
+
+	pcrReadIncoming = &Incoming;
+	grub_printf("ReadIncoming->tag 0x%x\n", pcrReadIncoming->tag);
+	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
+	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
+	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
+
+	grub_printf("==== convert ====\n");
+	grub_uint32_t tmp = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
+	grub_printf("tmp 0x%x\n", tmp);
+	pcrReadIncoming->tag = tmp;
+	tmp = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
+	pcrReadIncoming->paramSize = tmp;
+	tmp = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
+	pcrReadIncoming->ordinal = tmp;
+	tmp = grub_swap_bytes32( (grub_uint32_t) index);
+	pcrReadIncoming->pcrIndex = tmp;
+
+	grub_printf("ReadIncoming->tag 0x%x\n", pcrReadIncoming->tag);
+	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
+	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
+	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
+
+	pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
+	grub_memcpy(pcrReadIncoming, &Incoming, sizeof(Incoming));
+	grub_printf("ReadIncoming->tag(%p) 0x%x\n", &pcrReadIncoming->tag, pcrReadIncoming->tag);
+	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
+	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
+	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
+/*
 	pcrReadIncoming->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
 	pcrReadIncoming->paramSize = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
 	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
 	pcrReadIncoming->pcrIndex = grub_swap_bytes32( (grub_uint32_t) index);
-
+*/
 	passThroughOutput = grub_zalloc( outputlen );
 	if( ! passThroughOutput ) {
 		grub_free( passThroughInput );
@@ -250,15 +287,13 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
  *//*modified to use in efi*/
 
 grub_err_t
-grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi )
+grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t *eventLog, grub_addr_t *edi )
 {
 	//TPM TESTING
 	grub_printf("grub_TPM_efi_statusCheck \n");
 	efi_tpm_protocol_t *tpm;
 	grub_efi_status_t status;
 	TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
-	grub_uint32_t flags;
-	grub_addr_t *eventlog, *lastevent;
 
 	grub_efi_handle_t *handles;
 	grub_efi_handle_t tpm_handle;
@@ -279,21 +314,16 @@ grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, 
 		return EFI_SUCCESS;
 	}
 
-
 	caps.Size = (grub_uint8_t)sizeof(caps);
-	status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
-							   &eventlog, &lastevent);
+	status = efi_call_5 (tpm->status_check, tpm, &caps, featureFlags,
+							   eventLog, edi);
 
 	if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
 		|| !caps.TPMPresentFlag)
-			return false;
-
-	*featureFlags = flags;
-	*eventLog = *eventlog;
-	*edi = *lastevent;
+			return EFI_SUCCESS;
 
 	*returnCode = status;
-	return true;
+	return EFI_SUCCESS;
 	// never reached here
 	// major,minor for compatibility
 	// ignore errors
@@ -320,6 +350,8 @@ grub_TPM_efi_passThroughToTPM
 	grub_efi_handle_t tpm_handle;
 	grub_efi_uintn_t num_handles;
 
+	grub_uint32_t inhdrsize = sizeof(*input) - sizeof(input->TPMOperandIn);
+	grub_uint32_t outhdrsize = sizeof(*output) - sizeof(output->TPMOperandOut);
 
 	CHECK_FOR_NULL_ARGUMENT( input );
 	CHECK_FOR_NULL_ARGUMENT( output );
@@ -343,9 +375,10 @@ grub_TPM_efi_passThroughToTPM
 		return EFI_SUCCESS;
 	}
 
+	grub_printf("invoking efi-call\n");
 	status = efi_call_4 (tpm->pass_through_to_tpm,
-				input->IPBLength, &input->TPMOperandIn[0],
-				input->OPBLength, &output->TPMOperandOut[0]);
+				input->IPBLength - inhdrsize, &input->TPMOperandIn[0],
+				input->OPBLength - outhdrsize, &output->TPMOperandOut[0]);
 	return status;
 }
 
