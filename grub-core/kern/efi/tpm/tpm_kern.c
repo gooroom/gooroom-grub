@@ -260,11 +260,25 @@ grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, 
 	grub_uint32_t flags;
 	grub_addr_t *eventlog, *lastevent;
 
-	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-	if (tpm == NULL) {
-		grub_fatal ( "grub_TPM not present._TPM_PRESENT");
-		return false;
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		grub_fatal ( "grub_efi locate_handle failed. TPM not present.TPM_efi_statusCheck");
+		return EFI_SUCCESS;
 	}
+
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+
+	if (!tpm_present(tpm)) {
+		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present.TPM_efi_statusCheck");
+		return EFI_SUCCESS;
+	}
+
 
 	caps.Size = (grub_uint8_t)sizeof(caps);
 	status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
@@ -302,6 +316,10 @@ grub_TPM_efi_passThroughToTPM
 	grub_printf("grub_TPM_efi_passThroughToTPM \n");
 	grub_efi_status_t status;
 	efi_tpm_protocol_t *tpm = NULL;
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
 
 	CHECK_FOR_NULL_ARGUMENT( input );
 	CHECK_FOR_NULL_ARGUMENT( output );
@@ -309,14 +327,19 @@ grub_TPM_efi_passThroughToTPM
 	if ( ! input->IPBLength || ! input->OPBLength ) {
 		 grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
 	}
-	//status= grub_efi_locate_protocol(&tpm_guid, (void **)&tpm);
-	tpm = grub_efi_locate_protocol(&tpm_guid, 0);
-	if (tpm == NULL) {
-		grub_fatal ( "grub_TPM not present._passthroughtoTPM");
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		grub_fatal ( "grub_efi locate_handle failed. TPM not present.TPM_efi_passThroughToTPM");
+		return EFI_SUCCESS;
 	}
 
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+
 	if (!tpm_present(tpm)) {
-		grub_fatal ( "grub_TPM not present._passthroughtpm");
+		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present.TPM_efi_passThroughToTPM");
 		return EFI_SUCCESS;
 	}
 
