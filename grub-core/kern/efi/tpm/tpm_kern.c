@@ -203,24 +203,16 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 
 	passThroughInput->IPBLength = inputlen;
 	passThroughInput->OPBLength = outputlen;
-	grub_printf("passThroughInput->IPBLength %d\n", inputlen);
 
-	pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
-	grub_printf("ReadIncoming(%p)\n", pcrReadIncoming);
-	Incoming.tag = TPM_TAG_RQU_COMMAND;
-	Incoming.paramSize = sizeof( *pcrReadIncoming );
-	Incoming.ordinal = TPM_ORD_PcrRead;
-	Incoming.pcrIndex = index;
+	 pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
+	 Incoming.tag = TPM_TAG_RQU_COMMAND;
+	 Incoming.paramSize = sizeof( *pcrReadIncoming );
+	 Incoming.ordinal = TPM_ORD_PcrRead;
+	 Incoming.pcrIndex = index;
 
-	pcrReadIncoming = &Incoming;
-	grub_printf("ReadIncoming->tag 0x%x\n", pcrReadIncoming->tag);
-	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
-	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
-	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
-
-	grub_printf("==== convert ====\n");
+	 pcrReadIncoming = &Incoming;
+	 //CONVERT
 	grub_uint32_t tmp = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
-	grub_printf("tmp 0x%x\n", tmp);
 	pcrReadIncoming->tag = tmp;
 	tmp = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
 	pcrReadIncoming->paramSize = tmp;
@@ -229,23 +221,9 @@ grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
 	tmp = grub_swap_bytes32( (grub_uint32_t) index);
 	pcrReadIncoming->pcrIndex = tmp;
 
-	grub_printf("ReadIncoming->tag 0x%x\n", pcrReadIncoming->tag);
-	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
-	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
-	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
-
 	pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
 	grub_memcpy(pcrReadIncoming, &Incoming, sizeof(Incoming));
-	grub_printf("ReadIncoming->tag(%p) 0x%x\n", &pcrReadIncoming->tag, pcrReadIncoming->tag);
-	grub_printf("ReadIncoming->paramSize(%p) 0x%x\n", &pcrReadIncoming->paramSize, pcrReadIncoming->paramSize);
-	grub_printf("ReadIncoming->ordinal(%p) 0x%x\n", &pcrReadIncoming->ordinal, pcrReadIncoming->ordinal);
-	grub_printf("ReadIncoming->pcrIndex(%p) 0x%x\n", &pcrReadIncoming->pcrIndex, pcrReadIncoming->pcrIndex);
-/*
-	pcrReadIncoming->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
-	pcrReadIncoming->paramSize = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
-	pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
-	pcrReadIncoming->pcrIndex = grub_swap_bytes32( (grub_uint32_t) index);
-*/
+
 	passThroughOutput = grub_zalloc( outputlen );
 	if( ! passThroughOutput ) {
 		grub_free( passThroughInput );
@@ -375,11 +353,24 @@ grub_TPM_efi_passThroughToTPM
 		return EFI_SUCCESS;
 	}
 
-	grub_printf("invoking efi-call\n");
-	status = efi_call_4 (tpm->pass_through_to_tpm,
-				input->IPBLength - inhdrsize, &input->TPMOperandIn[0],
-				input->OPBLength - outhdrsize, &output->TPMOperandOut[0]);
-	return status;
+	status = efi_call_5 (tpm->pass_through_to_tpm, tpm,
+				input->IPBLength - inhdrsize, input->TPMOperandIn,
+				input->OPBLength - outhdrsize, output->TPMOperandOut);
+
+	switch (status) {
+		case GRUB_EFI_SUCCESS:
+			return EFI_SUCCESS;
+		case GRUB_EFI_DEVICE_ERROR:
+			return grub_error (GRUB_ERR_IO, N_("Command failed"));
+		case GRUB_EFI_INVALID_PARAMETER:
+			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Invalid parameter"));
+		case GRUB_EFI_BUFFER_TOO_SMALL:
+			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Output buffer too small"));
+		case GRUB_EFI_NOT_FOUND:
+			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("TPM unavailable"));
+		default:
+			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("Unknown TPM error"));
+	}
 }
 
 /* grub_fatal() on error */
