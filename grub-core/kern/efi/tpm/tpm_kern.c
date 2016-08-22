@@ -173,11 +173,25 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 	event->eventDataSize = strSize + 1;
 	algorithm = 0x00000004;
 
-	status = efi_call_6(tpm->log_extend_event, inDigest,
+	status = efi_call_7(tpm->log_extend_event, tpm, inDigest,
                                            (grub_uint64_t)eventStructSize, algorithm, event,
                                            &eventnum, &lastevent);
 
-	return status;
+	switch (status) {
+		case GRUB_EFI_SUCCESS:
+			grub_printf("EFI SUCCESS \n");
+			return EFI_SUCCESS;
+		case GRUB_EFI_DEVICE_ERROR:
+			return grub_error (GRUB_ERR_IO, N_("Command failed"));
+		case GRUB_EFI_INVALID_PARAMETER:
+			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Invalid parameter"));
+		case GRUB_EFI_BUFFER_TOO_SMALL:
+			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Output buffer too small"));
+		case GRUB_EFI_NOT_FOUND:
+			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("TPM unavailable"));
+		default:
+			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("Unknown TPM error"));
+	}
 }
 /************************* non-static functions *************************/
 
