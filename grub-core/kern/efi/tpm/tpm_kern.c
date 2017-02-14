@@ -179,7 +179,7 @@ grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrI
 
 	switch (status) {
 		case GRUB_EFI_SUCCESS:
-			grub_printf("EFI SUCCESS \n");
+//			grub_printf("EFI SUCCESS \n");
 			return EFI_SUCCESS;
 		case GRUB_EFI_DEVICE_ERROR:
 			return grub_error (GRUB_ERR_IO, N_("Command failed"));
@@ -480,6 +480,8 @@ grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, cons
 	//TPM TESTING
 	grub_printf("grub_TPM_measure_buffer start\n");
 	CHECK_FOR_NULL_ARGUMENT( buffer )
+
+	if(bufferLen == 0) return;
 
 	/* hash buffer */
 	grub_uint32_t result[5] = { 0 };

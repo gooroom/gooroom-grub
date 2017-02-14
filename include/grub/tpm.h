@@ -35,10 +35,10 @@ typedef enum { false = 0, true = 1 } BOOLEAN;
 #define SHA1_DIGEST_SIZE 20
 
 /* Measure into following PCRs */
-#define TPM_LOADER_MEASUREMENT_PCR 10
-#define TPM_COMMAND_MEASUREMENT_PCR 11
-#define TPM_LUKS_HEADER_MEASUREMENT_PCR 12
-#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 13
+#define TPM_LOADER_MEASUREMENT_PCR 9
+#define TPM_COMMAND_MEASUREMENT_PCR 8
+#define TPM_LUKS_HEADER_MEASUREMENT_PCR 11
+#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 12
 
 /************************* macros *************************/
 
