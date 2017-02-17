@@ -112,7 +112,7 @@ BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 	grub_addr_t eventlog, lastevent;
 
 	if (tpm == NULL) {
-		grub_fatal ( "grub_TPM not present._TPM_PRESENT");
+//		grub_fatal ( "grub_TPM not present._TPM_PRESENT");
 		return false;
 	}
 
@@ -128,36 +128,15 @@ BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 }
 
 grub_efi_status_t
-grub_TPM_efi_hashLogExtendEvent(const grub_uint8_t * inDigest, grub_uint8_t pcrIndex, const char* descriptions )
+grub_TPM_efi_hashLogExtendEvent(efi_tpm_protocol_t* tpm, const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* descriptions )
 {
-	//TPM TESTING
-	grub_printf(" grub_TPM_efi_hashLogExtendEvent \n");
+	//grub_printf(" grub_TPM_efi_hashLogExtendEvent \n");
 	grub_efi_status_t status;
-	efi_tpm_protocol_t *tpm;
 
 	grub_uint32_t algorithm, eventnum = 0;
 	grub_addr_t lastevent;
 	Event* event;
-
-	grub_efi_handle_t *handles;
-	grub_efi_handle_t tpm_handle;
-	grub_efi_uintn_t num_handles;
-
-	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
-	if (handles && num_handles > 0) {
-		tpm_handle = handles[0];
-	} else {
-		grub_fatal ( "grub_efi locate_handle failed. TPM not present._hashlogextendevent");
-		return EFI_SUCCESS;
-	}
-
-	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
-
-	if (!tpm_present(tpm)) {
-		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present._hashlogextendevent");
-		return EFI_SUCCESS;
-	}
-
+	
 	// Prepare Event struct
 	grub_uint32_t strSize = grub_strlen(descriptions);
 	grub_uint32_t eventStructSize = strSize + sizeof(Event);
@@ -391,6 +370,30 @@ grub_TPM_efi_passThroughToTPM
 void
 grub_TPM_measure_string( const char* string ) {
 
+	DEBUG_PRINT("grub_TPM_measure_string \n");
+
+	efi_tpm_protocol_t *tpm;
+
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
+		return;
+	}
+
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+
+	if (!tpm_present(tpm)) {
+		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
+		return;
+	}
+	/* TPM check end*/
+
 	CHECK_FOR_NULL_ARGUMENT( string )
 
 	grub_uint32_t result[5] = { 0 };
@@ -417,13 +420,36 @@ grub_TPM_measure_string( const char* string ) {
 #endif
 
     /*modified to use in efi*/
-	grub_TPM_efi_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );    
-	//grub_TPM_int1A_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );
+	grub_TPM_efi_hashLogExtendEvent( tpm, convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );    
 }
 
 /* grub_fatal() on error */
 void
 grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
+
+	DEBUG_PRINT("grub_TPM_measure_file \n");
+
+	efi_tpm_protocol_t *tpm;
+
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
+		return;
+	}
+
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+
+	if (!tpm_present(tpm)) {
+		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
+		return;
+	}
+	/* TPM check end*/
 
 	CHECK_FOR_NULL_ARGUMENT( filename )
 
@@ -470,15 +496,36 @@ grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
 
 	/* measure */
 	/* modified to use in efi*/
-    	grub_TPM_efi_hashLogExtendEvent( convertedResult, index, filename );
-    	//grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, filename );
+    	grub_TPM_efi_hashLogExtendEvent( tpm, convertedResult, index, filename );
 }
 
 void
 grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index )
 {
-	//TPM TESTING
-	grub_printf("grub_TPM_measure_buffer start\n");
+	DEBUG_PRINT("grub_TPM_measure_buffer \n");
+
+	efi_tpm_protocol_t *tpm;
+
+	grub_efi_handle_t *handles;
+	grub_efi_handle_t tpm_handle;
+	grub_efi_uintn_t num_handles;
+
+	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
+	if (handles && num_handles > 0) {
+		tpm_handle = handles[0];
+	} else {
+		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
+		return;
+	}
+
+	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
+
+	if (!tpm_present(tpm)) {
+		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
+		return;
+	}
+	/* TPM check end*/
+
 	CHECK_FOR_NULL_ARGUMENT( buffer )
 
 	if(bufferLen == 0) return;
@@ -502,6 +549,6 @@ grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, cons
 	}
 	/* measure */
 	if (bufferLen != 0)
-		grub_TPM_efi_hashLogExtendEvent( convertedResult, index, "measured buffer" );
+		grub_TPM_efi_hashLogExtendEvent(tpm, convertedResult, index, "measured buffer" );
 }
 /* End TCG Extension */
