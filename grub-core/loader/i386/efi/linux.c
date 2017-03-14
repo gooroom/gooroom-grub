@@ -31,6 +31,10 @@
 #include <grub/tpm.h>
 /* End TCG Extension */
 
+#include <grub/term.h>
+#include <grub/normal.h>
+#include <grub/time.h>
+
 GRUB_MOD_LICENSE ("GPLv3+");
 
 static grub_dl_t my_mod;
@@ -196,7 +200,21 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 
   if (! grub_linuxefi_secure_validate (kernel, filelen))
     {
-      grub_error (GRUB_ERR_INVALID_COMMAND, N_("%s has invalid signature"), argv[0]);
+//    grub_error (GRUB_ERR_INVALID_COMMAND, N_("%s has invalid signature"), argv[0]);
+
+	  grub_cls();
+	  grub_printf_ (N_(" "));
+	  grub_refresh ();
+
+      grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_fail.png");
+	  grub_printf_ (N_(" "));
+	  grub_refresh ();
+//	  grub_xputs ("\n");
+
+	  grub_getkey ();
+
+	  grub_reboot ();
+
       goto fail;
     }
 

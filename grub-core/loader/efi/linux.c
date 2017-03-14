@@ -24,6 +24,11 @@
 #include <grub/efi/pe32.h>
 #include <grub/efi/linux.h>
 
+#include <grub/video.h>
+#include <grub/gfxterm.h>
+#include <grub/bitmap.h>
+#include <grub/bitmap_scale.h>
+
 #define SHIM_LOCK_GUID \
  { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} }
 
@@ -61,5 +66,62 @@ grub_efi_linux_boot (void *kernel_addr, grub_off_t offset,
   hf (grub_efi_image_handle, grub_efi_system_table, kernel_params);
 
   return GRUB_ERR_BUG;
+}
+
+grub_err_t
+grub_gfxterm_warning_image (const char *filename)
+{
+	/* Check that we have video adapter active.  */
+	if (grub_video_get_info(NULL) != GRUB_ERR_NONE)
+		return grub_errno;
+
+	/* Destroy existing background bitmap if loaded.  */
+	if (grub_gfxterm_background.bitmap)
+	{
+		grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
+		grub_gfxterm_background.bitmap = 0;
+		grub_gfxterm_background.blend_text_bg = 0;
+
+		/* Mark whole screen as dirty.  */
+		grub_gfxterm_schedule_repaint ();
+	}
+
+	/* Try to load new one.  */
+	grub_video_bitmap_load (&grub_gfxterm_background.bitmap, filename);
+	if (grub_errno != GRUB_ERR_NONE)
+		return grub_errno;
+
+	unsigned int width, height;
+	grub_gfxterm_get_dimensions (&width, &height);
+	if (width != grub_video_bitmap_get_width (grub_gfxterm_background.bitmap)
+	|| height != grub_video_bitmap_get_height (grub_gfxterm_background.bitmap))
+	{
+		struct grub_video_bitmap *scaled_bitmap;
+
+		grub_video_bitmap_create_scaled (&scaled_bitmap,
+										  width,
+										  height,
+										  grub_gfxterm_background.bitmap,
+										  GRUB_VIDEO_BITMAP_SCALE_METHOD_BEST);
+		if (grub_errno == GRUB_ERR_NONE)
+		{
+			/* Replace the original bitmap with the scaled one.  */
+			grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
+			grub_gfxterm_background.bitmap = scaled_bitmap;
+		}
+	}
+
+	/* If bitmap was loaded correctly, display it.  */
+	if (grub_gfxterm_background.bitmap)
+	{
+		grub_gfxterm_background.blend_text_bg = 1;
+
+		/* Mark whole screen as dirty.  */
+		grub_gfxterm_schedule_repaint ();
+	}
+
+	/* All was ok.  */
+	grub_errno = GRUB_ERR_NONE;
+	return grub_errno;
 }
 
