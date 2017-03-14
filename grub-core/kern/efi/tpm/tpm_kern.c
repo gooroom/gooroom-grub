@@ -370,7 +370,7 @@ grub_TPM_efi_passThroughToTPM
 void
 grub_TPM_measure_string( const char* string ) {
 
-	DEBUG_PRINT("grub_TPM_measure_string \n");
+//	DEBUG_PRINT( "grub_TPM_measure_string \n" );
 
 	efi_tpm_protocol_t *tpm;
 
@@ -382,7 +382,7 @@ grub_TPM_measure_string( const char* string ) {
 	if (handles && num_handles > 0) {
 		tpm_handle = handles[0];
 	} else {
-		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
+		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present." );
 		return;
 	}
 

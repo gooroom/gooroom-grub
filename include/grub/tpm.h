@@ -43,9 +43,10 @@ typedef enum { false = 0, true = 1 } BOOLEAN;
 /************************* macros *************************/
 
 #ifdef TGRUB_DEBUG
-	#define DEBUG_PRINT( x ) grub_printf x
+//	#define DEBUG_PRINT(_x_)	grub_printf(_x_)
+	#define DEBUG_PRINT(...)
 #else
-	#define DEBUG_PRINT( x )
+	#define DEBUG_PRINT(...)
 #endif
 
 /************************* functions *************************/

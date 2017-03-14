@@ -821,7 +821,7 @@ grub_cmd_unseal( grub_command_t cmd __attribute__ ((unused)), int argc, char **a
 
 	grub_size_t fileSize = file->size;
 
-	DEBUG_PRINT( ( "sealed file size = %d\n", fileSize ) );
+	DEBUG_PRINT( ( "sealed file size = %d\n", (int)fileSize ) );
 
 	grub_uint8_t* buf = grub_zalloc( fileSize );
 	if ( ! buf ) {
