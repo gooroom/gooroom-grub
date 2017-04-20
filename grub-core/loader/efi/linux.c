@@ -54,6 +54,22 @@ grub_linuxefi_secure_validate (void *data, grub_uint32_t size)
   return 1;
 }
 
+grub_efi_boolean_t
+grub_linuxefi_check_shim_lock (void)
+{
+  grub_efi_guid_t guid = SHIM_LOCK_GUID;
+  grub_efi_shim_lock_t *shim_lock;
+
+  shim_lock = grub_efi_locate_protocol(&guid, NULL);
+
+  if (!shim_lock) {
+    /* The SHIM_LOCK protocol is missing. */
+    return 0;
+  }
+
+  return 1;
+}
+
 typedef void (*handover_func) (void *, grub_efi_system_table_t *, void *);
 
 grub_err_t
