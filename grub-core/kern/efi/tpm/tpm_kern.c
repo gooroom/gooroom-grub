@@ -128,7 +128,7 @@ BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 }
 
 grub_efi_status_t
-grub_TPM_efi_hashLogExtendEvent(efi_tpm_protocol_t* tpm, const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* descriptions )
+grub_TPM_efi_hashLogExtendEvent(efi_tpm_protocol_t* tpm, const grub_uint8_t* inDigest, grub_uint32_t size, grub_uint8_t pcrIndex, const char* descriptions )
 {
 	//grub_printf(" grub_TPM_efi_hashLogExtendEvent \n");
 	grub_efi_status_t status;
@@ -152,8 +152,8 @@ grub_TPM_efi_hashLogExtendEvent(efi_tpm_protocol_t* tpm, const grub_uint8_t* inD
 	event->eventDataSize = strSize + 1;
 	algorithm = 0x00000004;
 
-	status = efi_call_7(tpm->log_extend_event, tpm, inDigest,
-                                           (grub_uint64_t)eventStructSize, algorithm, event,
+  	status = efi_call_7(tpm->log_extend_event, tpm, inDigest,
+                                           (grub_uint64_t)size, algorithm, event,
                                            &eventnum, &lastevent);
 
 	switch (status) {
@@ -394,33 +394,11 @@ grub_TPM_measure_string( const char* string ) {
 	}
 	/* TPM check end*/
 
-	CHECK_FOR_NULL_ARGUMENT( string )
+	grub_ssize_t len;
 
-	grub_uint32_t result[5] = { 0 };
-	grub_err_t err = sha1_hash_string( string, result );
-	if( err != GRUB_ERR_NONE ) {
-		grub_fatal( "grub_TPM_measureString: sha1_hash_string failed." );
-	}
-
-	/* convert from uint32_t to uint8_t */
-	grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
-	int j, i = 0;
-	for( j = 0; j < 5; j++ ) {
-		convertedResult[i++] = ((result[j]>>24)&0xff);
-		convertedResult[i++] = ((result[j]>>16)&0xff);
-		convertedResult[i++] = ((result[j]>>8)&0xff);
-		convertedResult[i++] = (result[j]&0xff);
-	}
-
-#ifdef TGRUB_DEBUG
-	DEBUG_PRINT( ( "string to measure: '%s'\n", string ) );
-	DEBUG_PRINT( ( "SHA1 of string: " ) );
-    print_sha1( convertedResult );
-    DEBUG_PRINT( ( "\n" ) );
-#endif
-
-    /*modified to use in efi*/
-	grub_TPM_efi_hashLogExtendEvent( tpm, convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );    
+	len = grub_strlen(string);
+	grub_TPM_efi_hashLogExtendEvent( tpm, (const grub_uint8_t *)string, len, TPM_COMMAND_MEASUREMENT_PCR, string );
+  
 }
 
 /* grub_fatal() on error */
@@ -462,41 +440,22 @@ grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
         grub_fatal( "grub_TPM_measureFile: grub_file_open failed." );
 	}
 
-	/* hash file */
-	grub_uint32_t result[5] = { 0 };
-	grub_err_t err = sha1_hash_file( file, result  );
+	grub_ssize_t len;
+	void *buffer = NULL;
 
-    if( err != GRUB_ERR_NONE ) {
-		grub_fatal( "grub_TPM_measureFile: sha1_hash_file failed." );
-	}
+	len = grub_file_size ( file );
+
+	buffer = grub_malloc( len );
 
 	grub_file_close( file );
 
-    if ( grub_errno ) {
-        grub_fatal( "grub_TPM_measureFile: grub_file_close failed." );
-    }
-
-	/* convert from uint32_t to uint8_t */
-	grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
-	int j, i = 0;
-	for( j = 0; j < 5; j++ ) {
-		convertedResult[i++] = ((result[j]>>24)&0xff);
-		convertedResult[i++] = ((result[j]>>16)&0xff);
-		convertedResult[i++] = ((result[j]>>8)&0xff);
-		convertedResult[i++] = (result[j]&0xff);
+	if (grub_file_read ( file, buffer, len) != len )
+	{
+		grub_print_error();
+		grub_fatal ( "Can't read file %s", filename );
 	}
 
-#ifdef TGRUB_DEBUG
-    /* print hash */
-	DEBUG_PRINT( ( "measured file: %s\n", filename ) );
-	DEBUG_PRINT( ( "SHA1 of file: " ) );
-    print_sha1( convertedResult );
-    DEBUG_PRINT( ( "\n" ) );
-#endif
-
-	/* measure */
-	/* modified to use in efi*/
-    	grub_TPM_efi_hashLogExtendEvent( tpm, convertedResult, index, filename );
+    	grub_TPM_efi_hashLogExtendEvent( tpm, buffer, len, index, filename );
 }
 
 void
@@ -530,25 +489,6 @@ grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, cons
 
 	if(bufferLen == 0) return;
 
-	/* hash buffer */
-	grub_uint32_t result[5] = { 0 };
-	grub_err_t err = sha1_hash_buffer( buffer, bufferLen, result );
-
-	if( err != GRUB_ERR_NONE ) {
-		grub_fatal( "grub_TPM_measureBuffer: sha1_hash_buffer failed." );
-	}
-
-	/* convert from uint32_t to uint8_t */
-	grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
-	int j, i = 0;
-	for( j = 0; j < 5; j++ ) {
-		convertedResult[i++] = ((result[j]>>24)&0xff);
-		convertedResult[i++] = ((result[j]>>16)&0xff);
-		convertedResult[i++] = ((result[j]>>8)&0xff);
-		convertedResult[i++] = (result[j]&0xff);
-	}
-	/* measure */
-	if (bufferLen != 0)
-		grub_TPM_efi_hashLogExtendEvent(tpm, convertedResult, index, "measured buffer" );
+	grub_TPM_efi_hashLogExtendEvent(tpm, buffer, bufferLen, index, "measured buffer" );
 }
 /* End TCG Extension */
