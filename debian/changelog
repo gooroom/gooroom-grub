@@ -1,3 +1,9 @@
+grub2 (2.02~beta3-5+deb9u1) UNRELEASED; urgency=medium
+
+  * grub-mknetdir: Add support for ARM64 EFI (closes: #871772).
+
+ -- Colin Watson <cjwatson@debian.org>  Sat, 26 Aug 2017 17:48:19 +0100
+
 grub2 (2.02~beta3-5) unstable; urgency=medium
 
   [ Steve McIntyre ]

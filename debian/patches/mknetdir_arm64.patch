@@ -1,0 +1,28 @@
+From 17c207ea005d5faaff9224d3aee34c0ee705a07d Mon Sep 17 00:00:00 2001
+From: Dirk Mueller <dmueller@suse.com>
+Date: Tue, 11 Oct 2016 22:19:02 +0200
+Subject: grub-mknetdir: Add support for ARM64 EFI
+
+Origin: upstream, https://git.savannah.gnu.org/cgit/grub.git/commit/?id=0d663b50b9abf830fd10de384606a0632a605b77
+Bug-Debian: https://bugs.debian.org/871772
+Last-Update: 2017-08-26
+
+Patch-Name: mknetdir_arm64.patch
+---
+ util/grub-mknetdir.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/util/grub-mknetdir.c b/util/grub-mknetdir.c
+index 3813e8bc0..82073d5cc 100644
+--- a/util/grub-mknetdir.c
++++ b/util/grub-mknetdir.c
+@@ -106,7 +106,8 @@ static const struct
+     [GRUB_INSTALL_PLATFORM_I386_EFI] = { "i386-efi", "efinet", ".efi" },
+     [GRUB_INSTALL_PLATFORM_X86_64_EFI] = { "x86_64-efi", "efinet", ".efi" },
+     [GRUB_INSTALL_PLATFORM_IA64_EFI] = { "ia64-efi", "efinet", ".efi" },
+-    [GRUB_INSTALL_PLATFORM_ARM_EFI] = { "arm-efi", "efinet", ".efi" }
++    [GRUB_INSTALL_PLATFORM_ARM_EFI] = { "arm-efi", "efinet", ".efi" },
++    [GRUB_INSTALL_PLATFORM_ARM64_EFI] = { "arm64-efi", "efinet", ".efi" }
+   };
+ 
+ static void

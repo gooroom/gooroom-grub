@@ -21,10 +21,11 @@ diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
 index 58b4208b0..2344a5e63 100644
 --- a/grub-core/Makefile.core.def
 +++ b/grub-core/Makefile.core.def
-@@ -1731,6 +1731,14 @@ module = {
+@@ -1730,6 +1730,14 @@ module = {
+   enable = x86_64_efi;
  };
  
- module = {
++module = {
 +  name = linuxefi;
 +  efi = loader/i386/efi/linux.c;
 +  efi = lib/cmdline.c;
@@ -32,10 +33,9 @@ index 58b4208b0..2344a5e63 100644
 +  enable = x86_64_efi;
 +};
 +
-+module = {
+ module = {
    name = chain;
    efi = loader/efi/chainloader.c;
-   i386_pc = loader/i386/pc/chainloader.c;
 diff --git a/grub-core/kern/efi/mm.c b/grub-core/kern/efi/mm.c
 index 20a47aaf5..efb15cc1b 100644
 --- a/grub-core/kern/efi/mm.c
