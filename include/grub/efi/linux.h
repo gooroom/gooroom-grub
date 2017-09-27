@@ -32,4 +32,9 @@ EXPORT_FUNC(grub_linuxefi_check_shim_lock) (void);
 grub_err_t
 EXPORT_FUNC(grub_gfxterm_warning_image) (const char *filename);
 
+void
+EXPORT_FUNC(grub_verified_boot_fail) (void);
+void
+EXPORT_FUNC(grub_verified_boot_config_error) (void);
+
 #endif /* ! GRUB_EFI_LINUX_HEADER */

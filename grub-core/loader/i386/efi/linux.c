@@ -107,8 +107,13 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
     {
       grub_file_filter_disable_compression ();
       files[i] = grub_file_open (argv[i]);
+//      if (! files[i])
+//        goto fail;
       if (! files[i])
+      {
+        grub_verified_boot_fail();
         goto fail;
+      }
       nfiles++;
       size += ALIGN_UP (grub_file_size (files[i]), 4);
     }
@@ -179,8 +184,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
     }
 
   file = grub_file_open (argv[0]);
+//  if (! file)
+//    goto fail;
+
   if (! file)
+  {
+    grub_verified_boot_fail();
     goto fail;
+  }
 
   filelen = grub_file_size (file);
 
@@ -197,43 +208,17 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
       goto fail;
     }
-
+/*
   if (! grub_linuxefi_check_shim_lock ())
     {
-	  grub_cls();
-	  grub_printf_ (N_(" "));
-	  grub_refresh ();
-
-      grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_config_error.png");
-	  grub_printf_ (N_(" "));
-	  grub_refresh ();
-//	  grub_xputs ("\n");
-
-	  grub_getkey ();
-
-	  grub_reboot ();
-
+      grub_verified_boot_config_error();
       goto fail;
     }
+*/
 
-
-  if (! grub_linuxefi_secure_validate (kernel, filelen))
+  if (! grub_efi_secure_boot ())
     {
-//    grub_error (GRUB_ERR_INVALID_COMMAND, N_("%s has invalid signature"), argv[0]);
-
-	  grub_cls();
-	  grub_printf_ (N_(" "));
-	  grub_refresh ();
-
-      grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_fail.png");
-	  grub_printf_ (N_(" "));
-	  grub_refresh ();
-//	  grub_xputs ("\n");
-
-	  grub_getkey ();
-
-	  grub_reboot ();
-
+      grub_verified_boot_config_error();
       goto fail;
     }
 

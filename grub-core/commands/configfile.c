@@ -24,6 +24,8 @@
 #include <grub/command.h>
 #include <grub/i18n.h>
 
+#include <grub/efi/linux.h>
+
 GRUB_MOD_LICENSE ("GPLv3+");
 
 static grub_err_t
@@ -31,8 +33,21 @@ grub_cmd_source (grub_command_t cmd, int argc, char **args)
 {
   int new_env, extractor;
 
+  grub_file_t file = 0;
+
   if (argc != 1)
     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
+
+  file = grub_file_open (args[0]);
+  if (! file)
+  {
+    grub_verified_boot_fail();
+    return grub_error (GRUB_ERR_FILE_READ_ERROR, N_("file open failed"));
+  }
+  else
+  {
+    grub_file_close (file);
+  }
 
   extractor = (cmd->name[0] == 'e');
   new_env = (cmd->name[extractor ? sizeof ("extract_entries_") - 1 : 0] == 'c');
@@ -57,7 +72,7 @@ grub_cmd_source (grub_command_t cmd, int argc, char **args)
 
 static grub_command_t cmd_configfile, cmd_source, cmd_dot;
 static grub_command_t cmd_extractor_source, cmd_extractor_configfile;
-
+
 GRUB_MOD_INIT(configfile)
 {
   cmd_configfile =

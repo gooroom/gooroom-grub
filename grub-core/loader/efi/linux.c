@@ -84,6 +84,42 @@ grub_efi_linux_boot (void *kernel_addr, grub_off_t offset,
   return GRUB_ERR_BUG;
 }
 
+void
+grub_verified_boot_fail (void)
+{
+  grub_cls();
+  grub_printf_ (N_(" "));
+  grub_refresh ();
+
+//  grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_config_error.png");
+  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_fail.png");
+  grub_printf_ (N_(" "));
+  grub_refresh ();
+//  grub_xputs ("\n");
+
+  grub_getkey ();
+
+  grub_reboot ();
+}
+
+void
+grub_verified_boot_config_error (void)
+{
+  grub_cls();
+  grub_printf_ (N_(" "));
+  grub_refresh ();
+
+//  grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_config_error.png");
+  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_config_error.png");
+  grub_printf_ (N_(" "));
+  grub_refresh ();
+//  grub_xputs ("\n");
+
+  grub_getkey ();
+
+  grub_reboot ();
+}
+
 grub_err_t
 grub_gfxterm_warning_image (const char *filename)
 {
