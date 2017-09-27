@@ -207,7 +207,7 @@ grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( grub_uint32_t* returnCode, con
 
 BOOLEAN EXPORT_FUNC(tpm_present)(efi_tpm_protocol_t *tpm);
 
-grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_hashLogExtendEvent)(efi_tpm_protocol_t* tpm, const grub_uint8_t * inDigest, grub_uint8_t pcrIndex, const char* descriptions );
+grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_hashLogExtendEvent)(efi_tpm_protocol_t* tpm, const grub_uint8_t * inDigest, grub_uint32_t size, grub_uint8_t pcrIndex, const char* descriptions );
 
 /* pass commands to TPM */
 grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,
