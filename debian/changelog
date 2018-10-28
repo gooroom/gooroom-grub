@@ -1,6 +1,8 @@
 grub2 (2.02~beta3-5+deb9u1) UNRELEASED; urgency=medium
 
   * grub-mknetdir: Add support for ARM64 EFI (closes: #871772).
+  * Cherry-pick upstream patch to change the default TSC calibration method
+    to pmtimer on EFI systems (closes: #908852).
 
  -- Colin Watson <cjwatson@debian.org>  Sat, 26 Aug 2017 17:48:19 +0100
 
