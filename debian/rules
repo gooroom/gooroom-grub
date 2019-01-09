@@ -4,7 +4,7 @@ SHELL		:= bash
 deb_version		:= $(shell dpkg-parsechangelog | sed -ne "s/^Version: \(.*\)/\1/p")
 upstream_version	:= $(shell echo $(deb_version) | sed -e "s/-[^-]*$$//")
 
-package		:= grub2
+package		:= gooroom-grub
 
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH 2>/dev/null)
 DEB_HOST_ARCH_OS ?= $(shell dpkg-architecture -qDEB_HOST_ARCH_OS 2>/dev/null)
@@ -13,7 +13,7 @@ DEB_HOST_ARCH_CPU ?= $(shell dpkg-architecture -qDEB_HOST_ARCH_CPU 2>/dev/null)
 HOST_CPPFLAGS := $(shell dpkg-buildflags --get CPPFLAGS)
 # -O3 (default on Ubuntu ppc64el) introduces various -Werror failures, and
 # isn't worth it here.
-HOST_CFLAGS := -Wall -Wno-error=unused-result $(shell dpkg-buildflags --get CFLAGS | perl -pe 's/-O3\b/-O2/')
+HOST_CFLAGS := -Wall -Wno-error=unused-result -Wno-error=format= $(shell dpkg-buildflags --get CFLAGS | perl -pe 's/-O3\b/-O2/')
 HOST_LDFLAGS := $(shell dpkg-buildflags --get LDFLAGS)
 
 export DEB_HOST_ARCH
@@ -49,8 +49,8 @@ BUILD_PACKAGES := $(strip $(shell dh_listpackages))
 # REAL_PACKAGES build an actual grub variant (and therefore have both configure
 # and build stages). EXTRA_PACKAGES do not build grub but may depend on a
 # REAL_PACKAGE (and therefore only have a build stage)
-REAL_PACKAGES = grub-common grub-emu grub-pc grub-coreboot grub-efi-ia32 grub-efi-amd64 grub-efi-ia64 grub-efi-arm grub-efi-arm64 grub-ieee1275 grub-firmware-qemu grub-uboot grub-xen grub-yeeloong
-EXTRA_PACKAGES = grub-rescue-pc grub-xen-host
+REAL_PACKAGES = gooroom-grub-common gooroom-grub-efi-amd64
+#REAL_PACKAGES = gooroom-grub-efi-amd64
 
 ifneq (,$(filter i386 amd64,$(DEB_HOST_ARCH_CPU)))
 COMMON_PLATFORM := pc
@@ -114,7 +114,9 @@ debian/stamps/build-grub-efi-arm64 install/grub-efi-arm64: export SB_EFI_NAME :=
 SB_PACKAGE :=
 ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
 ifeq ($(DEB_HOST_ARCH),amd64)
-SB_PACKAGE := grub-efi-amd64
+SB_PACKAGE := gooroom-grub-efi-amd64
+SB_PLATFORM := x86_64-efi
+SB_EFI_NAME := x64
 endif
 ifeq ($(DEB_HOST_ARCH),arm64)
 SB_PACKAGE := grub-efi-arm64
@@ -137,7 +139,8 @@ override_dh_auto_build: $(patsubst %,build/%,$(BUILD_PACKAGES))
 override_dh_auto_install: $(patsubst %,install/%,$(BUILD_PACKAGES))
 
 $(patsubst %,configure/%,$(REAL_PACKAGES)) :: configure/% : debian/stamps/configure-%
-$(patsubst %,build/%,$(REAL_PACKAGES) $(EXTRA_PACKAGES)) :: build/% : debian/stamps/build-%
+$(patsubst %,build/%,$(REAL_PACKAGES)) :: build/% : debian/stamps/build-%
+#$(patsubst %,build/%,$(REAL_PACKAGES) $(EXTRA_PACKAGES)) :: build/% : debian/stamps/build-%
 
 debian/stamps/configure-%: package = $(subst debian/stamps/configure-,,$@)
 debian/stamps/configure-%: export DH_OPTIONS = -p$(package) -Bobj/$(package)
@@ -150,7 +153,7 @@ install/%: package_bin = $(package)-bin
 install/%: package_dbg = $(package)-dbg
 install/grub-emu: package_bin = grub-emu
 install/grub-emu: package_dbg = grub-emu-dbg
-install/%: export DH_OPTIONS = -p$(package) -Bobj/$(patsubst grub-common,grub-$(COMMON_PLATFORM),$(package))
+install/%: export DH_OPTIONS = -p$(package) -Bobj/$(patsubst gooroom-grub-common,gooroom-grub-$(COMMON_PLATFORM),$(package))
 
 debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makefile.core.def
 	mkdir -p debian/stamps
@@ -163,80 +166,17 @@ debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makef
 		dh_autoreconf -- ./autogen.sh
 	touch $@
 
-debian/stamps/configure-grub-common: debian/stamps/configure-grub-$(COMMON_PLATFORM)
+debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMMON_PLATFORM)
 	touch $@
 
-debian/stamps/build-grub-common: debian/stamps/build-grub-$(COMMON_PLATFORM)
+debian/stamps/build-gooroom-grub-common: debian/stamps/build-grub-$(COMMON_PLATFORM)
 	touch $@
 
-debian/stamps/configure-grub-none debian/stamps/configure-grub-pc debian/stamps/configure-grub-ieee1275 debian/stamps/configure-grub-coreboot debian/stamps/configure-grub-emu debian/stamps/configure-grub-uboot debian/stamps/configure-grub-yeeloong: debian/stamps/autogen
+#debian/stamps/configure-grub-none debian/stamps/configure-grub-pc debian/stamps/configure-grub-ieee1275 debian/stamps/configure-grub-coreboot debian/stamps/configure-grub-emu debian/stamps/configure-grub-uboot debian/stamps/configure-grub-yeeloong: debian/stamps/autogen
+debian/stamps/configure-grub-pc: debian/stamps/autogen
 	mkdir -p debian/stamps obj/$(package)
-	dh_auto_configure -- $(confflags) --with-platform=$(subst grub-,,$(package))
-	touch $@
-
-# This name scheme leaves room for things like amd32 someday
-debian/stamps/configure-grub-efi-ia32: debian/stamps/autogen
-	mkdir -p debian/stamps obj/$(package)
-	dh_auto_configure -- $(confflags) --with-platform=efi --target=i386-pe --program-prefix=""
-	touch $@
-debian/stamps/configure-grub-efi-amd64: debian/stamps/autogen
-	mkdir -p debian/stamps $(subst debian/stamps/configure-,obj/,$@)
-	dh_auto_configure -- $(confflags) --with-platform=efi --target=amd64-pe --program-prefix=""
-	touch $@
-debian/stamps/configure-grub-efi-ia64 debian/stamps/configure-grub-efi-arm debian/stamps/configure-grub-efi-arm64: debian/stamps/autogen
-	mkdir -p debian/stamps $(subst debian/stamps/configure-,obj/,$@)
+	#dh_auto_configure -- $(confflags) --with-platform=$(subst grub-,,$(package))
 	dh_auto_configure -- $(confflags) --with-platform=efi
-	touch $@
-
-debian/stamps/configure-grub-xen-%: debian/stamps/autogen
-	mkdir -p debian/stamps obj/$(package)
-	dh_auto_configure -- $(confflags) --with-platform=xen --target=$(subst debian/stamps/configure-grub-xen-,,$@) --program-prefix=""
-	touch $@
-debian/stamps/configure-grub-xen: debian/stamps/configure-grub-xen-i386 debian/stamps/configure-grub-xen-amd64
-	touch $@
-
-debian/stamps/configure-grub-firmware-qemu: debian/stamps/autogen
-	mkdir -p debian/stamps $(subst debian/stamps/configure-,obj/,$@)
-	dh_auto_configure -- $(confflags) --with-platform=qemu
-	touch $@
-
-debian/stamps/build-grub-none debian/stamps/build-grub-efi-ia64 debian/stamps/build-grub-efi-arm debian/stamps/build-grub-coreboot debian/stamps/build-grub-emu debian/stamps/build-grub-uboot debian/stamps/build-grub-xen-i386 debian/stamps/build-grub-xen-amd64 debian/stamps/build-grub-yeeloong: debian/stamps/build-%: debian/stamps/configure-%
-	dh_auto_build
-	touch $@
-
-debian/stamps/build-grub-efi-ia32 debian/stamps/build-grub-efi-amd64 debian/stamps/build-grub-efi-arm64: debian/stamps/build-%: debian/stamps/configure-% debian/stamps/build-grub-$(COMMON_PLATFORM)
-	dh_auto_build
-	debian/build-efi-images \
-		obj/grub-$(COMMON_PLATFORM)/grub-mkimage \
-		obj/$(package)/grub-core \
-		obj/monolithic/$(package) \
-		$(SB_PLATFORM) $(SB_EFI_NAME) $(SB_EFI_VENDOR)
-	touch $@
-
-debian/stamps/build-grub-xen-host-i386: PVBOOT_ARCH := i386
-debian/stamps/build-grub-xen-host-amd64: PVBOOT_ARCH := x86_64
-debian/stamps/build-grub-xen-host-%: debian/stamps/build-grub-xen-%
-	target=$(subst debian/stamps/build-grub-xen-host-,,$@) ; \
-	obj_dir=$(CURDIR)/obj/grub-xen-$${target} ; \
-	grub_dir=`mktemp -d` ; \
-	grub_memdisk=`mktemp` ; \
-	trap "rm -rf $${grub_dir} $${grub_memdisk}" EXIT HUP INT QUIT TERM ; \
-	mkdir -p $${grub_dir}/boot/grub ; \
-	mkdir -p $(CURDIR)/obj/$(package) ; \
-	sed -e "s/@@PVBOOT_ARCH@@/$(PVBOOT_ARCH)/g" \
-	    <debian/grub-xen-host_grub.cfg \
-	    >$${grub_dir}/grub.cfg ; \
-	tar -cf - -C $${grub_dir} grub.cfg > $${grub_memdisk} ; \
-	$${obj_dir}/grub-mkimage \
-		-O $(PVBOOT_ARCH)-xen \
-		-c $(CURDIR)/debian/grub-xen-host_grub-bootstrap.cfg \
-		-d $${obj_dir}/grub-core \
-		$${obj_dir}/grub-core/*.mod \
-		-m $${grub_memdisk} \
-		-o $(CURDIR)/obj/$(package)/grub-$(PVBOOT_ARCH)-xen.bin
-	touch $@
-
-debian/stamps/build-grub-xen-host: debian/stamps/build-grub-xen-host-i386 debian/stamps/build-grub-xen-host-amd64
 	touch $@
 
 debian/stamps/build-grub-pc: debian/stamps/configure-grub-pc
@@ -246,54 +186,20 @@ ifeq ($(with_check), yes)
 endif
 	touch $@
 
-debian/stamps/build-grub-ieee1275: debian/stamps/configure-grub-ieee1275
+debian/stamps/configure-grub-emu: debian/stamps/autogen
+	mkdir -p debian/stamps obj/$(package)
+	dh_auto_configure -- $(confflags) --with-platform=efi
+	touch $@
+
+# This name scheme leaves room for things like amd32 someday
+debian/stamps/configure-gooroom-grub-efi-amd64: debian/stamps/autogen
+	mkdir -p debian/stamps $(subst debian/stamps/configure-,obj/,$@)
+	dh_auto_configure -- $(confflags) --with-platform=efi --target=amd64-pe --program-prefix=""
+	touch $@
+
+debian/stamps/build-gooroom-grub-efi-amd64 debian/stamps/build-grub-emu : debian/stamps/build-%: debian/stamps/configure-%
+#debian/stamps/build-grub-none debian/stamps/build-grub-efi-ia32 debian/stamps/build-gooroom-grub-efi-amd64 debian/stamps/build-grub-efi-ia64 debian/stamps/build-grub-efi-arm debian/stamps/build-grub-efi-arm64 debian/stamps/build-grub-coreboot debian/stamps/build-grub-emu debian/stamps/build-grub-uboot debian/stamps/build-grub-xen-i386 debian/stamps/build-grub-xen-amd64 debian/stamps/build-grub-yeeloong: debian/stamps/build-%: debian/stamps/configure-%
 	dh_auto_build
-ifneq (,$(filter powerpc ppc64 ppc64el,$(DEB_HOST_ARCH_CPU)))
-	$(CC) $(HOST_CFLAGS) debian/prep-bootdev.c -o debian/prep-bootdev -lparted
-endif
-	touch $@
-
-debian/stamps/build-grub-xen: debian/stamps/build-grub-xen-i386 debian/stamps/build-grub-xen-amd64
-	touch $@
-
-debian/stamps/build-grub-firmware-qemu: debian/stamps/configure-grub-firmware-qemu
-	dh_auto_build
-	grub_dir=`mktemp -d` ; \
-	grub_memdisk=`mktemp` ; \
-	trap "rm -rf $${grub_dir} $${grub_memdisk}" EXIT HUP INT QUIT TERM ; \
-	mkdir -p $${grub_dir}/boot/grub ; \
-	cp debian/grub-firmware-qemu_grub.cfg $${grub_dir}/boot/grub/grub.cfg ; \
-	tar -cf - -C $${grub_dir} boot > $${grub_memdisk} ; \
-	obj/$(package)/grub-mkimage \
-		-O i386-qemu \
-		-d $(CURDIR)/obj/$(package)/grub-core \
-		$(CURDIR)/obj/$(package)/grub-core/*.mod \
-		-m $${grub_memdisk} \
-		-o $(CURDIR)/obj/$(package)/grub.bin
-	touch $@
-
-debian/stamps/build-grub-rescue-pc: debian/stamps/build-grub-pc
-	mkdir -p obj/grub-rescue-pc/rescue-disk/boot/grub
-	cp docs/grub.cfg obj/grub-rescue-pc/rescue-disk/boot/grub/
-	rm -rf obj/grub-rescue-pc/grub-core
-	cp -a obj/grub-pc/grub-core obj/grub-rescue-pc/grub-core
-	cp -a obj/grub-pc/unicode.pf2 obj/grub-rescue-pc/
-	pkgdatadir=$(CURDIR)/obj/grub-rescue-pc \
-		obj/grub-pc/grub-mkrescue \
-		--directory=$(CURDIR)/obj/grub-rescue-pc/grub-core \
-		--locale-directory=$(CURDIR)/obj/grub-rescue-pc/grub-core/po \
-		--output=$(CURDIR)/obj/grub-rescue-pc/grub-rescue-cdrom.iso \
-		$(CURDIR)/obj/grub-rescue-pc/rescue-disk
-	# save space for floppy image
-	rm -rf obj/grub-rescue-pc/grub-core/po obj/grub-rescue-pc/unicode.pf2
-	pkgdatadir=$(CURDIR)/obj/grub-rescue-pc \
-		obj/grub-pc/grub-mkrescue \
-		--directory=$(CURDIR)/obj/grub-rescue-pc/grub-core \
-		--locale-directory=$(CURDIR)/obj/grub-rescue-pc/grub-core/po \
-		--output=$(CURDIR)/obj/grub-rescue-pc/grub-rescue-floppy.img \
-		--compress=xz \
-		-no-pad \
-		$(CURDIR)/obj/grub-rescue-pc/rescue-disk
 	touch $@
 
 platform_subst = \
@@ -306,14 +212,7 @@ platform_subst = \
 			debian/$(1) >> debian/$(2).$(3); \
 	fi
 
-install/grub-none:
-	dh_auto_install --destdir=debian/tmp-$(package)
-
-	# Avoid failures later if we're building from a tree with no .po
-	# files.
-	mkdir -p debian/tmp-$(package)/usr/share/locale
-
-install/grub-pc install/grub-efi-ia32 install/grub-efi-amd64 install/grub-efi-ia64 install/grub-efi-arm install/grub-efi-arm64 install/grub-ieee1275 install/grub-coreboot install/grub-emu install/grub-uboot install/grub-xen install/grub-yeeloong:
+install/gooroom-grub-efi-amd64:
 	set -e ; \
 	if [ "$@" = "install/grub-xen" ] ; then \
 		dh_auto_install -Bobj/grub-xen-i386 --destdir=debian/tmp-$(package); \
@@ -379,7 +278,7 @@ install/grub-pc install/grub-efi-ia32 install/grub-efi-amd64 install/grub-efi-ia
 	cd debian/tmp-$(package) && find usr/lib/grub -name kernel.img \
 		| sed -e "s%.*%$(package_bin): unstripped-binary-or-object &%g" \
 	>> $(CURDIR)/debian/$(package_bin)/usr/share/lintian/overrides/$(package_bin)
-	if ([ "$@" = "install/grub-efi-amd64" ] && [ "$(DEB_HOST_ARCH_CPU)" = "i386" ]) || \
+	if ([ "$@" = "install/gooroom-grub-efi-amd64" ] && [ "$(DEB_HOST_ARCH_CPU)" = "i386" ]) || \
 	   ([ "$@" != "install/grub-emu" ] && [ "$(DEB_HOST_ARCH_CPU):$(DEB_HOST_ARCH_BITS)" = "amd64:32" ]) || \
 	   [ "$@" = "install/grub-xen" ]; then \
 		echo "$(package_bin): binary-from-other-architecture *.mod" \
@@ -407,7 +306,7 @@ install/grub-pc install/grub-efi-ia32 install/grub-efi-amd64 install/grub-efi-ia
 	cd debian/tmp-$(package) && find usr/lib/grub -name kernel.exec \
 		| sed -e "s%.*%$(package_dbg): statically-linked-binary &%g" \
 	>> $(CURDIR)/debian/$(package_dbg)/usr/share/lintian/overrides/$(package_dbg)
-	if ([ "$@" = "install/grub-efi-amd64" ] && [ "$(DEB_HOST_ARCH_CPU)" = "i386" ]) || \
+	if ([ "$@" = "install/gooroom-grub-efi-amd64" ] && [ "$(DEB_HOST_ARCH_CPU)" = "i386" ]) || \
 	   ([ "$@" != "install/grub-emu" ] && [ "$(DEB_HOST_ARCH_CPU):$(DEB_HOST_ARCH_BITS)" = "amd64:32" ]) || \
 	   [ "$@" = "install/grub-xen" ] ; then \
 		echo "$(package_dbg): binary-from-other-architecture *.module" \
@@ -421,40 +320,37 @@ install/grub-pc install/grub-efi-ia32 install/grub-efi-amd64 install/grub-efi-ia
 	# files.
 	mkdir -p debian/tmp-$(package)/usr/share/locale
 
-common_subst = \
-	if [ -e debian/grub-common.$(1) ]; then \
-		sed 's/@COMMON_PLATFORM@/$(COMMON_PLATFORM)/g' \
-			debian/grub-common.$(1) >> debian/grub-common.$(2).new; \
-	fi
-
-install/grub-common:
+install/gooroom-grub-common:
 	set -e ; for i in $(AUTOGEN_DEB_FILES) ; do \
-		> debian/grub-common.$$i.new; \
-		$(call common_subst,$$i.in,$$i); \
-		$(call common_subst,$$i.$(DEB_HOST_ARCH_CPU).in,$$i); \
-		$(call common_subst,$$i.$(DEB_HOST_ARCH_OS).in,$$i); \
-		if [ -s debian/grub-common.$$i.new ] ; then \
-			mv debian/grub-common.$$i.new debian/grub-common.$$i; \
-		else \
-			rm -f debian/grub-common.$$i.new; \
-		fi; \
+		if [ -e debian/gooroom-grub-common.$$i.in ] ; then \
+			cat debian/gooroom-grub-common.$$i.in \
+				> debian/gooroom-grub-common.$$i ; \
+		fi ; \
+		if [ -e debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_CPU).in ] ; then \
+			cat debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_CPU).in \
+				>> debian/gooroom-grub-common.$$i ; \
+		fi ; \
+		if [ -e debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_OS).in ] ; then \
+			cat debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_OS).in \
+				>> debian/gooroom-grub-common.$$i ; \
+		fi ; \
 	done
 ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
-	install -D -m 0755 debian/grub-common.pm-sleep \
+	install -D -m 0755 debian/gooroom-grub-common.pm-sleep \
 		$(CURDIR)/debian/$(package)/etc/pm/sleep.d/10_grub-common
 endif
 
-NON_PLATFORM_PACKAGES = $(filter grub2 grub-linuxbios grub-efi grub-rescue-pc grub-firmware-qemu grub-xen-host,$(BUILD_PACKAGES))
-COMMON_PLATFORM_PACKAGES = $(filter grub-common grub2-common grub-theme-starfield grub-mount-udeb,$(BUILD_PACKAGES))
-PLATFORM_PACKAGES = $(filter grub-pc grub-efi-ia32 grub-efi-amd64 grub-efi-ia64 grub-efi-arm grub-efi-arm64 grub-ieee1275 grub-coreboot grub-uboot grub-xen grub-yeeloong,$(BUILD_PACKAGES))
+#NON_PLATFORM_PACKAGES = $(filter grub2 grub-linuxbios grub-efi grub-rescue-pc ,$(BUILD_PACKAGES))
+COMMON_PLATFORM_PACKAGES = $(filter gooroom-grub-common gooroom-grub2-common ,$(BUILD_PACKAGES))
+PLATFORM_PACKAGES = $(filter grub-pc gooroom-grub-efi-amd64 ,$(BUILD_PACKAGES))
 
 override_dh_install:
-ifneq (,$(NON_PLATFORM_PACKAGES))
-	dh_install $(patsubst %,-p%,$(NON_PLATFORM_PACKAGES))
-endif
-	dh_install $(patsubst %,-p%,$(COMMON_PLATFORM_PACKAGES)) --sourcedir=debian/tmp-grub-$(COMMON_PLATFORM)
-	rm -f debian/grub2-common/usr/share/info/dir*
-	rm -f debian/grub-theme-starfield/usr/share/grub/themes/starfield/COPYING.CC-BY-SA-3.0
+#ifneq (,$(NON_PLATFORM_PACKAGES))
+#	dh_install $(patsubst %,-p%,$(NON_PLATFORM_PACKAGES))
+#endif
+	dh_install $(patsubst %,-p%,$(COMMON_PLATFORM_PACKAGES)) --sourcedir=debian/tmp-gooroom-grub-efi-amd64
+	rm -f debian/gooroom-grub2-common/usr/share/info/dir*
+#	rm -f debian/grub-theme-starfield/usr/share/grub/themes/starfield/COPYING.CC-BY-SA-3.0
 ifneq (,$(PLATFORM_PACKAGES))
 	set -e; for package in $(PLATFORM_PACKAGES); do \
 		dh_install -p$$package --sourcedir=debian/tmp-$$package; \
@@ -466,27 +362,27 @@ ifneq (,$(filter grub-emu,$(BUILD_PACKAGES)))
 	dh_install -pgrub-emu --sourcedir=debian/tmp-grub-emu
 	dh_install -pgrub-emu-dbg --sourcedir=debian/tmp-grub-emu
 endif
-ifneq (,$(filter grub2-common,$(BUILD_PACKAGES)))
-	sed -i \
-		-e "s/@DEFAULT_CMDLINE@/$(DEFAULT_CMDLINE)/g" \
-		-e "s/@DEFAULT_TIMEOUT@/$(DEFAULT_TIMEOUT)/g" \
-		debian/grub2-common/usr/share/grub/default/grub
-ifneq (,$(DEFAULT_HIDDEN_TIMEOUT))
-	perl -pi -e 's/^GRUB_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0\nGRUB_HIDDEN_TIMEOUT_QUIET=true\n$$&/' \
-		debian/grub2-common/usr/share/grub/default/grub
-endif
-endif
-ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
-ifneq (,$(filter grub-pc,$(BUILD_PACKAGES)))
-	patch debian/grub-pc/usr/lib/grub-legacy/update-grub \
-		< debian/legacy/update-grub.ubuntu.patch
-endif
-endif
+#ifneq (,$(filter gooroom-grub2-common,$(BUILD_PACKAGES)))
+#	sed -i \
+#		-e "s/@DEFAULT_CMDLINE@/$(DEFAULT_CMDLINE)/g" \
+#		-e "s/@DEFAULT_TIMEOUT@/$(DEFAULT_TIMEOUT)/g" \
+#		debian/gooroom-grub2-common/usr/share/grub/default/grub
+#ifneq (,$(DEFAULT_HIDDEN_TIMEOUT))
+#	perl -pi -e 's/^GRUB_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0\nGRUB_HIDDEN_TIMEOUT_QUIET=true\n$$&/' \
+#		debian/gooroom-grub2-common/usr/share/grub/default/grub
+#endif
+#endif
+#ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
+#ifneq (,$(filter grub-pc,$(BUILD_PACKAGES)))
+#	patch debian/grub-pc/usr/lib/grub-legacy/update-grub \
+#		< debian/legacy/update-grub.ubuntu.patch
+#endif
+#endif
 
 override_dh_installdocs:
-	dh_installdocs $(patsubst %,-p%,$(filter grub-common grub-rescue-pc grub-firmware-qemu grub-xen-host,$(BUILD_PACKAGES))) -A AUTHORS NEWS README THANKS TODO
-	dh_installdocs $(patsubst %,-p%,$(filter grub-efi-%-signed-template,$(BUILD_PACKAGES)))
-	dh_installdocs --remaining-packages --link-doc=grub-common
+	#dh_installdocs $(patsubst %,-p%,$(filter gooroom-grub-common grub-rescue-pc grub-firmware-qemu grub-xen-host,$(BUILD_PACKAGES))) -A AUTHORS NEWS README THANKS TODO
+	dh_installdocs $(patsubst %,-p%,$(filter gooroom-grub-common,$(BUILD_PACKAGES))) -A AUTHORS NEWS README THANKS TODO
+	dh_installdocs --remaining-packages --link-doc=gooroom-grub-common
 
 ifeq ($(FLICKER_FREE_BOOT),yes)
 override_dh_installinit:
@@ -514,7 +410,7 @@ endif
 override_dh_gencontrol:
 	dh_gencontrol -- -Vlegacy-doc-br="$(LEGACY_DOC_BR)" -V"efi:Vendor=$(SB_EFI_VENDOR)" $(substvars)
 
-TARNAME := grub2_$(deb_version)_$(DEB_HOST_ARCH).tar.gz
+TARNAME := gooroom_grub_$(deb_version)_$(DEB_HOST_ARCH).tar.gz
 
 override_dh_builddeb:
 	dh_builddeb
@@ -537,7 +433,7 @@ override_dh_clean:
 	for i in $(AUTOGEN_DEB_FILES) ; do \
 		rm -f debian/grub-{pc,efi-*,ieee1275,coreboot,uboot,xen,yeeloong,emu}{,-bin,-dbg}.$$i ; \
 	done
-	rm -f debian/grub-common.bash-completion debian/grub-common.maintscript
+	rm -f debian/gooroom-grub-common.maintscript
 	rm -rf debian/tmp-*/
 
 	# make sure PO files are always up-to-date

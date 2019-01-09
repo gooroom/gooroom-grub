@@ -1,0 +1,4542 @@
+From d70f6687f1ec89b0ace4fcb751c71fd03d0b3c54
+From: "jongkyung.woo" <jkwoo@gooroom.kr>
+Date: Wed, Jan 9 10:42:26 2019 +0900
+Subject: [PATCH] Merge remote-tracking branch 'TrustedGRUB2/master' into gooroom-devel
+
+---
+ .travis.yml                            |   53 +
+ Changelog.md                           |   54 +
+ README.md                              |  294 ++++++++++
+ grub-core/Makefile.am                  |    3 
+ grub-core/Makefile.core.def            |    9 
+ grub-core/boot/i386/pc/boot.S          |  364 +++++++-----
+ grub-core/boot/i386/pc/diskboot.S      |   97 +++
+ grub-core/disk/cryptodisk.c            |   32 -
+ grub-core/disk/luks.c                  |  432 +++++++++-----
+ grub-core/kern/dl.c                    |   34 -
+ grub-core/kern/i386/pc/tpm/tpm_kern.c  |  433 ++++++++++++++
+ grub-core/kern/main.c                  |    2 
+ grub-core/kern/sha1.c                  |  446 +++++++++++++++
+ grub-core/kern/tpm.c                   |   37 +
+ grub-core/loader/i386/linux.c          |   68 +-
+ grub-core/loader/i386/pc/chainloader.c |   10 
+ grub-core/loader/i386/pc/linux.c       |   69 +-
+ grub-core/loader/i386/pc/ntldr.c       |    9 
+ grub-core/loader/linux.c               |    8 
+ grub-core/loader/multiboot.c           |   13 
+ grub-core/normal/main.c                |    6 
+ grub-core/script/execute.c             |   51 +
+ grub-core/tpm/i386/pc/tpm.c            |  966 +++++++++++++++++++++++++++++++++
+ include/grub/err.h                     |    4 
+ include/grub/file.h                    |    1 
+ include/grub/i386/pc/boot.h            |    4 
+ include/grub/i386/pc/tpm.h             |   89 +++
+ include/grub/sha1.h                    |   40 +
+ include/grub/tpm.h                     |   64 ++
+ runSonarQubeAnalysis.sh                |   41 +
+ sonar-project.properties               |   16 
+ util/mkimage.c                         |   17 
+ 32 files changed, 3407 insertions(+), 359 deletions(-)
+
+diff --git a/.travis.yml b/.travis.yml
+new file mode 100644
+index 000000000..115e8f08c
+--- /dev/null
++++ b/.travis.yml
+@@ -0,0 +1,53 @@
++dist: trusty
++
++sudo: required
++
++git:
++  depth: 5
++
++cache:
++  ccache: true
++  directories:
++    - $HOME/.sonar/cache
++
++env:
++  matrix:
++    - DEFINES="" SONARQUBE="TRUE"
++    - DEFINES="CPPFLAGS=-DTGRUB_HP_WORKAROUND" SONARQUBE="FALSE"
++    - DEFINES="CPPFLAGS=-DTGRUB_DEBUG" SONARQUBE="FALSE"
++  global:
++    - secure: "fsJ8kz9HO/dorxiZDKX3sUJZkQXECKlsZJ6GtoGwJWQyDfZ988msG0alZucRyOHr/3dO4I0UENxIWx4FuKIw1t33ngw2Ugi7muKe53KJJa5iUz0dl8uZ4ndSW45cmF9vvCDAaTRsRITRj4SP275CBO7vs83UhB5yiBwaZAhNwzk="
++    - secure: "De+Kuku2ICL773X3NKrFzrVBKasPMU9jBEBcpoSDK1AZ8ZsNytiYTOghm0j2jYKE13oPNjXR9wn1FWwF0jhWGwoAr/NvN0/BgHOG83gXmAEVlzU0SrUm7W/elQzbdsnmQfQss7P9GY4EJjARG/aXYw70dDpzNsc/25uS2Iy2M5U="
++compiler: gcc
++language: c
++
++before_script:
++  - jdk_switcher use oraclejdk8
++  - java -version
++  # fixme
++  - chmod a+x runSonarQubeAnalysis.sh
++
++script:
++  - echo ${DEFINES}
++  - ./autogen.sh && ./configure --target=i386 -with-platform=pc && make ${DEFINES} -j 2 --silent && ./runSonarQubeAnalysis.sh
++
++os:
++  - linux
++
++notifications:
++  email:
++    recipients:
++      - daniel@neus-online.eu
++addons:
++  apt:
++    packages:
++      - oracle-java8-installer
++  sonarqube: true
++  coverity_scan:
++    project:
++      name: Rohde-Schwarz-Cybersecurity/TrustedGRUB2
++      description: Build submitted via Travis CI
++    notification_email: daniel@neus-online.eu
++    build_command_prepend: "./autogen.sh;./configure --target=i386 -with-platform=pc;make clean"
++    build_command: make -j 2 --silent
++    branch_pattern: coverity_scan
+diff --git a/Changelog.md b/Changelog.md
+new file mode 100644
+index 000000000..87ee72615
+--- /dev/null
++++ b/Changelog.md
+@@ -0,0 +1,54 @@
++### Changelog
++
++#### 1.5.0
++* Update to GRUB 2.02
++
++#### 1.4.0
++* Extend log on each TPM_Extend GH #11
++
++#### 1.3.0
++
++* Fix measurement of compressed files. Previously the uncompressed version of the file was measured and not the one that is stored on the disk. GH #28
++* Command measurement: in addition to not measuring `menuentry` also `submenu` and `[ ... ]` are not measured to simplify precomputation. GH #25
++* Update to latest GRUB2 master (23.12.2015) that also includes a fix for CVE-2015-8370
++* Prevent possible buffer overlow in case the command to measure is greater than 1024 byte in length
++* Disable HP workaround in default mode, i.e. HP workaround has to be enabled explicitly by defining `TGRUB_HP_WORKAROUND`. Therefore there is no need to append `--no-rs-codes` to `grub-install` anymore in case you don't need the workaround. GH #18
++* Measure buffer that is used. Before this fix everything that was measured from disk was read a second time. This enabled following attack: A sufficiently malicious storage device might provide a backdoored file on the first read attempt, followed by the correct file on the second read attempt. The measurement would then appear correct. GH #9
++* Measurements of parts of TrustedGRUB2 that are loaded at runtime like grub2-modules are now seperated from the loader measurements like kernel and initrd. Additionally renamed `TPM_LOADED_FILES_PCR` to `TPM_LOADER_MEASUREMENT_PCR` and introduced a new define `TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR` for the GRUB2 measurements. GH #34
++* Add multiboot measurements for `multiboot` and `module` commands. For now the `multiboot` measurement does not follow the new convention of measuring the same buffer that is loaded into memory. If someone needs this extra security feel free to send a pull request. GH #35
++
++#### 1.2.1
++
++* Implemented a workaround for buggy HP desktop/laptop BIOS. 
++  * Measurement of PCR 8 / PCR 9 should be correct now on these devices.The way the core.img is created / measured has changed a bit. So resealing is necessary.
++  * For the moment it is necessary to call `grub-install` with `--no-rs-codes`
++
++#### 1.2.0
++
++* sync with upstream GRUB2
++* use build in byte swap functions instead of own
++* improved debug output
++* some general cleanup
++
++#### 1.1.0
++
++* fixed wrong parameter type sizes in grub_TPM_openOSAP_Session
++* use grub_bios_interrupt() instead of self written assembler functions
++* check if TPM is present but deactivated
++
++#### 1.0.3
++
++* fix out-of-bounds read in cryptomount command
++
++#### 1.0.2
++
++* abort boot process in case of errors during TrustedGRUB2 kernel measurement
++
++#### 1.0.1
++
++* treat errors in tpm functionality as fatal erros
++* fixed bug in cryptomount command, if there is more than one keyslot
++
++#### 1.0.0
++
++* initial release
+diff --git a/README.md b/README.md
+new file mode 100644
+index 000000000..f4938863a
+--- /dev/null
++++ b/README.md
+@@ -0,0 +1,294 @@
++# TrustedGRUB2
++
++[![Build Status](https://travis-ci.org/Rohde-Schwarz-Cybersecurity/TrustedGRUB2.svg?branch=master)](https://travis-ci.org/Rohde-Schwarz-Cybersecurity/TrustedGRUB2)
++
++<a href="https://scan.coverity.com/projects/rohde-schwarz-cybersecurity-trustedgrub2">
++  <img alt="Coverity Scan Build Status"
++       src="https://scan.coverity.com/projects/5521/badge.svg"/>
++</a>
++
++[![Quality Gate](https://sonarqube.com/api/badges/gate?key=TrustedGRUB2)](https://sonarqube.com/dashboard/index/TrustedGRUB2)
++
++## 1. General Information
++
++### 1.1 Introduction
++
++This file describes the extensions made to transform a standard GRUB2 into a version that offers TCG (TPM) support for granting the integrity of the boot process (trusted boot). This project was highly inspired by the former projects [TrustedGrub1](https://www.sirrix.com/content/pages/trustedgrub_en.htm) and GRUB-IMA. However TrustedGRUB2 was completely written from scratch.
++
++TrustedGRUB2 is measuring all critical components during the boot process, i.e. GRUB2 kernel, GRUB2 modules, the OS kernel or OS modules and so on, together with their
++parameters. Please note that the TrustedGRUB2 MBR bootcode has not to be checked here (it wouldn't even be possible). The MBR bootcode has already been measured by the TPM itself.
++Since the TPM is passive, it has no direct ability to check if the integrity of bootloader (and the OS kernel/modules and so on) actually is correct.
++This can only be done indirectly by using the seal/unseal functions of the TPM (for details on this topic, you should have a look at the TCG specifications or on other documents describing TCG/TPM abilities).
++
++### 1.2 Features
++
++* Based on GRUB 2.02
++* TPM Support with TPM detection (only legacy/mbr mode, UEFI is not supported at the moment)
++* Measurement of GRUB2 kernel
++* Measurement of all loaded GRUB2 modules
++* Measurement of all commands and their parameters entered in shell and scripts
++* New SHA1-implementation in GRUB2 kernel (necessary for doing the GRUB2 modules measurement as the crypto module isn't loaded at this stage)
++* Added LUKS keyfile support with additional parameter `-k KEYFILE` for `cryptomount` command
++* Added support for unsealing LUKS keyfile with additional `-s` parameter for `cryptomount` command. LUKS-header is measured before unsealing into PCR 12. Currently unsealing only supported with SRK and well known secret (20 zero bytes)
++* New commands:
++  * `readpcr PCRNUM`
++  * `tcglog LOGINDEX`
++  * `measure FILE PCRNUM`
++  * `setmor DISABLEAUTODETECT`
++* Loader measurements:
++  * `linux` / `linux16`
++  * `initrd` / `initrd16`
++  * `chainloader`
++  * `ntdlr`
++  * `multiboot`
++  * `module`
++* New cryptomount parameters:
++  * `cryptomount -k KEYFILE`
++  * `cryptomount -k KEYFILE -s`
++* Functionality added without own command:
++  * TPM_Unseal
++  * TPM_GetRandom
++  * TPM_OIAP
++  * TPM_OSAP
++
++### 1.3 Measurements (in short)
++
++* PCR 0-7 Measured by BIOS
++* PCR 8 First sector of TrustedGRUB2 kernel (diskboot.img)
++* PCR 9 TrustedGRUB2 kernel (core.img)
++* PCR 10 Loader measurements - currently linux-kernel, initrd, ntldr, chainloader, multiboot, module
++* PCR 11 Contains all commandline arguments from scripts (e.g. grub.cfg) and those entered in the shell
++* PCR 12 LUKS-header
++* PCR 13 Parts of GRUB2 that are loaded from disk like GRUB2-modules // TODO: fonts, themes, locales
++
++Kernel measurements are only implemented for diskboot so far (e.g. no cdboot or pxeboot measurement)
++
++### 1.4 Requirements
++
++In order to use the TCG-enhanced TrustedGRUB2, you need a computer which has TCG enhancements according to TCG specs. v1.2, since SHA1-calculations are extended into PC-Registers of the TPM.
++
++### 1.5 Known Bugs / Limitations
++
++* On some HP notebooks and workstations, TrustedGRUB2 (in default mode) is not able to do the kernel measurements due to a buggy BIOS. This means PCR 9 can 
++contain bogus values. HP desktop/laptop BIOS seems to be unable to handle blocks ending on 512 byte boundaries when measuring data.
++  * Fortunately we've found a workaround:
++    * The workaround works as follows: we increase the number of bytes to read by 1 and also the number of sectors to read, which ensures that all 
++bytes of core.img are read. For this to work correctly the loaded core.img must be padded with zeroes.
++    * In summary: 
++      1. pad core.img with zeroes to 512 byte blocks.
++      2. append 1 extra zero byte to core.img.
++    * This doesn't have to be done manually. We've patched `grub_mkimage` to do step 1 and step 2 for us.
++    * This workaround has to be enabled explicitly. To do so: define `TGRUB_HP_WORKAROUND`. For example like this: `make 
++CPPFLAGS=-DTGRUB_HP_WORKAROUND`
++    * IMPORTANT: you have to append `--no-rs-codes` to `grub-install` otherwise you end up in a reboot loop.
++
++If you find any other bugs, create an issue on github
++
++### 1.6 Configuring TrustedGRUB2 before installation
++
++#### 1.6.1 PCR selection
++PCR selection for module measurement, command measurement and loaded files measurement can be adjusted in tpm.h:
++
++```C++
++#define TPM_LOADER_MEASUREMENT_PCR 10
++#define TPM_COMMAND_MEASUREMENT_PCR 11
++#define TPM_LUKS_HEADER_MEASUREMENT_PCR 12
++#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 13
++```
++
++#### 1.6.2 Debug output
++
++To enable some debug output define `TGRUB_DEBUG`. For example like this `make CPPFLAGS=-DTGRUB_DEBUG`
++
++### 1.7 Installation of TrustedGRUB2
++
++Required Packages for compiling:
++* autogen
++* autoconf
++* automake
++* gcc
++* bison
++* flex
++
++To compile and install TrustedGRUB2, please run
++
++```bash
++./autogen.sh
++./configure --prefix=INSTALLDIR --target=i386 -with-platform=pc
++make
++make install
++```
++
++Installing to device:
++
++```bash
++./INSTALLDIR/sbin/grub-install --directory=INSTALLDIR/lib/grub/i386-pc /dev/sda 
++```
++
++[WARNING]
++if installing over an old GRUB2 install you probably have to adjust your grub.cfg
++
++For usb-devices this command can be used (assuming /dev/sdb/ is your usb-device):
++
++```bash
++./INSTALLDIR/sbin/grub-install --directory=INSTALLDIR/lib/grub/i386-pc --root-directory=/mnt/sdb1 /dev/sdb
++```
++
++## 2. Technical Details
++
++### 2.1 General view on how TrustedGRUB2 works
++
++The goal of TrustedGRUB2 is to accomplish a chain of trust, i.e. every component measures the integrity of the succeeding component.
++Concretely, this looks like the following:
++
++|         Component							   |		measured by              |
++| -------------------------------------------  |  ----------------------------- |
++| BIOS                  					   | CRTM					|
++| TrustedGRUB2 MBR bootcode    				   | BIOS					|
++| start of TrustedGRUB2 kernel (diskboot.img)  | TrustedGRUB2 MBR bootcode		|
++| rest of TrustedGRUB2 kernel (core.img)	   | start of TrustedGRUB2 kernel	|
++| Grub modules + OS (kernel and so on) 		   | TrustedGRUB2 kernel			|
++
++This chain of trust can be extended by using the newly added `measure` command to measure the integrity of arbitrary files.
++
++### 2.2 Measurement of GRUB2 kernel
++
++#### 2.2.1 Modifications in boot.S (MBR bootcode)
++
++GRUB2 MBR bootcode is already measured by the TPM. The MBR bootcode has the task to load first sector of TrustedGRUB2 kernel (diskboot.img). Diskboot.img itself loads the rest of GRUB2 kernel.
++Therefore GRUB2 MBR code is extended to measure diskboot.img before jumping to it:
++
++1. Diskboot.img is hashed with a SHA-1 algorithm. Diskboot.img is loaded at address 0x8000, its length is 512 bytes.
++2. The resulting hash value is written to PCR (Platform Configuration Register) 8. More precisely, the former content of this register (which actually is 0) is concatenated to the new value, then hashed with SHA1 and finally written again to PCR 8
++
++Due to the PC architecture, the size of the MBR (where TrustedGRUB2 boot.S is
++located) is limited to 512 bytes. But the original GRUB2 MBR bootcode is already very
++close to this limit, leaving very few space for the TCG extensions. Because
++of this, it was necessary (in the current version of TrustedGRUB2) to eliminate the CHS-code.
++This results in the problem that we support only LBA-discs now. FDD boot is not possible.
++
++#### 2.2.2 Modifications in diskboot.S
++
++boot.S contains the code for loading the first sector of TrustedGRUB2 kernel (diskboot.img). Its only task
++is the load the rest of TrustedGRUB2 kernel. Therefore, the TCG extension now has to measure the rest of TrustedGRUB2 kernel
++The changes here are widely the same as in TrustedGRUB2 bootcode, with the differences that
++the entry point for the code which has to be checked is a address 0x8200 and that the result is written into PCR 9.
++
++### 2.3 Measurement of GRUB2 modules
++
++Grub2 has a modular structure. GRUB2 dynamically loads needed modules which are not contained in kernel. Modifications in boot.S and diskboot.S are only measuring GRUB2 kernel.
++Therefore the GRUB2 module loader was modified to measure modules to PCR 13 before they are loaded. Changes can be found in dl.c .
++
++### 2.4 New SHA1-implementation in GRUB2 kernel
++
++In order to make GRUB2 modules measurement possible, a SHA1-implementation had to be added to the kernel.
++GRUB2 already contains an SHA1-implementation in its crypto module, but this isn't loaded at this stage.
++
++### 2.5 Measurement of all commands and their parameters entered in shell and scripts
++
++All commands which are entered in shell or executed by scripts is measured to PCR 11. Therefore commands in grub.cfg are automatically measured. No need to measure grub.cfg separately.
++One exception applies to this rule: The `menuentry`, `submenu` and `[ ... ]` commands are not measured because it makes precomputation of the PCR 
++value difficult and is unnecessary because each command within `menuentry` or `submenu` is anyway measured. For `[ ... ]` it shouldn't be possible to 
++write commands between the square brackets.
++
++### 2.6 TrustedGRUB2 commands
++
++#### 2.6.1 new commands
++
++```
++readpcr PCRNUM
++```
++
++Display current value of the PCR (Platform Configuration Register) within TPM (Trusted Platform Module) at index, `PCRNUM`.  
++<br>  
++<br>  
++
++```
++tcglog LOGINDEX
++```
++
++Displays TCG event log entry at position, `LOGINDEX`. Type in "0" for all entries.  
++<br>  
++<br>  
++
++```
++measure FILE PCRNUM
++```
++
++Perform TCG measurement operation with the file `FILE` and with PCR( `PCRNUM` ).  
++<br>  
++<br>  
++
++```
++setmor DISABLEAUTODETECT
++```
++
++Sets Memory Overwrite Request (MOR) Bit. `DISABLEAUTODETECT` specifies if BIOS should auto detect unscheduled reboots.  
++<br>  
++<br>  
++
++#### 2.6.2 Modified existing GRUB2 commands
++
++* `linux` / `linux16`  
++* `initrd` / `initrd16`  
++* `chainloader`  
++* `ntdlr`
++* `multiboot`
++* `module`
++  * append `--nounzip` to get measuremens of the compressed file 
++
++These commands are modified to measure before loading. PCR 10 is extended.
++
++Additionally the following commands have been modified:
++
++* `cryptomount`
++
++### 2.7 Other modifications
++
++All modifications have been commented with
++
++```C++
++/* BEGIN TCG EXTENSION */
++
++/* END TCG EXTENSION */
++```
++
++### 2.8 Security considerations
++
++* The `multiboot` command measurement does not follow the new convention of measuring the same buffer that is loaded into memory. If someone needs this extra security feel free to send a pull request. See GH #9 and GH #38 for more details.
++
++### 2.9 File list
++
++The following list presents the files that have been added / modified to add TCG
++support to GRUB2.
++
++* README.md
++* Changelog.md
++* grub-core/Makefile.am
++* grub-core/Makefile.core.def
++* grub-core/boot/i386/pc/boot.S
++* grub-core/boot/i386/pc/diskboot.S
++* grub-core/kern/tpm.c
++* grub-core/kern/dl.c
++* grub-core/kern/i386/pc/tpm/tpm_kern.c
++* grub-core/kern/sha1.c
++* grub-core/disk/cryptodisk.c
++* grub-core/disk/luks.c
++* grub-core/loader/multiboot.c
++* grub-core/loader/linux.c
++* grub-core/loader/i386/linux.c
++* grub-core/loader/i386/pc/chainloader.c
++* grub-core/loader/i386/pc/linux.c
++* grub-core/loader/i386/pc/ntldr.c
++* grub-core/normal/main.c
++* grub-core/script/execute.c
++* grub-core/tpm/i386/pc/tpm.c
++* include/grub/i386/pc/boot.h
++* include/grub/i386/pc/tpm.h
++* include/grub/tpm.h
++* include/grub/sha1.h
++* util/mkimage.c
++
++## 3. Thanks
++
++[TrustedGrub1](https://www.sirrix.com/content/pages/trustedgrub_en.htm) and GRUB-IMA have done a lot of preparatory work in the field and were used for code examples.
+diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
+index 44bb981c2..977600348 100644
+--- a/grub-core/Makefile.am
++++ b/grub-core/Makefile.am
+@@ -99,6 +99,9 @@ KERNEL_HEADER_FILES += $(top_builddir)/include/grub/machine/kernel.h
+ KERNEL_HEADER_FILES += $(top_builddir)/include/grub/machine/pxe.h
+ KERNEL_HEADER_FILES += $(top_builddir)/include/grub/machine/int.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pc/tpm.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
+ endif
+ 
+ if COND_i386_efi
+diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
+index b6cb87c94..18bbd4ba5 100644
+--- a/grub-core/Makefile.core.def
++++ b/grub-core/Makefile.core.def
+@@ -126,6 +126,8 @@ kernel = {
+   common = kern/rescue_parser.c;
+   common = kern/rescue_reader.c;
+   common = kern/term.c;
++  common = kern/sha1.c;
++  common = kern/tpm.c;
+ 
+   noemu = kern/compiler-rt.c;
+   noemu = kern/mm.c;
+@@ -219,6 +221,7 @@ kernel = {
+   i386_pc = kern/i386/pc/init.c;
+   i386_pc = kern/i386/pc/mmap.c;
+   i386_pc = term/i386/pc/console.c;
++  i386_pc = kern/i386/pc/tpm/tpm_kern.c;
+ 
+   i386_qemu = bus/pci.c;
+   i386_qemu = kern/vga_init.c;
+@@ -2374,3 +2377,9 @@ module = {
+   common = loader/i386/xen_file64.c;
+   extra_dist = loader/i386/xen_fileXX.c;
+ };
++
++module = {
++  name = tpm;
++  i386_pc = tpm/i386/pc/tpm.c;
++  enable = i386_pc;
++};
+diff --git a/grub-core/boot/i386/pc/boot.S b/grub-core/boot/i386/pc/boot.S
+index 451c8bea5..c4d784e76 100644
+--- a/grub-core/boot/i386/pc/boot.S
++++ b/grub-core/boot/i386/pc/boot.S
+@@ -27,90 +27,14 @@
+  *  defines for the code go here
+  */
+ 
++/* BEGIN TCG_Extension */
++	/* Changes particularly adapted from trustedgrub and GRUB-IMA */
++/* END TCG_Extension */
++
+ 	/* Print message string */
+ #define MSG(x)	movw $x, %si; call LOCAL(message)
+ #define ERR(x)	movw $x, %si; jmp LOCAL(error_message)
+ 
+-	.macro floppy
+-part_start:
+-
+-LOCAL(probe_values):
+-	.byte	36, 18, 15, 9, 0
+-
+-LOCAL(floppy_probe):
+-	pushw	%dx
+-/*
+- *  Perform floppy probe.
+- */
+-#ifdef __APPLE__
+-	LOCAL(probe_values_minus_one) = LOCAL(probe_values) - 1
+-	movw	MACRO_DOLLAR(LOCAL(probe_values_minus_one)), %si
+-#else
+-	movw	MACRO_DOLLAR(LOCAL(probe_values)) - 1, %si
+-#endif
+-
+-LOCAL(probe_loop):
+-	/* reset floppy controller INT 13h AH=0 */
+-	xorw	%ax, %ax
+-	int	MACRO_DOLLAR(0x13)
+-
+-	incw	%si
+-	movb	(%si), %cl
+-
+-	/* if number of sectors is 0, display error and die */
+-	testb	%cl, %cl
+-	jnz	1f
+-
+-/*
+- * Floppy disk probe failure.
+- */
+-	MSG(fd_probe_error_string)
+-	jmp	LOCAL(general_error)
+-
+-/* "Floppy" */
+-fd_probe_error_string:	.asciz "Floppy"
+-
+-1:
+-	/* perform read */
+-	movw	MACRO_DOLLAR(GRUB_BOOT_MACHINE_BUFFER_SEG), %bx
+-	movw	%bx, %es
+-	xorw	%bx, %bx
+-	movw	MACRO_DOLLAR(0x201), %ax
+-	movb	MACRO_DOLLAR(0), %ch
+-	movb	MACRO_DOLLAR(0), %dh
+-	int	MACRO_DOLLAR(0x13)
+-
+-	/* if error, jump to "LOCAL(probe_loop)" */
+-	jc	LOCAL(probe_loop)
+-
+-	/* %cl is already the correct value! */
+-	movb	MACRO_DOLLAR(1), %dh
+-	movb	MACRO_DOLLAR(79), %ch
+-
+-	jmp	LOCAL(final_init)
+-	.endm
+-
+-	.macro scratch
+-
+-	/* scratch space */
+-mode:
+-	.byte	0
+-disk_address_packet:
+-sectors:
+-	.long	0
+-heads:
+-	.long	0
+-cylinders:
+-	.word	0
+-sector_start:
+-	.byte	0
+-head_start:
+-	.byte	0
+-cylinder_start:
+-	.word	0
+-	/* more space... */
+-	.endm
+-
+ 	.file	"boot.S"
+ 
+ 	.text
+@@ -134,66 +58,47 @@ start:
+ 	jmp	LOCAL(after_BPB)
+ 	nop	/* do I care about this ??? */
+ 
+-#ifdef HYBRID_BOOT
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-	nop
+-
+-	nop
+-	nop
+-	jmp	LOCAL(after_BPB)
+-#else
+ 	/*
+ 	 * This space is for the BIOS parameter block!!!!  Don't change
+ 	 * the first jump, nor start the code anywhere but right after
+ 	 * this area.
+ 	 */
+ 
+-	.org GRUB_BOOT_MACHINE_BPB_START
+-	.org 4
+-#endif
+-#ifdef HYBRID_BOOT
+-	floppy
+-#else
+-	scratch
+-#endif
++	. = _start + GRUB_BOOT_MACHINE_BPB_START
++	. = _start + 4
++
++	/* scratch space */
++mode:
++	.byte	0
++disk_address_packet:
++sectors:
++	.long	0
++heads:
++	.long	0
++cylinders:
++	.word	0
++sector_start:
++	.byte	0
++head_start:
++	.byte	0
++cylinder_start:
++	.word	0
++	/* more space... */
++
++	. = _start + GRUB_BOOT_MACHINE_BPB_END
+ 
+-	.org GRUB_BOOT_MACHINE_BPB_END
+ 	/*
+ 	 * End of BIOS parameter block.
+ 	 */
+ 
+-LOCAL(kernel_address):
++kernel_address:
+ 	.word	GRUB_BOOT_MACHINE_KERNEL_ADDR
+ 
+-#ifndef HYBRID_BOOT
+-	.org GRUB_BOOT_MACHINE_KERNEL_SECTOR
+-LOCAL(kernel_sector):
+-	.long	1
+-LOCAL(kernel_sector_high):
+-	.long	0
+-#endif
++	. = _start + GRUB_BOOT_MACHINE_KERNEL_SECTOR
++kernel_sector:
++	.long	1, 0
+ 
+-	.org GRUB_BOOT_MACHINE_BOOT_DRIVE
++	. = _start + GRUB_BOOT_MACHINE_BOOT_DRIVE
+ boot_drive:
+ 	.byte 0xff	/* the disk to load kernel from */
+ 			/* 0xff means use the boot drive */
+@@ -211,7 +116,7 @@ LOCAL(after_BPB):
+          * possible boot drive. If GRUB is installed into a floppy,
+          * this does nothing (only jump).
+          */
+-	.org GRUB_BOOT_MACHINE_DRIVE_CHECK
++	. = _start + GRUB_BOOT_MACHINE_DRIVE_CHECK
+ boot_drive_check:
+         jmp     3f	/* grub-setup may overwrite this jump */
+         testb   $0x80, %dl
+@@ -220,7 +125,7 @@ boot_drive_check:
+ 	/* Ignore %dl different from 0-0x0f and 0x80-0x8f.  */
+ 	testb   $0x70, %dl
+ 	jz      1f
+-2:	
++2:
+         movb    $0x80, %dl
+ 1:
+ 	/*
+@@ -266,6 +171,8 @@ real_start:
+ 	/* set %si to the disk address packet */
+ 	movw	$disk_address_packet, %si
+ 
++/* BEGIN TCG_Extension */
++#ifndef ENABLE_TGRUB2
+ 	/* check if LBA is supported */
+ 	movb	$0x41, %ah
+ 	movw	$0x55aa, %bx
+@@ -285,8 +192,10 @@ real_start:
+ 
+ 	andw	$1, %cx
+ 	jz	LOCAL(chs_mode)
++#endif /* ! ENABLE_TGRUB2 */
++/* END TCG Extension */
+ 
+-LOCAL(lba_mode):
++lba_mode:
+ 	xorw	%ax, %ax
+ 	movw	%ax, 4(%si)
+ 
+@@ -301,9 +210,9 @@ LOCAL(lba_mode):
+ 	movw	$0x0010, (%si)
+ 
+ 	/* the absolute address */
+-	movl	LOCAL(kernel_sector), %ebx
++	movl	kernel_sector, %ebx
+ 	movl	%ebx, 8(%si)
+-	movl	LOCAL(kernel_sector_high), %ebx
++	movl	kernel_sector + 4, %ebx
+ 	movl	%ebx, 12(%si)
+ 
+ 	/* the segment of buffer address */
+@@ -328,6 +237,12 @@ LOCAL(lba_mode):
+ 	jmp	LOCAL(copy_buffer)
+ 
+ LOCAL(chs_mode):
++/* BEGIN TCG_Extension */
++#ifdef ENABLE_TGRUB2
++	MSG(chs_no_support_string)
++	jmp     LOCAL(general_error)
++#else /* ! ENABLE_TGRUB2 */
++/* END TCG Extension */
+ 	/*
+ 	 *  Determine the hard disk geometry from the BIOS!
+ 	 *  We do this first, so that LS-120 IDE floppies work correctly.
+@@ -336,12 +251,11 @@ LOCAL(chs_mode):
+ 	int	$0x13
+ 	jnc	LOCAL(final_init)
+ 
+-	popw	%dx
+ 	/*
+ 	 *  The call failed, so maybe use the floppy probe instead.
+ 	 */
+-	testb	%dl, %dl
+-	jnb	LOCAL(floppy_probe)
++	testb	$GRUB_BOOT_MACHINE_BIOS_HD_FLAG, %dl
++	jz	LOCAL(floppy_probe)
+ 
+ 	/* Nope, we definitely have a hard disk, and we're screwed. */
+ 	ERR(hd_probe_error_string)
+@@ -372,13 +286,13 @@ LOCAL(final_init):
+ 
+ setup_sectors:
+ 	/* load logical sector start (top half) */
+-	movl	LOCAL(kernel_sector_high), %eax
++	movl	kernel_sector + 4, %eax
+ 
+ 	orl	%eax, %eax
+ 	jnz	LOCAL(geometry_error)
+ 
+ 	/* load logical sector start (bottom half) */
+-	movl	LOCAL(kernel_sector), %eax
++	movl	kernel_sector, %eax
+ 
+ 	/* zero %edx */
+ 	xorl	%edx, %edx
+@@ -439,8 +353,10 @@ setup_sectors:
+ 	jc	LOCAL(read_error)
+ 
+ 	movw	%es, %bx
+-
++#endif /* ! ENABLE_TGRUB2 */
++/* End TCG Extension */
+ LOCAL(copy_buffer):
++
+ 	/*
+ 	 * We need to save %cx and %si because the startup code in
+ 	 * kernel uses them without initializing them.
+@@ -462,8 +378,91 @@ LOCAL(copy_buffer):
+ 	popw	%ds
+ 	popa
+ 
++
++/* BEGIN TCG Extension */
++#ifdef ENABLE_TGRUB2
++	pusha
++
++	/* hash and measure 512 bytes at the beginning of kernel_address (diskboot.img) */
++
++	/* Check for TPM availability */
++/*
++ * BIOS call "INT 1Ah, (AH)=BBh,(AL)=00h" TCG_StatusCheck
++ *	Call with	%ah = 0xBB
++ *				%al = 0x00
++ *
++ *	Return:	%eax = TCG_STATUS == 0 if the system supports the TCG BIOS calls.
++ *			%ebx = 'TCPA'
++ *
++ * Ref:
++ *  TCG PC Client Specific Implementation Specification for Conventional BIOS v1.21,
++ *  Section 13.7 (page 115)
++ */
++tcg_statuscheck:
++	movw    $0xBB00, %ax		/* TCG_StatusCheck */
++	int     $0x1A
++  test	%eax, %eax
++	jz	tcg_compacthashlogextendevent			/* if eax == 0 */
++	cmpb 	$0x24, %al   /* TCG_PC_TPM_DEACTIVATED */
++  jne  error_no_tpm
++
++error_tpm_deactivated:
++  MSG(deactivatedTPM_error_string)
++  jmp	LOCAL(general_error)
++error_no_tpm:
++	MSG(noTPM_error_string)
++	jmp	LOCAL(general_error)
++
++/*
++ * BIOS call "INT 1Ah, (AH)=BBh, (AL)=07h" TCG_CompactHashLogExtendEvent
++ *
++ * Performs hashing of the event or the event data, extends the event to a PCR, and then
++ * places the resulting TCG_PCClientPCREventStruc into the event log
++ *
++ * Call with	%ah = 0xBB
++ *				%al = 0x07
++ *				%es:%di = segment:offset of the pointer to the start of the data buffer to be hashed
++ *				%esi = The informative value to be placed into the event field
++ *				%ebx = 'TCPA'
++ *				%ecx = The length, in bytes, of the buffer referenced by ES:DI
++ *				%edx = The PCR number (PCRIndex) to which the hashed result is to be extended
++ *
++ * Return:		%eax = TCG_STATUS
++ *				%edx = Event number of the event that was logged
++ *
++ * Ref:
++ *  TCG PC Client Specific Implementation Specification for Conventional BIOS v1.21,
++ *  Section 13.14 (page 126)
++ */
++tcg_compacthashlogextendevent:
++
++	movw    $0xBB07, %ax			/* TCG_CompactHashLogExtendEvent */
++
++	movw	$0x0, %bx
++	movw	%bx, %es
++
++	movl	$GRUB_BOOT_MACHINE_KERNEL_ADDR, %edi
++
++	xorl	%esi, %esi
++
++	movl    $0x41504354, %ebx	/* EBX = "TCPA" */
++	movl 	$0x200, %ecx		/* Length = 512 Byte */
++	movl	$0x8, %edx			/* PCR 8 */
++
++	int     $0x1A
++	test	%eax, %eax
++	jz		tcg_end				/* if eax != 0 */
++	MSG(tcg_error_string)
++	jmp	LOCAL(general_error)
++
++tcg_end:
++	popa
++
++#endif /* ENABLE_TGRUB2 */
++/* END TCG Extension */
++
+ 	/* boot kernel */
+-	jmp	*(LOCAL(kernel_address))
++	jmp	*(kernel_address)
+ 
+ /* END OF MAIN LOOP */
+ 
+@@ -485,16 +484,25 @@ LOCAL(general_error):
+ 
+ /* go here when you need to stop the machine hard after an error condition */
+         /* tell the BIOS a boot failure, which may result in no effect */
+-        int	$0x18
++        /* int	$0x18 */
+ LOCAL(stop):
+ 	jmp	LOCAL(stop)
+ 
+-notification_string:	.asciz "GRUB "
++notification_string:	.asciz "TrustedGRUB2 "
+ geometry_error_string:	.asciz "Geom"
+ hd_probe_error_string:	.asciz "Hard Disk"
+ read_error_string:	.asciz "Read"
+ general_error_string:	.asciz " Error\r\n"
+ 
++/* BEGIN TCG_Extension */
++#ifdef ENABLE_TGRUB2
++chs_no_support_string:	.string "CHSNA"
++tcg_error_string:	.string "TPM "
++noTPM_error_string:	.string "No TPM found"
++deactivatedTPM_error_string: .string "TPM deactivated"
++#endif /* ENABLE_TGRUB2 */
++/* END TCG Extension */
++
+ /*
+  * message: write the string pointed to by %si
+  *
+@@ -521,14 +529,7 @@ LOCAL(message):
+ 	 *  number here.
+ 	 */
+ 
+-#ifdef HYBRID_BOOT
+-	.org 0x1b0
+-LOCAL(kernel_sector):
+-	.long	1
+-LOCAL(kernel_sector_high):
+-	.long	0
+-#endif
+-	.org GRUB_BOOT_MACHINE_WINDOWS_NT_MAGIC
++	. = _start + GRUB_BOOT_MACHINE_WINDOWS_NT_MAGIC
+ nt_magic:
+ 	.long 0
+ 	.word 0
+@@ -537,17 +538,66 @@ nt_magic:
+ 	 *  This is where an MBR would go if on a hard disk.  The code
+ 	 *  here isn't even referenced unless we're on a floppy.  Kinda
+ 	 *  sneaky, huh?
+-	*/
++	 */
+ 
+-	.org GRUB_BOOT_MACHINE_PART_START
++	. = _start + GRUB_BOOT_MACHINE_PART_START
++part_start:
+ 
+-#ifndef HYBRID_BOOT
+-	floppy
+-#else
+-	scratch
+-#endif
++/* BEGIN TCG_Extension */
++#ifndef ENABLE_TGRUB2
++probe_values:
++	.byte	36, 18, 15, 9, 0
++
++LOCAL(floppy_probe):
++/*
++ *  Perform floppy probe.
++ */
++
++	movw	$probe_values - 1, %si
++
++LOCAL(probe_loop):
++	/* reset floppy controller INT 13h AH=0 */
++	xorw	%ax, %ax
++	int	$0x13
++
++	incw	%si
++	movb	(%si), %cl
++
++	/* if number of sectors is 0, display error and die */
++	cmpb	$0, %cl
++	jne	1f
++
++/*
++ * Floppy disk probe failure.
++ */
++	MSG(fd_probe_error_string)
++	jmp	LOCAL(general_error)
++
++/* "Floppy" */
++fd_probe_error_string:	.asciz "Floppy"
++
++1:
++	/* perform read */
++	movw	$GRUB_BOOT_MACHINE_BUFFER_SEG, %bx
++	movw	%bx, %es
++	xorw	%bx, %bx
++	movw	$0x201, %ax
++	movb	$0, %ch
++	movb	$0, %dh
++	int	$0x13
++
++	/* if error, jump to "LOCAL(probe_loop)" */
++	jc	LOCAL(probe_loop)
++
++	/* %cl is already the correct value! */
++	movb	$1, %dh
++	movb	$79, %ch
++
++	jmp	LOCAL(final_init)
++#endif /* ! ENABLE_TGRUB2 */
++/* END TCG Extension */
++
++	. = _start + GRUB_BOOT_MACHINE_PART_END
+ 
+-	.org GRUB_BOOT_MACHINE_PART_END
+-	
+ /* the last 2 bytes in the sector 0 contain the signature */
+ 	.word	GRUB_BOOT_MACHINE_SIGNATURE
+diff --git a/grub-core/boot/i386/pc/diskboot.S b/grub-core/boot/i386/pc/diskboot.S
+index 31096ce5a..3f44041d9 100644
+--- a/grub-core/boot/i386/pc/diskboot.S
++++ b/grub-core/boot/i386/pc/diskboot.S
+@@ -70,6 +70,37 @@ LOCAL(after_notification_string):
+ 	/* this sets up for the first run through "bootloop" */
+ 	movw	$LOCAL(firstlist), %di
+ 
++/* BEGIN TCG EXTENSION */
++	/* clear EAX to remove potential garbage */
++	xorl	%eax, %eax
++	/* 8(%di) = number of sectors to read */
++	movw	8(%di), %ax
++
++	/* Multiply number of sectors to read with 512 bytes. EAX is 32bit
++	 * which is large enough to hold values of up to 4GB. I doubt there
++	 * will ever be a core.img larger than that. ;-) */
++	shll	$9, %eax
++
++#ifdef TGRUB_HP_WORKAROUND
++	/* HP workaround
++	 * This is a workaround for HP desktop/laptop BIOS which seem to be
++	 * unable to handle blocks ending on 512 byte boundaries when measuring
++	 * data. So we increase the number of bytes to read by 1 and also the
++	 * number of sectors to read, which ensures that all bytes of core.img
++	 * are read. For this to work correctly the loaded core.img must be
++	 * padded with zeroes or some other fixed value:
++	 * 1) pad core.img with zeroes to 512 byte blocks.
++	 * 2) append 1 extra zero byte to core.img.
++	 * Step 1 and 2 are already implemented in grub_mkimage
++	 * */
++	inc	%eax   /* add 1 to number_of_bytes_to_measure */
++	incw	8(%di) /* make code below read 1 more sector than specified */
++#endif
++
++	/* write result to number_of_bytes_to_measure var */
++	movl	%eax, number_of_bytes_to_measure
++/* END TCG EXTENSION */
++
+ 	/* save the sector number of the second sector in %ebp */
+ 	movl	(%di), %ebp
+ 
+@@ -316,6 +347,67 @@ LOCAL(bootit):
+ 
+ LOCAL(after_notification_done):
+ 	popw	%dx	/* this makes sure %dl is our "boot" drive */
++
++
++	/* BEGIN TCG Extension */
++#ifdef ENABLE_TGRUB2
++	pusha
++
++	/* hash and measure 512 bytes at the beginning of kernel_address */
++
++/*
++ * BIOS call "INT 1Ah, (AH)=BBh, (AL)=07h" TCG_CompactHashLogExtendEvent
++ *
++ * Performs hashing of the event or the event data, extends the event to a PCR, and then
++ * places the resulting TCG_PCClientPCREventStruc into the event log
++ *
++ * Call with	%ah = 0xBB
++ *				%al = 0x07
++ *				%es:%di = segment:offset of the pointer to the start of the data buffer to be hashed
++ *				%esi = The informative value to be placed into the event field
++ *				%ebx = 'TCPA'
++ *				%ecx = The length, in bytes, of the buffer referenced by ES:DI
++ *				%edx = The PCR number (PCRIndex) to which the hashed result is to be extended
++ *
++ * Return:		%eax = TCG_STATUS
++ *				%edx = Event number of the event that was logged
++ *
++ * Ref:
++ *  TCG PC Client Specific Implementation Specification for Conventional BIOS v1.21,
++ *  Section 13.14 (page 126)
++ */
++tcg_compacthashlogextendevent:
++
++	movw    $0xBB07, %ax			/* TCG_CompactHashLogExtendEvent */
++
++	movw	$0x0, %bx
++	movw	%bx, %es
++
++	/* Rest of kernel starts at this address */
++	movl	$(GRUB_BOOT_MACHINE_KERNEL_ADDR + 0x200), %edi
++
++	movl    $0x41504354, %ebx	/* EBX = "TCPA" */
++
++	/* %ecx = The length, in bytes, of the buffer to measure  */
++	movl	$number_of_bytes_to_measure, %esi
++	movl	(%esi), %ecx
++
++	xorl	%esi, %esi
++
++	movl	$0x9, %edx			/* PCR 9 */
++
++	int     $0x1A
++	test	%eax, %eax
++	jz		tcg_end				/* if eax != 0 */
++	MSG(tcg_error_string)
++	jmp	LOCAL(general_error)
++
++tcg_end:
++	popa
++
++#endif /* ENABLE_TGRUB2 */
++/* END TCG Extension */
++
+ 	ljmp	$0, $(GRUB_BOOT_MACHINE_KERNEL_ADDR + 0x200)
+ 
+ 
+@@ -355,6 +447,11 @@ geometry_error_string:	.asciz "Geom"
+ read_error_string:	.asciz "Read"
+ general_error_string:	.asciz " Error"
+ 
++#ifdef ENABLE_TGRUB2
++tcg_error_string:	.string "TPM "
++number_of_bytes_to_measure: .long 0
++#endif /* ENABLE_TGRUB2 */
++
+ /*
+  * message: write the string pointed to by %si
+  *
+diff --git a/grub-core/disk/cryptodisk.c b/grub-core/disk/cryptodisk.c
+index bd60a66b3..642d07d8b 100644
+--- a/grub-core/disk/cryptodisk.c
++++ b/grub-core/disk/cryptodisk.c
+@@ -26,6 +26,7 @@
+ #include <grub/file.h>
+ #include <grub/procfs.h>
+ #include <grub/partition.h>
++#include <grub/env.h>
+ 
+ #ifdef GRUB_UTIL
+ #include <grub/emu/hostdisk.h>
+@@ -41,6 +42,10 @@ static const struct grub_arg_option options[] =
+     /* TRANSLATORS: It's still restricted to cryptodisks only.  */
+     {"all", 'a', 0, N_("Mount all."), 0, 0},
+     {"boot", 'b', 0, N_("Mount all volumes with `boot' flag set."), 0, 0},
++	/* Begin TCG extension */
++	{"keyfile", 'k', 0, N_("Keyfile to use for decrypting."), 0, 0},
++	{"unseal", 's', 0, N_("Unseals the provided keyfile."), 0, 0},
++	/* End TCG extension */
+     {0, 0, 0, 0, 0, 0}
+   };
+ 
+@@ -381,10 +386,10 @@ grub_cryptodisk_endecrypt (struct grub_cryptodisk *dev,
+ 	case GRUB_CRYPTODISK_MODE_ECB:
+ 	  if (do_encrypt)
+ 	    err = grub_crypto_ecb_encrypt (dev->cipher, data + i, data + i,
+-					   (1U << dev->log_sector_size));
++				     (1U << dev->log_sector_size));
+ 	  else
+ 	    err = grub_crypto_ecb_decrypt (dev->cipher, data + i, data + i,
+-					   (1U << dev->log_sector_size));
++				     (1U << dev->log_sector_size));
+ 	  if (err)
+ 	    return err;
+ 	  break;
+@@ -470,7 +475,7 @@ grub_cryptodisk_setkey (grub_cryptodisk_t dev, grub_uint8_t *key, grub_size_t ke
+ 
+ static int
+ grub_cryptodisk_iterate (grub_disk_dev_iterate_hook_t hook, void *hook_data,
+-			 grub_disk_pull_t pull)
++		   grub_disk_pull_t pull)
+ {
+   grub_cryptodisk_t i;
+ 
+@@ -658,10 +663,10 @@ grub_cryptodisk_write (grub_disk_t disk, grub_disk_addr_t sector,
+   
+   if (grub_disk_write_weak)
+     err = grub_disk_write_weak (dev->source_disk,
+-				(sector << (disk->log_sector_size
++			  (sector << (disk->log_sector_size
+ 					    - GRUB_DISK_SECTOR_BITS))
+ 				+ dev->offset,
+-				0, size << disk->log_sector_size, tmp);
++			  0, size << disk->log_sector_size, tmp);
+   else
+     err = grub_error (GRUB_ERR_BUG, "disk.mod not loaded");
+   grub_free (tmp);
+@@ -934,6 +939,19 @@ grub_cmd_cryptomount (grub_extcmd_context_t ctxt, int argc, char **args)
+   if (argc < 1 && !state[1].set && !state[2].set)
+     return grub_error (GRUB_ERR_BAD_ARGUMENT, "device name required");
+ 
++  /* Begin TCG extension */
++  /* keyFile path */
++  if( state[3].set ) {
++	  grub_env_set ("keyfile", args[1] );
++
++	  if( state[4].set ) {
++		  grub_env_set ("unsealmount", "true" );
++	  } else {
++		  grub_env_set ("unsealmount", "false" );
++	  }
++  }
++  /* End TCG extension */
++
+   have_it = 0;
+   if (state[0].set)
+     {
+@@ -1141,8 +1159,10 @@ GRUB_MOD_INIT (cryptodisk)
+ {
+   grub_disk_dev_register (&grub_cryptodisk_dev);
+   cmd = grub_register_extcmd ("cryptomount", grub_cmd_cryptomount, 0,
+-			      N_("SOURCE|-u UUID|-a|-b"),
++		  /* Begin TCG extension */
++			      N_("SOURCE|-u UUID|-a|-b|-k KEYFILE|-s"),
+ 			      N_("Mount a crypto device."), options);
++  	  	  /* End TCG extension */
+   grub_procfs_register ("luks_script", &luks_script);
+ }
+ 
+diff --git a/grub-core/disk/luks.c b/grub-core/disk/luks.c
+index 86c50c612..56ccce5c1 100644
+--- a/grub-core/disk/luks.c
++++ b/grub-core/disk/luks.c
+@@ -26,6 +26,12 @@
+ #include <grub/crypto.h>
+ #include <grub/partition.h>
+ #include <grub/i18n.h>
++#include <grub/file.h>
++#include <grub/env.h>
++
++/* Begin TCG extension */
++#include <grub/tpm.h>
++/* End TCG extension */
+ 
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+@@ -287,7 +293,7 @@ configure_ciphers (grub_disk_t disk, const char *check_uuid,
+       grub_crypto_cipher_close (cipher);
+       grub_crypto_cipher_close (essiv_cipher);
+       grub_crypto_cipher_close (secondary_cipher);
+-      return NULL;
++    return NULL;
+     }
+   newdev->cipher = cipher;
+   newdev->offset = grub_be_to_cpu32 (header.payloadOffset);
+@@ -307,165 +313,307 @@ configure_ciphers (grub_disk_t disk, const char *check_uuid,
+   return newdev;
+ }
+ 
+-static grub_err_t
+-luks_recover_key (grub_disk_t source,
+-		  grub_cryptodisk_t dev)
+-{
+-  struct grub_luks_phdr header;
+-  grub_size_t keysize;
+-  grub_uint8_t *split_key = NULL;
+-  char passphrase[MAX_PASSPHRASE] = "";
+-  grub_uint8_t candidate_digest[sizeof (header.mkDigest)];
+-  unsigned i;
+-  grub_size_t length;
+-  grub_err_t err;
+-  grub_size_t max_stripes = 1;
+-  char *tmp;
+-
+-  err = grub_disk_read (source, 0, 0, sizeof (header), &header);
+-  if (err)
+-    return err;
+-
+-  grub_puts_ (N_("Attempting to decrypt master key..."));
+-  keysize = grub_be_to_cpu32 (header.keyBytes);
+-  if (keysize > GRUB_CRYPTODISK_MAX_KEYLEN)
+-    return grub_error (GRUB_ERR_BAD_FS, "key is too long");
+-
+-  for (i = 0; i < ARRAY_SIZE (header.keyblock); i++)
+-    if (grub_be_to_cpu32 (header.keyblock[i].active) == LUKS_KEY_ENABLED
+-	&& grub_be_to_cpu32 (header.keyblock[i].stripes) > max_stripes)
+-      max_stripes = grub_be_to_cpu32 (header.keyblock[i].stripes);
+-
+-  split_key = grub_malloc (keysize * max_stripes);
+-  if (!split_key)
+-    return grub_errno;
+-
+-  /* Get the passphrase from the user.  */
+-  tmp = NULL;
+-  if (source->partition)
+-    tmp = grub_partition_get_name (source->partition);
+-  grub_printf_ (N_("Enter passphrase for %s%s%s (%s): "), source->name,
+-	       source->partition ? "," : "", tmp ? : "",
+-	       dev->uuid);
+-  grub_free (tmp);
+-  if (!grub_password_get (passphrase, MAX_PASSPHRASE))
+-    {
+-      grub_free (split_key);
+-      return grub_error (GRUB_ERR_BAD_ARGUMENT, "Passphrase not supplied");
+-    }
+-
+-  /* Try to recover master key from each active keyslot.  */
+-  for (i = 0; i < ARRAY_SIZE (header.keyblock); i++)
+-    {
+-      gcry_err_code_t gcry_err;
+-      grub_uint8_t candidate_key[GRUB_CRYPTODISK_MAX_KEYLEN];
+-      grub_uint8_t digest[GRUB_CRYPTODISK_MAX_KEYLEN];
+-
+-      /* Check if keyslot is enabled.  */
+-      if (grub_be_to_cpu32 (header.keyblock[i].active) != LUKS_KEY_ENABLED)
+-	continue;
+-
+-      grub_dprintf ("luks", "Trying keyslot %d\n", i);
+-
+-      /* Calculate the PBKDF2 of the user supplied passphrase.  */
+-      gcry_err = grub_crypto_pbkdf2 (dev->hash, (grub_uint8_t *) passphrase,
+-				     grub_strlen (passphrase),
+-				     header.keyblock[i].passwordSalt,
+-				     sizeof (header.keyblock[i].passwordSalt),
+-				     grub_be_to_cpu32 (header.keyblock[i].
+-						       passwordIterations),
+-				     digest, keysize);
+-
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
++/* Begin TCG extension */
++static grub_err_t luks_recover_key(grub_disk_t source, grub_cryptodisk_t dev) {
++	struct grub_luks_phdr header;
++	grub_size_t keysize;
++	grub_uint8_t *split_key = NULL;
++	char passphrase[MAX_PASSPHRASE] = "";
++	grub_uint8_t candidate_digest[sizeof(header.mkDigest)];
++	unsigned i;
++	grub_size_t length;
++	grub_err_t err;
++	grub_size_t max_stripes = 1;
++	char *tmp;
++
++	err = grub_disk_read(source, 0, 0, sizeof(header), &header);
++
++	if (err) {
++		grub_print_error();
++		grub_fatal("luks_recover_key failed.");
+ 	}
+ 
+-      grub_dprintf ("luks", "PBKDF2 done\n");
++	/* tpm functions not available in GRUB_UTIL */
++#ifndef GRUB_UTIL
+ 
+-      gcry_err = grub_cryptodisk_setkey (dev, digest, keysize); 
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
++	// measure luks header
++	if (!grub_strcmp(grub_env_get("unsealmount"), "true")) {
++		grub_TPM_measure_buffer(&header, sizeof(header),
++				TPM_LUKS_HEADER_MEASUREMENT_PCR);
+ 	}
+ 
+-      length = (keysize * grub_be_to_cpu32 (header.keyblock[i].stripes));
++#endif
+ 
+-      /* Read and decrypt the key material from the disk.  */
+-      err = grub_disk_read (source,
+-			    grub_be_to_cpu32 (header.keyblock
+-					      [i].keyMaterialOffset), 0,
+-			    length, split_key);
+-      if (err)
+-	{
+-	  grub_free (split_key);
+-	  return err;
++	grub_puts_(N_("Attempting to decrypt master key..."));
++	keysize = grub_be_to_cpu32(header.keyBytes);
++  if (keysize > GRUB_CRYPTODISK_MAX_KEYLEN)
++    grub_fatal("luks_recover_key failed: key is too long");
++	for (i = 0; i < ARRAY_SIZE(header.keyblock); i++)
++		if (grub_be_to_cpu32 (header.keyblock[i].active) == LUKS_KEY_ENABLED
++				&& grub_be_to_cpu32 (header.keyblock[i].stripes) > max_stripes)
++			max_stripes = grub_be_to_cpu32(header.keyblock[i].stripes);
++
++	split_key = grub_malloc(keysize * max_stripes);
++	if (!split_key) {
++		grub_print_error();
++		grub_fatal("luks_recover_key failed.");
+ 	}
+ 
+-      gcry_err = grub_cryptodisk_decrypt (dev, split_key, length, 0);
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
++	/* read in keyfile if provided */
++	grub_uint8_t* keyFileBuf = NULL;
++	grub_uint8_t* unsealedKeyFile = NULL;
++	char* secret = NULL;
++	grub_size_t secretSize = 0;
++
++	if (grub_env_get("keyfile") != 0) {
++		grub_file_t file = grub_file_open(grub_env_get("keyfile"));
++
++		if (!file) {
++			grub_free(split_key);
++			grub_print_error();
++			grub_fatal("luks_recover_key failed.");
++		}
++
++		grub_size_t fileSize = file->size;
++
++		keyFileBuf = grub_zalloc(fileSize);
++
++		if (!keyFileBuf) {
++			grub_file_close(file);
++			grub_free(split_key);
++			grub_fatal("keyfile read: memory allocation failed");
++		}
++
++		/* read file */
++		if (grub_file_read(file, keyFileBuf, fileSize)
++				!= (grub_ssize_t) fileSize) {
++			grub_free(keyFileBuf);
++			grub_free(split_key);
++			grub_file_close(file);
++			grub_print_error();
++			grub_fatal("luks_recover_key failed.");
++		}
++
++		grub_file_close(file);
++
++		secret = (char*) keyFileBuf;
++		secretSize = fileSize;
++
++#ifndef GRUB_UTIL
++		grub_size_t resultSize = 0;
++
++		// unseal keyfile ?
++		if (!grub_strcmp(grub_env_get("unsealmount"), "true")) {
++			grub_TPM_unseal(keyFileBuf, fileSize, &unsealedKeyFile,
++					&resultSize);
++			secret = (char*) unsealedKeyFile;
++			secretSize = resultSize;
++		}
++#endif
++
++	} else { /* only ask for passphrase if no keyfile specified */
++		grub_errno = GRUB_ERR_NONE;
++
++		/* Get the passphrase from the user. */
++		tmp = NULL;
++
++		if (source->partition)
++			tmp = grub_partition_get_name(source->partition);
++
++		grub_printf_(N_("Enter passphrase for %s%s%s (%s): "), source->name,
++				source->partition ? "," : "", tmp ? : "", dev->uuid);
++
++		grub_free(tmp);
++		if (!grub_password_get(passphrase, MAX_PASSPHRASE)) {
++			grub_free(split_key);
++			grub_fatal("Passphrase not supplied");
++		}
++
++		secret = passphrase;
++		secretSize = grub_strlen(passphrase);
+ 	}
+ 
+-      /* Merge the decrypted key material to get the candidate master key.  */
+-      gcry_err = AF_merge (dev->hash, split_key, candidate_key, keysize,
+-			   grub_be_to_cpu32 (header.keyblock[i].stripes));
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
+-	}
++	/* Try to recover master key from each active keyslot. */
++	for (i = 0; i < ARRAY_SIZE(header.keyblock); i++) {
++		gcry_err_code_t gcry_err;
++      grub_uint8_t candidate_key[GRUB_CRYPTODISK_MAX_KEYLEN];
++      grub_uint8_t digest[GRUB_CRYPTODISK_MAX_KEYLEN];
+ 
+-      grub_dprintf ("luks", "candidate key recovered\n");
+-
+-      /* Calculate the PBKDF2 of the candidate master key.  */
+-      gcry_err = grub_crypto_pbkdf2 (dev->hash, candidate_key,
+-				     grub_be_to_cpu32 (header.keyBytes),
+-				     header.mkDigestSalt,
+-				     sizeof (header.mkDigestSalt),
+-				     grub_be_to_cpu32
+-				     (header.mkDigestIterations),
+-				     candidate_digest,
+-				     sizeof (candidate_digest));
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
++		/* Check if keyslot is enabled.  */
++		if (grub_be_to_cpu32 (header.keyblock[i].active) != LUKS_KEY_ENABLED)
++			continue;
++
++		grub_dprintf("luks", "Trying keyslot %d\n", i);
++
++		/* Calculate the PBKDF2 of the user supplied passphrase / keyfile.  */
++		gcry_err = grub_crypto_pbkdf2(dev->hash, (grub_uint8_t *) secret,
++				secretSize, header.keyblock[i].passwordSalt,
++				sizeof(header.keyblock[i].passwordSalt),
++				grub_be_to_cpu32(header.keyblock[i].passwordIterations), digest,
++				keysize);
++
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		grub_dprintf("luks", "PBKDF2 done\n");
++
++		gcry_err = grub_cryptodisk_setkey(dev, digest, keysize);
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		length = (keysize * grub_be_to_cpu32(header.keyblock[i].stripes));
++
++		/* Read and decrypt the key material from the disk.  */
++		err = grub_disk_read(source,
++				grub_be_to_cpu32(header.keyblock[i].keyMaterialOffset), 0,
++				length, split_key);
++		if (err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_print_error();
++			grub_fatal("luks_recover_key failed.");
++		}
++
++		gcry_err = grub_cryptodisk_decrypt(dev, split_key, length, 0);
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		/* Merge the decrypted key material to get the candidate master key.  */
++		gcry_err = AF_merge(dev->hash, split_key, candidate_key, keysize,
++				grub_be_to_cpu32(header.keyblock[i].stripes));
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		grub_dprintf("luks", "candidate key recovered\n");
++
++		/* Calculate the PBKDF2 of the candidate master key.  */
++		gcry_err = grub_crypto_pbkdf2(dev->hash, candidate_key,
++				grub_be_to_cpu32(header.keyBytes), header.mkDigestSalt,
++				sizeof(header.mkDigestSalt),
++				grub_be_to_cpu32(header.mkDigestIterations), candidate_digest,
++				sizeof(candidate_digest));
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		/* Compare the calculated PBKDF2 to the digest stored
++		 in the header to see if it's correct.  */
++		if (grub_memcmp(candidate_digest, header.mkDigest,
++				sizeof(header.mkDigest)) != 0) {
++			grub_dprintf("luks", "bad digest\n");
++			continue;
++		}
++
++		/* TRANSLATORS: It's a cryptographic key slot: one element of an array
++		 where each element is either empty or holds a key.  */
++		grub_printf_(N_("Slot %d opened\n"), i);
++
++		/* Set the master key.  */
++		gcry_err = grub_cryptodisk_setkey(dev, candidate_key, keysize);
++		if (gcry_err) {
++			if (keyFileBuf) {
++				grub_free(keyFileBuf);
++			}
++
++			if (unsealedKeyFile) {
++				grub_free(unsealedKeyFile);
++			}
++
++			grub_free(split_key);
++			grub_fatal("luks_recover_key failed.");
++			//return grub_crypto_gcry_error(gcry_err);
++		}
++
++		if (keyFileBuf) {
++			grub_free(keyFileBuf);
++		}
++
++		if (unsealedKeyFile) {
++			grub_free(unsealedKeyFile);
++		}
++
++		grub_free(split_key);
++
++		grub_env_unset("unsealmount");
++		grub_env_unset("keyfile");
++
++		return GRUB_ERR_NONE;
+ 	}
+ 
+-      /* Compare the calculated PBKDF2 to the digest stored
+-         in the header to see if it's correct.  */
+-      if (grub_memcmp (candidate_digest, header.mkDigest,
+-		       sizeof (header.mkDigest)) != 0)
+-	{
+-	  grub_dprintf ("luks", "bad digest\n");
+-	  continue;
++	grub_free(split_key);
++	if (keyFileBuf) {
++		grub_free(keyFileBuf);
+ 	}
+ 
+-      /* TRANSLATORS: It's a cryptographic key slot: one element of an array
+-	 where each element is either empty or holds a key.  */
+-      grub_printf_ (N_("Slot %d opened\n"), i);
+-
+-      /* Set the master key.  */
+-      gcry_err = grub_cryptodisk_setkey (dev, candidate_key, keysize); 
+-      if (gcry_err)
+-	{
+-	  grub_free (split_key);
+-	  return grub_crypto_gcry_error (gcry_err);
++	if (unsealedKeyFile) {
++		grub_free(unsealedKeyFile);
+ 	}
+ 
+-      grub_free (split_key);
+-
+-      return GRUB_ERR_NONE;
+-    }
+-
+-  grub_free (split_key);
+-  return GRUB_ACCESS_DENIED;
++	grub_fatal("luks_recover_key failed.");
++	//return GRUB_ACCESS_DENIED;
+ }
++/* End TCG extension */
+ 
+ struct grub_cryptodisk_dev luks_crypto = {
+   .scan = configure_ciphers,
+diff --git a/grub-core/kern/dl.c b/grub-core/kern/dl.c
+index b6535155b..39addaf7e 100644
+--- a/grub-core/kern/dl.c
++++ b/grub-core/kern/dl.c
+@@ -33,6 +33,10 @@
+ #include <grub/cache.h>
+ #include <grub/i18n.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ /* Platforms where modules are in a readonly area of memory.  */
+ #if defined(GRUB_MACHINE_QEMU)
+ #define GRUB_MODULES_MACHINE_READONLY
+@@ -688,6 +692,7 @@ grub_dl_load_file (const char *filename)
+   grub_file_t file = NULL;
+   grub_ssize_t size;
+   void *core = 0;
++  void *measureModBuf = 0;
+   grub_dl_t mod = 0;
+ 
+ #ifdef GRUB_MACHINE_EFI
+@@ -725,10 +730,27 @@ grub_dl_load_file (const char *filename)
+      opens of the same device.  */
+   grub_file_close (file);
+ 
++  /* Begin TCG Extension */
++  /* grub_dl_load_core() modifies the original buffer, so make a copy here that is measured later */
++  measureModBuf = grub_malloc (size);
++  if (! measureModBuf)
++  {
++	  return 0;
++  }
++  grub_memcpy(measureModBuf, core, size);
++
+   mod = grub_dl_load_core (core, size);
+   grub_free (core);
+-  if (! mod)
++
++  if (! mod) {
++	grub_free (measureModBuf);
+     return 0;
++  }
++
++  DEBUG_PRINT( ( "measured module: %s \n", mod->name ) );
++  grub_TPM_measure_buffer( measureModBuf, size, TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR );
++  grub_free (measureModBuf);
++  /* End TCG Extension */
+ 
+   mod->ref_count--;
+   return mod;
+@@ -759,15 +781,17 @@ grub_dl_load (const char *name)
+   if (! filename)
+     return 0;
+ 
+-  mod = grub_dl_load_file (filename);
+-  grub_free (filename);
++  mod = grub_dl_load_file ( filename );
+ 
+-  if (! mod)
+-    return 0;
++  if (! mod) {
++	  grub_free (filename);
++	  return 0;
++  }
+ 
+   if (grub_strcmp (mod->name, name) != 0)
+     grub_error (GRUB_ERR_BAD_MODULE, "mismatched names");
+ 
++  grub_free (filename);
+   return mod;
+ }
+ 
+diff --git a/grub-core/kern/i386/pc/tpm/tpm_kern.c b/grub-core/kern/i386/pc/tpm/tpm_kern.c
+new file mode 100644
+index 000000000..e293e4274
+--- /dev/null
++++ b/grub-core/kern/i386/pc/tpm/tpm_kern.c
+@@ -0,0 +1,433 @@
++/* Begin TCG Extension */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/types.h>
++#include <grub/mm.h>
++#include <grub/err.h>
++#include <grub/file.h>
++#include <grub/sha1.h>
++#include <grub/misc.h>
++
++#include <grub/tpm.h>
++#include <grub/i386/pc/tpm.h>
++#include <grub/i386/pc/memory.h>
++#include <grub/i386/pc/int.h>
++
++#ifdef TGRUB_DEBUG
++    #include <grub/time.h>
++#endif
++
++/************************* constants *************************/
++
++/* Ordinals */
++static const grub_uint32_t TPM_ORD_PcrRead = 0x00000015;
++
++/************************* struct typedefs *************************/
++
++/* TCG_HashLogExtendEvent Input Parameter Block (Format 2) */
++typedef struct {
++    grub_uint16_t ipbLength;
++    grub_uint16_t reserved;
++    grub_uint32_t hashDataPtr;
++    grub_uint32_t hashDataLen;
++    grub_uint32_t pcrIndex;
++    grub_uint32_t reserved2;
++    grub_uint32_t logDataPtr;
++    grub_uint32_t logDataLen;
++ } GRUB_PACKED EventIncoming;
++
++/* TCG_HashLogExtendEvent Output Parameter Block */
++typedef struct {
++    grub_uint16_t opbLength;
++    grub_uint16_t reserved;
++    grub_uint32_t eventNum;
++    grub_uint8_t  hashValue[SHA1_DIGEST_SIZE];
++} GRUB_PACKED EventOutgoing;
++
++typedef struct {
++    grub_uint32_t pcrIndex;
++    grub_uint32_t eventType;
++    grub_uint8_t digest[SHA1_DIGEST_SIZE];
++    grub_uint32_t eventDataSize;
++    grub_uint8_t event[0];
++} GRUB_PACKED Event;
++
++/* TPM_PCRRead Incoming Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t ordinal;
++    grub_uint32_t pcrIndex;
++} GRUB_PACKED PCRReadIncoming;
++
++/* TPM_PCRRead Outgoing Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t returnCode;
++    grub_uint8_t pcr_value[SHA1_DIGEST_SIZE];
++} GRUB_PACKED PCRReadOutgoing;
++
++/************************* static functions *************************/
++
++/* Invokes TCG_HashLogExtendEvent
++ *
++ * we hash ourself
++ *
++ *  grub_fatal() on error
++ *  Page 116 TCG_PCClientImplementation_1-21_1_00
++ */
++static void
++grub_TPM_int1A_hashLogExtendEvent( const grub_uint8_t* inDigest, grub_uint8_t pcrIndex, const char* description ) {
++
++    CHECK_FOR_NULL_ARGUMENT( inDigest );
++    CHECK_FOR_NULL_ARGUMENT( description );
++
++    if( pcrIndex > 23 )
++    {
++        grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: pcr > 23 is invalid" );
++    }
++
++    /* Prepare Event struct */
++    grub_uint32_t strSize = grub_strlen(description);
++    grub_uint32_t eventStructSize = strSize + sizeof(Event);
++    Event* event = grub_zalloc(eventStructSize);
++
++    if (!event)
++    {
++        grub_fatal( "grub_TPM_int1A_hashLogExtendEvent: memory allocation failed" );
++    }
++
++    event->pcrIndex = pcrIndex;
++    event->eventType = 0x0d; /* EV_IPL */
++    event->eventDataSize = strSize;
++    grub_memcpy(event->digest, inDigest, SHA1_DIGEST_SIZE );
++    grub_memcpy(event->event, description, strSize);
++
++    /* Prepare EventIncoming struct */
++    EventIncoming incoming;
++    incoming.ipbLength = sizeof(incoming);
++    incoming.hashDataPtr = 0;
++    incoming.hashDataLen = 0;
++    incoming.pcrIndex = pcrIndex;
++    incoming.logDataPtr = (grub_addr_t) event;
++    incoming.logDataLen = eventStructSize;
++
++    EventOutgoing outgoing;
++    struct grub_bios_int_registers regs;
++    regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
++    regs.eax = 0xBB01;
++    regs.ebx = TCPA;
++    regs.ecx = 0;
++    regs.edx = 0;
++    regs.es = (((grub_addr_t) &incoming) & 0xffff0000) >> 4;
++    regs.edi = ((grub_addr_t) &incoming) & 0xffff;
++    regs.ds = (((grub_addr_t) &outgoing) & 0xffff0000) >> 4;
++    regs.esi = ((grub_addr_t) &outgoing) & 0xffff;
++
++    grub_bios_interrupt (0x1A, &regs);
++
++    if ( regs.eax != TCG_PC_OK ) {
++        grub_fatal( "TCG_HashLogExtendEvent failed: 0x%x", regs.eax );
++    }
++
++#ifdef TGRUB_DEBUG
++    DEBUG_PRINT( ( "event number: %u \n", outgoing.eventNum ) );
++    DEBUG_PRINT( ( "New PCR[%u]=", pcrIndex ) );
++    grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
++    grub_TPM_readpcr( pcrIndex, &result[0] );
++    print_sha1( result );
++    DEBUG_PRINT( ( "\n\n" ) );
++    grub_sleep( 4 );
++#endif
++
++    grub_free(event);
++}
++
++/************************* non-static functions *************************/
++
++/* grub_fatal() on error */
++void
++grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
++
++    CHECK_FOR_NULL_ARGUMENT( result )
++
++    PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
++    PCRReadIncoming* pcrReadIncoming = NULL;
++    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *pcrReadIncoming );
++
++    PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
++    PCRReadOutgoing* pcrReadOutgoing = NULL;
++    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *pcrReadOutgoing );
++
++    passThroughInput = grub_zalloc( inputlen );
++    if( ! passThroughInput ) {
++        grub_fatal( "readpcr: memory allocation failed" );
++    }
++
++    passThroughInput->IPBLength = inputlen;
++    passThroughInput->OPBLength = outputlen;
++
++    pcrReadIncoming = (void *)passThroughInput->TPMOperandIn;
++    pcrReadIncoming->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++    pcrReadIncoming->paramSize = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
++    pcrReadIncoming->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
++    pcrReadIncoming->pcrIndex = grub_swap_bytes32( (grub_uint32_t) index);
++
++    passThroughOutput = grub_zalloc( outputlen );
++    if( ! passThroughOutput ) {
++        grub_free( passThroughInput );
++        grub_fatal( "readpcr: memory allocation failed" );
++    }
++
++    grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    pcrReadOutgoing = (void *)passThroughOutput->TPMOperandOut;
++    grub_uint32_t tpm_PCRreadReturnCode = grub_swap_bytes32( pcrReadOutgoing->returnCode );
++
++    if( tpm_PCRreadReturnCode != TPM_SUCCESS ) {
++        grub_free( passThroughOutput );
++
++        if( tpm_PCRreadReturnCode == TPM_BADINDEX ) {
++            grub_fatal( "readpcr: bad pcr index" );
++        }
++
++        grub_fatal( "readpcr: tpm_PCRreadReturnCode: %u", tpm_PCRreadReturnCode );
++    }
++
++    grub_memcpy( result, pcrReadOutgoing->pcr_value, SHA1_DIGEST_SIZE );
++    grub_free( passThroughOutput );
++}
++
++/* Invokes TCG_StatusCheck Int1A interrupt
++
++   Returns:
++   returnCode: int1A return codes
++   major version
++   minor version
++   featureFlags
++   eventLog
++   edi
++
++   For more information see page 115 TCG_PCClientImplementation 1.21
++
++ */
++grub_err_t
++grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_uint32_t* eventLog, grub_uint32_t* edi ) {
++
++    CHECK_FOR_NULL_ARGUMENT( returnCode )
++    CHECK_FOR_NULL_ARGUMENT( major )
++    CHECK_FOR_NULL_ARGUMENT( minor )
++    CHECK_FOR_NULL_ARGUMENT( featureFlags )
++    CHECK_FOR_NULL_ARGUMENT( eventLog )
++    CHECK_FOR_NULL_ARGUMENT( edi )
++
++    struct grub_bios_int_registers regs;
++    regs.eax = 0xBB00;
++    regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
++
++    grub_bios_interrupt (0x1A, &regs);
++
++    *returnCode = regs.eax;
++
++    if( *returnCode != TCG_PC_OK ) {
++        grub_fatal( "TCG_StatusCheck failed: 0x%x", *returnCode );
++    }
++
++    if( regs.ebx != TCPA ) {
++        grub_fatal( "TCG_StatusCheck failed: ebx != TCPA" );
++    }
++
++    *major = (grub_uint8_t) (regs.ecx >> 8);
++    *minor = (grub_uint8_t) regs.ecx;
++    *featureFlags = regs.edx;
++    *eventLog = regs.esi;
++    *edi = regs.edi;
++
++    return GRUB_ERR_NONE;
++}
++
++/* Invokes TCG_PassThroughToTPM
++
++   grub_fatal() on error
++   Page 112 TCG_PCClientImplementation_1-21_1_00
++ */
++void
++grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
++
++    CHECK_FOR_NULL_ARGUMENT( input );
++    CHECK_FOR_NULL_ARGUMENT( output );
++
++    if ( ! input->IPBLength || ! input->OPBLength ) {
++        grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
++    }
++
++    /* copy input buffer */
++    void* p = grub_map_memory( INPUT_PARAM_BLK_ADDR, input->IPBLength );
++    grub_memcpy( p, input, input->IPBLength );
++    grub_unmap_memory( p, input->IPBLength );
++
++    struct grub_bios_int_registers regs;
++    regs.eax = 0xBB02;
++    regs.ebx = TCPA;
++    regs.ecx = 0;
++    regs.edx = 0;
++    regs.esi = OUTPUT_PARAM_BLK_ADDR & 0xF;
++    regs.ds = OUTPUT_PARAM_BLK_ADDR >> 4;
++    regs.edi = INPUT_PARAM_BLK_ADDR & 0xF;
++    regs.es = INPUT_PARAM_BLK_ADDR >> 4;
++    regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
++
++    /*regs.es = (((grub_addr_t) input) & 0xffff0000) >> 4;
++    regs.edi = ((grub_addr_t) input) & 0xffff;
++    regs.ds = (((grub_addr_t) output) & 0xffff0000) >> 4;
++    regs.esi = ((grub_addr_t) output) & 0xffff;*/
++
++    grub_bios_interrupt (0x1A, &regs);
++
++    if ( regs.eax != TCG_PC_OK ) {
++        grub_fatal( "TCG_PassThroughToTPM failed: 0x%x", regs.eax );
++    }
++
++    /* copy output_buffer */
++    p = grub_map_memory( OUTPUT_PARAM_BLK_ADDR, input->OPBLength );
++    grub_memcpy( output, p, input->OPBLength );
++    grub_unmap_memory( p, input->OPBLength );
++}
++
++/* grub_fatal() on error */
++void
++grub_TPM_measure_string( const char* string ) {
++
++    CHECK_FOR_NULL_ARGUMENT( string )
++
++    grub_uint32_t result[5] = { 0 };
++    grub_err_t err = sha1_hash_string( string, result );
++    if( err != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_TPM_measureString: sha1_hash_string failed." );
++    }
++
++    /* convert from uint32_t to uint8_t */
++    grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
++    int j, i = 0;
++    for( j = 0; j < 5; j++ ) {
++        convertedResult[i++] = ((result[j]>>24)&0xff);
++        convertedResult[i++] = ((result[j]>>16)&0xff);
++        convertedResult[i++] = ((result[j]>>8)&0xff);
++        convertedResult[i++] = (result[j]&0xff);
++    }
++
++#ifdef TGRUB_DEBUG
++    DEBUG_PRINT( ( "string to measure: '%s'\n", string ) );
++    DEBUG_PRINT( ( "SHA1 of string: " ) );
++    print_sha1( convertedResult );
++    DEBUG_PRINT( ( "\n" ) );
++#endif
++
++    grub_TPM_int1A_hashLogExtendEvent( convertedResult, TPM_COMMAND_MEASUREMENT_PCR, string );
++}
++
++/* grub_fatal() on error */
++void
++grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
++
++    CHECK_FOR_NULL_ARGUMENT( filename )
++
++    /* open file 'raw' (without any pre-processing filters) */
++    grub_file_filter_disable_compression ();
++    grub_file_t file = grub_file_open( filename );
++
++    if( ! file ) {
++        grub_print_error();
++        grub_fatal( "grub_TPM_measureFile: grub_file_open failed." );
++    }
++
++    /* hash file */
++    grub_uint32_t result[5] = { 0 };
++    grub_err_t err = sha1_hash_file( file, result  );
++
++    if( err != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_TPM_measureFile: sha1_hash_file failed." );
++    }
++
++    grub_file_close( file );
++
++    if ( grub_errno ) {
++        grub_fatal( "grub_TPM_measureFile: grub_file_close failed." );
++    }
++
++    /* convert from uint32_t to uint8_t */
++    grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
++    int j, i = 0;
++    for( j = 0; j < 5; j++ ) {
++        convertedResult[i++] = ((result[j]>>24)&0xff);
++        convertedResult[i++] = ((result[j]>>16)&0xff);
++        convertedResult[i++] = ((result[j]>>8)&0xff);
++        convertedResult[i++] = (result[j]&0xff);
++    }
++
++#ifdef TGRUB_DEBUG
++    /* print hash */
++    DEBUG_PRINT( ( "measured file: %s\n", filename ) );
++    DEBUG_PRINT( ( "SHA1 of file: " ) );
++    print_sha1( convertedResult );
++    DEBUG_PRINT( ( "\n" ) );
++#endif
++
++    /* measure */
++    grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, filename );
++}
++
++void
++grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index ) {
++
++    CHECK_FOR_NULL_ARGUMENT( buffer )
++
++    /* hash buffer */
++    grub_uint32_t result[5] = { 0 };
++    grub_err_t err = sha1_hash_buffer( buffer, bufferLen, result );
++
++    if( err != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_TPM_measureBuffer: sha1_hash_buffer failed." );
++    }
++
++    /* convert from uint32_t to uint8_t */
++    grub_uint8_t convertedResult[SHA1_DIGEST_SIZE] = { 0 };
++    int j, i = 0;
++    for( j = 0; j < 5; j++ ) {
++        convertedResult[i++] = ((result[j]>>24)&0xff);
++        convertedResult[i++] = ((result[j]>>16)&0xff);
++        convertedResult[i++] = ((result[j]>>8)&0xff);
++        convertedResult[i++] = (result[j]&0xff);
++    }
++
++
++#ifdef TGRUB_DEBUG
++    /* print hash */
++    DEBUG_PRINT( ( "SHA1 of buffer: " ) );
++    print_sha1( convertedResult );
++    DEBUG_PRINT( ( "\n" ) );
++#endif
++
++    /* measure */
++    grub_TPM_int1A_hashLogExtendEvent( convertedResult, index, "measured buffer" );
++}
++/* End TCG Extension */
+diff --git a/grub-core/kern/main.c b/grub-core/kern/main.c
+index 5613cd553..19bab9991 100644
+--- a/grub-core/kern/main.c
++++ b/grub-core/kern/main.c
+@@ -280,7 +280,7 @@ grub_main (void)
+ #else
+   /* Hello.  */
+   grub_setcolorstate (GRUB_TERM_COLOR_HIGHLIGHT);
+-  grub_printf ("Welcome to GRUB!\n\n");
++  grub_printf ("Welcome to TrustedGRUB2!\n\n");
+   grub_setcolorstate (GRUB_TERM_COLOR_STANDARD);
+ #endif
+ 
+diff --git a/grub-core/kern/sha1.c b/grub-core/kern/sha1.c
+new file mode 100644
+index 000000000..bf1647cc9
+--- /dev/null
++++ b/grub-core/kern/sha1.c
+@@ -0,0 +1,446 @@
++/* Begin TCG Extension */
++
++/*  This implementation is needed because we have to measure some parts before the crypto module is loaded */
++
++/*  This SHA1-implementation has been written by Marko Wolf <mwolf@crypto.rub.de> and tested according to FIPS-180.
++	The SHA1-macros are from "Christophe Devine" <devine@cr0.net>.
++
++	Parameters:
++    int sha1_init(sha1_context *ctx )
++	int sha1_update(sha1_context *ctx, t_U8 *chunk_data, t_U32 chunk_length)
++	int sha1_finish(sha1_context *ctx, t_U32 *sha1_hash)
++*/
++
++/* Added by TrustedGRUB2 author:
++	sha1_hash_file( const grub_file_t file, void* result )
++	sha1_hash_string( const char* string, void* result )
++*/
++
++#include <grub/sha1.h>
++#include <grub/types.h>
++#include <grub/mm.h>
++#include <grub/misc.h>
++
++// concatenates 4 * 8-bit words (= 1 byte) to one 32-bit word
++#define CONCAT_4_BYTES( w32, w8, w8_i)            \
++{                                                 \
++    (w32) = ( (t_U32) (w8)[(w8_i)    ] << 24 ) |  \
++            ( (t_U32) (w8)[(w8_i) + 1] << 16 ) |  \
++            ( (t_U32) (w8)[(w8_i) + 2] <<  8 ) |  \
++            ( (t_U32) (w8)[(w8_i) + 3]       );   \
++}
++
++// splits a 32-bit word into 4 * 8-bit words (= 1 byte)
++#define SPLIT_INTO_4_BYTES( w32, w8, w8_i)        \
++{                                                 \
++    (w8)[(w8_i)    ] = (t_U8) ( (w32) >> 24 );    \
++    (w8)[(w8_i) + 1] = (t_U8) ( (w32) >> 16 );    \
++    (w8)[(w8_i) + 2] = (t_U8) ( (w32) >>  8 );    \
++    (w8)[(w8_i) + 3] = (t_U8) ( (w32)       );    \
++}
++
++// FIPS-180-1 padding sequence
++static t_U8 sha1_padding[64] =
++{
++ (t_U8) 0x80, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0,
++ (t_U8)    0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0,
++ (t_U8)    0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0,
++ (t_U8)    0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0, (t_U8) 0
++};
++
++static int sha1_init(sha1_context *ctx )
++{
++
++  // parameter check
++  if ( ctx == NULL )
++  {
++    return -1;
++  }
++
++  // byte length = 0
++  ctx->total_bytes_Lo = 0;
++  ctx->total_bytes_Hi = 0;
++
++  // FIPS 180-1 init values
++  ctx->vector[0] = 0x67452301;
++  ctx->vector[1] = 0xEFCDAB89;
++  ctx->vector[2] = 0x98BADCFE;
++  ctx->vector[3] = 0x10325476;
++  ctx->vector[4] = 0xC3D2E1F0;
++
++  // successful
++  return 0;
++}
++
++
++static void sha1_process(sha1_context *ctx, t_U8 *byte_64_block )
++{
++  // declarations
++  t_U32 temp, W[16];
++  t_U32 A, B, C, D, E;
++
++  // concatenate 64 bytes to 16 * 32-bit words
++  CONCAT_4_BYTES( W[0],  byte_64_block,  0 );
++  CONCAT_4_BYTES( W[1],  byte_64_block,  4 );
++  CONCAT_4_BYTES( W[2],  byte_64_block,  8 );
++  CONCAT_4_BYTES( W[3],  byte_64_block, 12 );
++  CONCAT_4_BYTES( W[4],  byte_64_block, 16 );
++  CONCAT_4_BYTES( W[5],  byte_64_block, 20 );
++  CONCAT_4_BYTES( W[6],  byte_64_block, 24 );
++  CONCAT_4_BYTES( W[7],  byte_64_block, 28 );
++  CONCAT_4_BYTES( W[8],  byte_64_block, 32 );
++  CONCAT_4_BYTES( W[9],  byte_64_block, 36 );
++  CONCAT_4_BYTES( W[10], byte_64_block, 40 );
++  CONCAT_4_BYTES( W[11], byte_64_block, 44 );
++  CONCAT_4_BYTES( W[12], byte_64_block, 48 );
++  CONCAT_4_BYTES( W[13], byte_64_block, 52 );
++  CONCAT_4_BYTES( W[14], byte_64_block, 56 );
++  CONCAT_4_BYTES( W[15], byte_64_block, 60 );
++
++// rotate left by n bits
++#define ROTATE_N_LEFT(x,n) ((x << n) | ((x & 0xFFFFFFFF) >> (32 - n)))
++
++// extends 16 * 32-bit words to 80 * 32-bit words
++#define EXTENDED_W(t)                                 \
++(                                                     \
++  temp = W[(t -  3) & 0x0F] ^ W[(t - 8) & 0x0F] ^     \
++         W[(t - 14) & 0x0F] ^ W[ t      & 0x0F],      \
++  ( W[t & 0x0F] = ROTATE_N_LEFT(temp,1) )             \
++)
++
++// main formula
++#define P(a,b,c,d,e,Wi)                               \
++{                                                     \
++  e += ROTATE_N_LEFT(a,5) + F(b,c,d) + K + Wi;        \
++  b  = ROTATE_N_LEFT(b,30);                           \
++}
++
++  // init A..E
++  A = ctx->vector[0];
++  B = ctx->vector[1];
++  C = ctx->vector[2];
++  D = ctx->vector[3];
++  E = ctx->vector[4];
++
++// round I (0..19)
++#define F(x,y,z) (z ^ (x & (y ^ z)))
++#define K 0x5A827999
++
++  P( A, B, C, D, E, W[0]  );
++  P( E, A, B, C, D, W[1]  );
++  P( D, E, A, B, C, W[2]  );
++  P( C, D, E, A, B, W[3]  );
++  P( B, C, D, E, A, W[4]  );
++  P( A, B, C, D, E, W[5]  );
++  P( E, A, B, C, D, W[6]  );
++  P( D, E, A, B, C, W[7]  );
++  P( C, D, E, A, B, W[8]  );
++  P( B, C, D, E, A, W[9]  );
++  P( A, B, C, D, E, W[10] );
++  P( E, A, B, C, D, W[11] );
++  P( D, E, A, B, C, W[12] );
++  P( C, D, E, A, B, W[13] );
++  P( B, C, D, E, A, W[14] );
++  P( A, B, C, D, E, W[15] );
++  P( E, A, B, C, D, EXTENDED_W(16) );
++  P( D, E, A, B, C, EXTENDED_W(17) );
++  P( C, D, E, A, B, EXTENDED_W(18) );
++  P( B, C, D, E, A, EXTENDED_W(19) );
++
++#undef K
++#undef F
++
++// round II (20..39)
++#define F(x,y,z) (x ^ y ^ z)
++#define K 0x6ED9EBA1
++
++  P( A, B, C, D, E, EXTENDED_W(20) );
++  P( E, A, B, C, D, EXTENDED_W(21) );
++  P( D, E, A, B, C, EXTENDED_W(22) );
++  P( C, D, E, A, B, EXTENDED_W(23) );
++  P( B, C, D, E, A, EXTENDED_W(24) );
++  P( A, B, C, D, E, EXTENDED_W(25) );
++  P( E, A, B, C, D, EXTENDED_W(26) );
++  P( D, E, A, B, C, EXTENDED_W(27) );
++  P( C, D, E, A, B, EXTENDED_W(28) );
++  P( B, C, D, E, A, EXTENDED_W(29) );
++  P( A, B, C, D, E, EXTENDED_W(30) );
++  P( E, A, B, C, D, EXTENDED_W(31) );
++  P( D, E, A, B, C, EXTENDED_W(32) );
++  P( C, D, E, A, B, EXTENDED_W(33) );
++  P( B, C, D, E, A, EXTENDED_W(34) );
++  P( A, B, C, D, E, EXTENDED_W(35) );
++  P( E, A, B, C, D, EXTENDED_W(36) );
++  P( D, E, A, B, C, EXTENDED_W(37) );
++  P( C, D, E, A, B, EXTENDED_W(38) );
++  P( B, C, D, E, A, EXTENDED_W(39) );
++
++#undef K
++#undef F
++
++// round III (40..59)
++#define F(x,y,z) ((x & y) | (z & (x | y)))
++#define K 0x8F1BBCDC
++
++  P( A, B, C, D, E, EXTENDED_W(40) );
++  P( E, A, B, C, D, EXTENDED_W(41) );
++  P( D, E, A, B, C, EXTENDED_W(42) );
++  P( C, D, E, A, B, EXTENDED_W(43) );
++  P( B, C, D, E, A, EXTENDED_W(44) );
++  P( A, B, C, D, E, EXTENDED_W(45) );
++  P( E, A, B, C, D, EXTENDED_W(46) );
++  P( D, E, A, B, C, EXTENDED_W(47) );
++  P( C, D, E, A, B, EXTENDED_W(48) );
++  P( B, C, D, E, A, EXTENDED_W(49) );
++  P( A, B, C, D, E, EXTENDED_W(50) );
++  P( E, A, B, C, D, EXTENDED_W(51) );
++  P( D, E, A, B, C, EXTENDED_W(52) );
++  P( C, D, E, A, B, EXTENDED_W(53) );
++  P( B, C, D, E, A, EXTENDED_W(54) );
++  P( A, B, C, D, E, EXTENDED_W(55) );
++  P( E, A, B, C, D, EXTENDED_W(56) );
++  P( D, E, A, B, C, EXTENDED_W(57) );
++  P( C, D, E, A, B, EXTENDED_W(58) );
++  P( B, C, D, E, A, EXTENDED_W(59) );
++
++#undef K
++#undef F
++
++// round IV (60..79)
++#define F(x,y,z) (x ^ y ^ z)
++#define K 0xCA62C1D6
++
++  P( A, B, C, D, E, EXTENDED_W(60) );
++  P( E, A, B, C, D, EXTENDED_W(61) );
++  P( D, E, A, B, C, EXTENDED_W(62) );
++  P( C, D, E, A, B, EXTENDED_W(63) );
++  P( B, C, D, E, A, EXTENDED_W(64) );
++  P( A, B, C, D, E, EXTENDED_W(65) );
++  P( E, A, B, C, D, EXTENDED_W(66) );
++  P( D, E, A, B, C, EXTENDED_W(67) );
++  P( C, D, E, A, B, EXTENDED_W(68) );
++  P( B, C, D, E, A, EXTENDED_W(69) );
++  P( A, B, C, D, E, EXTENDED_W(70) );
++  P( E, A, B, C, D, EXTENDED_W(71) );
++  P( D, E, A, B, C, EXTENDED_W(72) );
++  P( C, D, E, A, B, EXTENDED_W(73) );
++  P( B, C, D, E, A, EXTENDED_W(74) );
++  P( A, B, C, D, E, EXTENDED_W(75) );
++  P( E, A, B, C, D, EXTENDED_W(76) );
++  P( D, E, A, B, C, EXTENDED_W(77) );
++  P( C, D, E, A, B, EXTENDED_W(78) );
++  P( B, C, D, E, A, EXTENDED_W(79) );
++
++#undef K
++#undef F
++
++  // assign vectors
++  ctx->vector[0] += A;
++  ctx->vector[1] += B;
++  ctx->vector[2] += C;
++  ctx->vector[3] += D;
++  ctx->vector[4] += E;
++}
++
++static int sha1_update(sha1_context *ctx, t_U8 *chunk_data, t_U32 chunk_length)
++{
++
++  // declarations
++  t_U32 left, fill;
++  t_U32 i;
++
++  // parameter check
++  if ( (ctx == NULL) || (chunk_data == NULL) || (chunk_length < 1) )
++  {
++    return -1;
++  }
++
++  // chunk_length = n * 64 byte + left
++  left = ctx->total_bytes_Lo & 0x3F;
++
++  // fill bytes remain to 64 byte block
++  fill = 64 - left;
++
++  // total = total + chunk_length
++  ctx->total_bytes_Lo += chunk_length;
++  
++  // mask 32 bit
++  ctx->total_bytes_Lo &= 0xFFFFFFFF;
++
++  if ( ctx->total_bytes_Lo < chunk_length )
++  {
++    ctx->total_bytes_Hi++;
++  }
++
++  // if we have something in the buffer (left > 0) and 
++  // the chunk has enougth data to fill a 64 byte block (chunk_length >= fill)
++  if ( (left > 0) && (chunk_length >= fill) )
++  {
++     // fill buffer with data from new chunk
++     for ( i = 0; i < fill; i++ )
++     {
++        ctx->buffer[left + i] = chunk_data[i];
++     }
++
++     // process 64 byte buffer block
++     sha1_process( ctx, ctx->buffer );
++
++     // dec chunk_length by fill
++     chunk_length -= fill;
++
++     // move data pointer by fill
++     chunk_data  += fill;
++
++     // buffer is fully processed
++     left = 0;
++  }
++
++  // process all remaining 64 byte chunks
++  while( chunk_length >= 64 )
++  {
++     sha1_process( ctx, chunk_data );
++     chunk_length -= 64;
++     chunk_data  += 64;
++  }
++
++  // if final chunk_length between 1..63 byte
++  if ( chunk_length > 0 )
++  {
++     // append remainder to 64 byte into buffer resp. fill the empty buffer
++     for ( i = 0; i < chunk_length; i++ )
++     {
++       ctx->buffer[left + i] = chunk_data[i];
++     }
++  }
++
++  // successfull
++  return 0;
++}
++
++static int sha1_finish(sha1_context *ctx, t_U32 *sha1_hash)
++{
++
++  // declarations
++  t_U32 last, padn;
++  t_U32 high, low;
++  t_U8  msglen[8];
++  /* int   ret; */
++
++  // parameter check
++  if ( (ctx == NULL) || (sha1_hash == NULL) )
++  {
++    return -1;
++  }
++
++  // build msglen array[8 * 8-bit] from total[2 * 32-bit] = n * 64 byte
++  high = ( ctx->total_bytes_Lo >> 29 ) | ( ctx->total_bytes_Hi <<  3 );
++  low  = ( ctx->total_bytes_Lo <<  3 );
++  SPLIT_INTO_4_BYTES( high, msglen, 0 );
++  SPLIT_INTO_4_BYTES( low,  msglen, 4 ); 
++
++  // total = n * 64 bytes + last
++  last = ctx->total_bytes_Lo & 0x3F;
++
++  // number of padding zeros 
++  padn = ( last < 56 ) ? ( 56 - last ) : ( 120 - last );
++
++  // update SHA-1 context with remaining buffer and padding to 64 bytes with bit sequence (1,0,...,0)
++  /*ret = */ sha1_update( ctx, sha1_padding, padn );
++
++  // update SHA-1 context with total length
++  /* ret = */ sha1_update( ctx, msglen, 8 );
++
++  // assign final hash words
++  sha1_hash[0] = ctx->vector[0];
++  sha1_hash[1] = ctx->vector[1];
++  sha1_hash[2] = ctx->vector[2];
++  sha1_hash[3] = ctx->vector[3];
++  sha1_hash[4] = ctx->vector[4];
++
++  // successful
++  return 0;
++}
++
++/* file has to be opened before call
++
++    Returns on failure:
++     'GRUB_ERR_TPM'
++     'GRUB_ERR_OUT_OF_RANGE'
++*/
++grub_err_t
++sha1_hash_file( const grub_file_t file, void* result ) {
++  sha1_context context;
++  grub_uint8_t readbuf[4096];
++
++  if( sha1_init( &context ) != 0 ) {
++      return grub_error (GRUB_ERR_TPM, N_("sha1_hash_file: hashing failed"));
++  }
++
++  while( 1 ) {
++      grub_ssize_t r;
++      r = grub_file_read( file, readbuf, sizeof( readbuf ) );
++
++      if ( grub_errno ) {
++          return grub_errno;
++      }
++
++      if( r == 0 ) {
++    	  break;
++      }
++      if( sha1_update( &context, readbuf, (grub_uint32_t) r ) != 0 ) {
++          return grub_error (GRUB_ERR_TPM, N_("sha1_hash_file: hashing failed"));
++      }
++  }
++  if( sha1_finish( &context, result ) != 0 ) {
++      return grub_error (GRUB_ERR_TPM, N_("sha1_hash_file: hashing failed"));
++  }
++
++  return GRUB_ERR_NONE;
++}
++
++/* Returns on failure:
++     'GRUB_ERR_TPM'
++     'GRUB_ERR_OUT_OF_RANGE'
++*/
++grub_err_t
++sha1_hash_buffer( const void* buffer, const grub_uint32_t bufferLen, void* result ) {
++  sha1_context context;
++
++  if( sha1_init( &context ) != 0 ) {
++      return grub_error (GRUB_ERR_TPM, N_("sha1_hash_buffer: hashing failed"));
++  }
++
++  if( sha1_update( &context, (t_U8*) buffer, bufferLen ) != 0 ) {
++	  return grub_error (GRUB_ERR_TPM, N_("sha1_hash_buffer: hashing failed"));
++  }
++
++  if( sha1_finish( &context, result ) != 0 ) {
++      return grub_error (GRUB_ERR_TPM, N_("sha1_hash_buffer: hashing failed"));
++  }
++
++  return GRUB_ERR_NONE;
++}
++
++/* Returns on failure:
++     'GRUB_ERR_TPM'
++*/
++grub_err_t
++sha1_hash_string( const char* string, void* result ) {
++	sha1_context context;
++
++	if( sha1_init( &context ) != 0 ) {
++        return grub_error (GRUB_ERR_TPM, N_("sha1_hash_string: hashing failed"));
++	}
++
++	if( sha1_update( &context, (t_U8*)string, grub_strlen( string ) ) != 0 ) {
++        return grub_error (GRUB_ERR_TPM, N_("sha1_hash_string: hashing failed"));
++	}
++
++	if( sha1_finish( &context, result ) != 0 ) {
++        return grub_error (GRUB_ERR_TPM, N_("sha1_hash_string: hashing failed"));
++	}
++
++	return GRUB_ERR_NONE;
++}
++
++/* End TCG Extension */
+diff --git a/grub-core/kern/tpm.c b/grub-core/kern/tpm.c
+new file mode 100644
+index 000000000..dfa0fe0cf
+--- /dev/null
++++ b/grub-core/kern/tpm.c
+@@ -0,0 +1,37 @@
++/* Begin TCG Extension */
++
++/* Common implementations for i386-pc and efi */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/types.h>
++#include <grub/misc.h>
++#include <grub/tpm.h>
++
++void
++print_sha1( grub_uint8_t *inDigest ) {
++
++	/* print SHA1 hash of input */
++	unsigned int j;
++	for( j = 0; j < SHA1_DIGEST_SIZE; j++ ) {
++		grub_printf( "%02x", inDigest[j] );
++	}
++}
++
++/* End TCG Extension */
+diff --git a/grub-core/loader/i386/linux.c b/grub-core/loader/i386/linux.c
+index 0052b5965..aba0b3761 100644
+--- a/grub-core/loader/i386/linux.c
++++ b/grub-core/loader/i386/linux.c
+@@ -36,6 +36,10 @@
+ #include <grub/lib/cmdline.h>
+ #include <grub/linux.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ #ifdef GRUB_MACHINE_PCBIOS
+@@ -688,12 +692,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   grub_file_t file = 0;
+   struct linux_i386_kernel_header lh;
+   grub_uint8_t setup_sects;
+-  grub_size_t real_size, prot_size, prot_file_size;
++  grub_size_t real_size, prot_size, prot_file_size, kernelBufOffset = 0;
+   grub_ssize_t len;
+   int i;
+   grub_size_t align, min_align;
+   int relocatable;
+   grub_uint64_t preferred_address = GRUB_LINUX_BZIMAGE_ADDR;
++  grub_uint8_t* kernelBuf = 0;
+ 
+   grub_dl_ref (my_mod);
+ 
+@@ -740,13 +745,24 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   if (! file)
+     goto fail;
+ 
+-  if (grub_file_read (file, &lh, sizeof (lh)) != sizeof (lh))
+-    {
+-      if (!grub_errno)
+-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		    argv[0]);
+-      goto fail;
+-    }
++  /* Begin TCG Extension */
++  kernelBuf = grub_malloc( file->size );
++  if( ! kernelBuf )
++  {
++	  grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("allocating kernel buffer failed"));
++	  goto fail;
++  }
++
++  if (grub_file_read (file, kernelBuf, file->size) != (grub_ssize_t) file->size)
++  {
++	  if (!grub_errno)
++		  grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
++				  argv[0]);
++	  goto fail;
++  }
++
++  grub_memcpy( &lh, kernelBuf, sizeof(lh) );
++  kernelBufOffset = sizeof(lh);
+ 
+   if (lh.boot_flag != grub_cpu_to_le16_compile_time (0xaa55))
+     {
+@@ -847,13 +863,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   linux_params.ps_mouse = linux_params.padding10 =  0;
+ 
+   len = sizeof (linux_params) - sizeof (lh);
+-  if (grub_file_read (file, (char *) &linux_params + sizeof (lh), len) != len)
+-    {
+-      if (!grub_errno)
+-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		    argv[0]);
+-      goto fail;
+-    }
++
++  grub_memcpy( &linux_params + sizeof (lh), kernelBuf + kernelBufOffset, len );
++  kernelBufOffset+= len;
+ 
+   linux_params.type_of_loader = GRUB_LINUX_BOOT_LOADER_TYPE;
+ 
+@@ -885,9 +897,12 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ #ifdef GRUB_MACHINE_EFI
+ #ifdef __x86_64__
+   if (grub_le_to_cpu16 (linux_params.version) < 0x0208 &&
+-      ((grub_addr_t) grub_efi_system_table >> 32) != 0)
+-    return grub_error(GRUB_ERR_BAD_OS,
+-		      "kernel does not support 64-bit addressing");
++      ((grub_addr_t) grub_efi_system_table >> 32) != 0) {
++	  grub_free(kernelBuf);
++	  return grub_error(GRUB_ERR_BAD_OS,
++	  		      "kernel does not support 64-bit addressing");
++  }
++
+ #endif
+ 
+   if (grub_le_to_cpu16 (linux_params.version) >= 0x0208)
+@@ -911,8 +926,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ #endif
+ 
+   /* The other parameters are filled when booting.  */
+-
+-  grub_file_seek (file, real_size + GRUB_DISK_SECTOR_SIZE);
++  kernelBufOffset= real_size + GRUB_DISK_SECTOR_SIZE;
+ 
+   grub_dprintf ("linux", "bzImage, setup=0x%x, size=0x%x\n",
+ 		(unsigned) real_size, (unsigned) prot_size);
+@@ -1060,15 +1074,18 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 			      - (sizeof (LINUX_IMAGE) - 1));
+ 
+   len = prot_file_size;
+-  if (grub_file_read (file, prot_mode_mem, len) != len && !grub_errno)
+-    grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		argv[0]);
++
++  grub_memcpy( prot_mode_mem, kernelBuf + kernelBufOffset, len );
++  kernelBufOffset+= len;
+ 
+   if (grub_errno == GRUB_ERR_NONE)
+     {
+       grub_loader_set (grub_linux_boot, grub_linux_unload,
+ 		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
+       loaded = 1;
++
++      DEBUG_PRINT( ("measured linux kernel: \n") );
++      grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
+     }
+ 
+  fail:
+@@ -1076,6 +1093,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   if (file)
+     grub_file_close (file);
+ 
++  if(kernelBuf) {
++	  grub_free(kernelBuf);
++  }
++  /* End TCG Extension */
++
+   if (grub_errno != GRUB_ERR_NONE)
+     {
+       grub_dl_unref (my_mod);
+diff --git a/grub-core/loader/i386/pc/chainloader.c b/grub-core/loader/i386/pc/chainloader.c
+index c79c4fe0f..b4126e8fd 100644
+--- a/grub-core/loader/i386/pc/chainloader.c
++++ b/grub-core/loader/i386/pc/chainloader.c
+@@ -40,6 +40,11 @@
+ #include <grub/ntfs.h>
+ #include <grub/i386/relocator.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ static grub_dl_t my_mod;
+@@ -200,6 +205,10 @@ grub_chainloader_cmd (const char *filename, grub_chainloader_flags_t flags)
+ 
+   grub_file_close (file);
+ 
++  /* Begin TCG Extension */
++  grub_TPM_measure_buffer( bs, GRUB_DISK_SECTOR_SIZE, TPM_LOADER_MEASUREMENT_PCR );
++  /* End TCG Extension */
++
+   /* Obtain the partition table from the root device.  */
+   drive = grub_get_root_biosnumber ();
+   dev = grub_device_open (0);
+@@ -235,6 +244,7 @@ grub_chainloader_cmd (const char *filename, grub_chainloader_flags_t flags)
+   boot_part_addr = part_addr;
+ 
+   grub_loader_set (grub_chainloader_boot, grub_chainloader_unload, 1);
++
+   return;
+ 
+  fail:
+diff --git a/grub-core/loader/i386/pc/linux.c b/grub-core/loader/i386/pc/linux.c
+index b69cb7a3a..26dfe6ab0 100644
+--- a/grub-core/loader/i386/pc/linux.c
++++ b/grub-core/loader/i386/pc/linux.c
+@@ -36,6 +36,10 @@
+ #include <grub/lib/cmdline.h>
+ #include <grub/linux.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ #define GRUB_LINUX_CL_OFFSET		0x9000
+@@ -123,13 +127,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   grub_file_t file = 0;
+   struct linux_i386_kernel_header lh;
+   grub_uint8_t setup_sects;
+-  grub_size_t real_size;
++  grub_size_t real_size, kernelBufOffset = 0;
+   grub_ssize_t len;
+   int i;
+   char *grub_linux_prot_chunk;
+   int grub_linux_is_bzimage;
+   grub_addr_t grub_linux_prot_target;
+   grub_err_t err;
++  grub_uint8_t* kernelBuf = 0;
+ 
+   grub_dl_ref (my_mod);
+ 
+@@ -143,13 +148,24 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   if (! file)
+     goto fail;
+ 
+-  if (grub_file_read (file, &lh, sizeof (lh)) != sizeof (lh))
+-    {
+-      if (!grub_errno)
+-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		    argv[0]);
+-      goto fail;
+-    }
++  /* Begin TCG Extension */
++  kernelBuf = grub_malloc( file->size );
++  if( ! kernelBuf )
++  {
++	  grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("allocating kernel buffer failed"));
++	  goto fail;
++  }
++
++  if (grub_file_read (file, kernelBuf, file->size) != (grub_ssize_t) file->size)
++  {
++	if (!grub_errno)
++		grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
++		argv[0]);
++	goto fail;
++  }
++
++  grub_memcpy( &lh, kernelBuf, sizeof(lh) );
++  kernelBufOffset = sizeof(lh);
+ 
+   if (lh.boot_flag != grub_cpu_to_le16_compile_time (0xaa55))
+     {
+@@ -305,8 +321,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 					   grub_linux_real_target,
+ 					   GRUB_LINUX_CL_OFFSET
+ 					   + maximal_cmdline_size);
+-    if (err)
+-      return err;
++    if (err) {
++    	grub_free(kernelBuf);
++    	return err;
++    }
++
+     grub_linux_real_chunk = get_virtual_current_address (ch);
+   }
+ 
+@@ -314,13 +333,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   grub_memmove (grub_linux_real_chunk, &lh, sizeof (lh));
+ 
+   len = real_size + GRUB_DISK_SECTOR_SIZE - sizeof (lh);
+-  if (grub_file_read (file, grub_linux_real_chunk + sizeof (lh), len) != len)
+-    {
+-      if (!grub_errno)
+-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		    argv[0]);
+-      goto fail;
+-    }
++
++  grub_memcpy( grub_linux_real_chunk + sizeof (lh), kernelBuf + kernelBufOffset, len );
++  kernelBufOffset+= len;
+ 
+   if (lh.header != grub_cpu_to_le32_compile_time (GRUB_LINUX_I386_MAGIC_SIGNATURE)
+       || grub_le_to_cpu16 (lh.version) < 0x0200)
+@@ -349,21 +364,24 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+     err = grub_relocator_alloc_chunk_addr (relocator, &ch,
+ 					   grub_linux_prot_target,
+ 					   grub_linux16_prot_size);
+-    if (err)
+-      return err;
++    if (err) {
++    	grub_free( kernelBuf);
++    	return err;
++    }
++
+     grub_linux_prot_chunk = get_virtual_current_address (ch);
+   }
+ 
+   len = grub_linux16_prot_size;
+-  if (grub_file_read (file, grub_linux_prot_chunk, grub_linux16_prot_size)
+-      != (grub_ssize_t) grub_linux16_prot_size && !grub_errno)
+-    grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		argv[0]);
++
++  grub_memcpy( grub_linux_prot_chunk, kernelBuf + kernelBufOffset, len  );
+ 
+   if (grub_errno == GRUB_ERR_NONE)
+     {
+       grub_loader_set (grub_linux16_boot, grub_linux_unload, 0);
+       loaded = 1;
++      DEBUG_PRINT( ("measured linux16 kernel: \n") );
++      grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
+     }
+ 
+  fail:
+@@ -371,6 +389,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   if (file)
+     grub_file_close (file);
+ 
++  if(kernelBuf) {
++	  grub_free(kernelBuf);
++  }
++  /* End TCG Extension */
++
+   if (grub_errno != GRUB_ERR_NONE)
+     {
+       grub_dl_unref (my_mod);
+diff --git a/grub-core/loader/i386/pc/ntldr.c b/grub-core/loader/i386/pc/ntldr.c
+index 1b88f40d8..df7b23447 100644
+--- a/grub-core/loader/i386/pc/ntldr.c
++++ b/grub-core/loader/i386/pc/ntldr.c
+@@ -34,6 +34,10 @@
+ #include <grub/cpu/relocator.h>
+ #include <grub/machine/chainloader.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ static grub_dl_t my_mod;
+@@ -135,6 +139,11 @@ grub_cmd_ntldr (grub_command_t cmd __attribute__ ((unused)),
+     goto fail;
+  
+   grub_loader_set (grub_ntldr_boot, grub_ntldr_unload, 1);
++
++  /* Begin TCG Extension */
++  grub_TPM_measure_buffer( ntldr, ntldrsize, TPM_LOADER_MEASUREMENT_PCR );
++  /* End TCG Extension */
++
+   return GRUB_ERR_NONE;
+ 
+  fail:
+diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
+index be6fa0f4d..947f97b83 100644
+--- a/grub-core/loader/linux.c
++++ b/grub-core/loader/linux.c
+@@ -5,6 +5,10 @@
+ #include <grub/file.h>
+ #include <grub/mm.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ struct newc_head
+ {
+   char magic[6];
+@@ -288,6 +292,10 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+ 	  grub_initrd_close (initrd_ctx);
+ 	  return grub_errno;
+ 	}
++      /* Begin TCG Extension */
++      grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
++      /* End TCG Extension */
++
+       ptr += cursize;
+     }
+   if (newc)
+diff --git a/grub-core/loader/multiboot.c b/grub-core/loader/multiboot.c
+index bd9d5b3e6..08cec39cd 100644
+--- a/grub-core/loader/multiboot.c
++++ b/grub-core/loader/multiboot.c
+@@ -43,6 +43,10 @@
+ #include <grub/memory.h>
+ #include <grub/i18n.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ #ifdef GRUB_MACHINE_EFI
+@@ -338,6 +342,10 @@ grub_cmd_multiboot (grub_command_t cmd __attribute__ ((unused)),
+       grub_relocator_unload (grub_multiboot_relocator);
+       grub_multiboot_relocator = NULL;
+       grub_dl_unref (my_mod);
++    } else {
++    	/* Begin TCG Extension */
++    	grub_TPM_measure_file( argv[0], TPM_LOADER_MEASUREMENT_PCR );
++    	/* End TCG Extension */
+     }
+ 
+   return grub_errno;
+@@ -423,6 +431,11 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
+       return grub_errno;
+     }
+ 
++  /* Begin TCG Extension */
++  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
++  grub_TPM_measure_buffer( module, size, TPM_LOADER_MEASUREMENT_PCR );
++  /* End TCG Extension */
++
+   grub_file_close (file);
+   return GRUB_ERR_NONE;
+ }
+diff --git a/grub-core/normal/main.c b/grub-core/normal/main.c
+index e924f6448..2592a9446 100644
+--- a/grub-core/normal/main.c
++++ b/grub-core/normal/main.c
+@@ -34,6 +34,10 @@
+ #include <grub/script_sh.h>
+ #include <grub/bufio.h>
+ 
++/* BEGIN TCG EXTENSION */
++#define TGRUB_VERSION "1.40"
++/* END TCG EXTENSION */
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ #define GRUB_DEFAULT_HISTORY_SIZE	50
+@@ -208,7 +212,7 @@ grub_normal_init_page (struct grub_term_output *term,
+  
+   grub_term_cls (term);
+ 
+-  msg_formatted = grub_xasprintf (_("GNU GRUB  version %s"), PACKAGE_VERSION);
++  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
+   if (!msg_formatted)
+     return;
+  
+diff --git a/grub-core/script/execute.c b/grub-core/script/execute.c
+index a8502d907..01ea47831 100644
+--- a/grub-core/script/execute.c
++++ b/grub-core/script/execute.c
+@@ -28,6 +28,10 @@
+ #include <grub/extcmd.h>
+ #include <grub/i18n.h>
+ 
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
+ /* Max digits for a char is 3 (0xFF is 255), similarly for an int it
+    is sizeof (int) * 3, and one extra for a possible -ve sign.  */
+ #define ERRNO_DIGITS_MAX  (sizeof (int) * 3 + 1)
+@@ -1022,6 +1026,53 @@ grub_script_execute_cmdline (struct grub_script_cmd *cmd)
+ 	}
+     }
+ 
++  /* Begin TCG Extension */
++
++  /* Do not measure the following commands:
++   * menuentry
++   * submenu
++   * [ ... ]
++   *
++   * They make precomputation of the PCR value difficult and it's unnecessary
++   * because each command within menuentry and submeny is measured anyway. As
++   * for [ ... ], it seems it isn't possible to execute a command within those.
++   */
++  if ( grub_strncmp( cmdname, "menuentry", grub_strlen( "menuentry" ) ) != 0 &&
++       grub_strncmp( cmdname, "submenu", grub_strlen( "submenu" ) ) != 0 &&
++       grub_strncmp( cmdname, "[", grub_strlen( "[" ) ) != 0 ) {
++
++	  unsigned int i, commandAndArgsLength;
++	  commandAndArgsLength = grub_strlen(cmdname);
++	  for( i = 1; i < argv.argc; i++  ) {
++          /* calculate command length */
++		  commandAndArgsLength++;	/* one byte for whitespace  */
++		  commandAndArgsLength += grub_strlen(argv.args[i]); /* length of arg */
++	  }
++	  /* plus one byte for string termination */
++	  commandAndArgsLength++;
++
++	  /* allocate memory now */
++	  char* commandAndArgs = grub_zalloc(commandAndArgsLength);
++	  if( !commandAndArgs ) {
++		  grub_errno = GRUB_ERR_OUT_OF_MEMORY;
++		  return grub_error (GRUB_ERR_OUT_OF_MEMORY,
++				     N_("memory allocation failed"));
++	  }
++
++	  grub_strcpy( commandAndArgs, cmdname );	/* copy command */
++
++	  /* append whitespace + args */
++	  for( i = 1; i < argv.argc; i++  ) {
++		  grub_snprintf(commandAndArgs, commandAndArgsLength, "%s%s%s", commandAndArgs, " ", argv.args[i]);
++	  }
++
++	  /*  measure string */
++	  grub_TPM_measure_string( commandAndArgs );
++
++	  grub_free( commandAndArgs );
++  }
++  /* End TCG Extension */
++
+   /* Free arguments.  */
+   grub_script_argv_free (&argv);
+ 
+diff --git a/grub-core/tpm/i386/pc/tpm.c b/grub-core/tpm/i386/pc/tpm.c
+new file mode 100644
+index 000000000..85f85333c
+--- /dev/null
++++ b/grub-core/tpm/i386/pc/tpm.c
+@@ -0,0 +1,966 @@
++/* Begin TCG extension */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015 Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/types.h>
++#include <grub/extcmd.h>
++#include <grub/mm.h>
++#include <grub/dl.h>
++#include <grub/crypto.h>
++#include <grub/file.h>
++
++#include <grub/tpm.h>
++#include <grub/i386/pc/tpm.h>
++#include <grub/i386/pc/boot.h>
++#include <grub/i386/pc/memory.h>
++#include <grub/i386/pc/int.h>
++
++GRUB_MOD_LICENSE ("GPLv3+");
++
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wvla"
++
++/************************* constants *************************/
++
++/* TPM_ENTITY_TYPE values */
++static const grub_uint16_t TPM_ET_SRK =  0x0004;
++
++/* Reserved Key Handles */
++static const grub_uint32_t TPM_KH_SRK = 0x40000000;
++
++/* Ordinals */
++static const grub_uint32_t TPM_ORD_OSAP = 0x0000000B;
++static const grub_uint32_t TPM_ORD_Unseal = 0x00000018;
++static const grub_uint32_t TPM_ORD_GetRandom = 0x00000046;
++static const grub_uint32_t TPM_ORD_OIAP = 0x0000000A;
++
++static const grub_uint32_t TCG_PCR_EVENT_SIZE = 32;
++
++static const grub_uint16_t TPM_TAG_RQU_AUTH2_COMMAND = 0x00C3;
++
++#define TPM_NONCE_SIZE 20
++#define TPM_AUTHDATA_SIZE 20
++
++static const grub_uint8_t srkAuthData[SHA1_DIGEST_SIZE] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
++static const grub_uint8_t blobAuthData[SHA1_DIGEST_SIZE] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
++
++/************************* struct typedefs *************************/
++
++/* TCG_SetMemoryOverwriteRequestBit Input Parameter Block */
++typedef struct {
++    grub_uint16_t iPBLength;
++    grub_uint16_t reserved;
++    grub_uint8_t  memoryOverwriteActionBitValue;
++} GRUB_PACKED SetMemoryOverwriteRequestBitInputParamBlock;
++
++/* TPM_GetRandom Incoming Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t ordinal;
++    grub_uint32_t bytesRequested;
++} GRUB_PACKED GetRandomIncoming;
++
++/* TPM_OIAP Incoming Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t ordinal;
++} GRUB_PACKED OIAP_Incoming;
++
++/* TPM_OIAP Outgoing Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t returnCode;
++    grub_uint32_t authHandle;
++    grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++} GRUB_PACKED OIAP_Outgoing;
++
++/* TPM_OSAP Incoming Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t ordinal;
++    grub_uint16_t entityType;
++    grub_uint32_t entityValue;
++    grub_uint8_t  nonceOddOSAP[TPM_NONCE_SIZE];
++} GRUB_PACKED OSAP_Incoming;
++
++/* TPM_OSAP Outgoing Operand */
++typedef struct {
++    grub_uint16_t tag;
++    grub_uint32_t paramSize;
++    grub_uint32_t returnCode;
++    grub_uint32_t authHandle;
++    grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++    grub_uint8_t  nonceEvenOSAP[TPM_NONCE_SIZE];
++} GRUB_PACKED OSAP_Outgoing;
++
++typedef struct tdTCG_PCClientPCREventStruc {
++    grub_uint32_t pcrIndex;
++    grub_uint32_t eventType;
++    grub_uint8_t digest[SHA1_DIGEST_SIZE];
++    grub_uint32_t eventDataSize;
++    grub_uint8_t event[1];
++} GRUB_PACKED TCG_PCClientPCREvent;
++
++/************************* static functions *************************/
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc == 0 ) {
++        grub_fatal( "grub_cmd_readpcr: index expected" );
++    }
++
++    if ( argc > 1 ) {
++        grub_fatal( "grub_cmd_readpcr: Too many arguments" );
++    }
++
++    unsigned long index = grub_strtoul( args[0], NULL, 10 );
++
++    /* if index is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_cmd_readpcr: invalid format for index" );
++    }
++
++    grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
++    grub_TPM_readpcr( index, &result[0] );
++
++    grub_printf( "PCR[%lu]=", index );
++    print_sha1( result );
++    grub_printf("\n");
++
++    return GRUB_ERR_NONE;
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_read_tcglog( const unsigned long index ) {
++
++    grub_uint32_t returnCode, featureFlags, eventLog = 0, logAddr = 0, edi = 0;
++    grub_uint8_t major, minor;
++
++    /* get event log pointer */
++    grub_TPM_int1A_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi );
++
++    /* edi = 0 means event log is empty */
++    if( edi == 0 ) {
++        grub_fatal( "Event log is empty" );
++    }
++
++    logAddr = eventLog;
++    TCG_PCClientPCREvent *event = NULL;
++    /* index = 0: print all entries */
++    if ( index == 0 ) {
++
++        /* eventLog = absolute pointer to the beginning of the event log. */
++        event = (TCG_PCClientPCREvent *) logAddr;
++
++        /* If there is exactly one entry */
++        if( edi == eventLog ) {
++            grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++            grub_printf( "eventType: %u \n", event->eventType );
++            grub_printf( "digest: " );
++            print_sha1( event->digest );
++            grub_printf( "\n\n" );
++        } else {    /* If there is more than one entry */
++            do {
++                grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++                grub_printf( "eventType: %u \n", event->eventType );
++                grub_printf( "digest: " );
++                print_sha1( event->digest );
++                grub_printf( "\n\n" );
++
++                logAddr += TCG_PCR_EVENT_SIZE + event->eventDataSize;
++                event = (TCG_PCClientPCREvent *)logAddr;
++            } while( logAddr != edi );
++
++            /* print the last one */
++            grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++            grub_printf( "eventType: %u \n", event->eventType );
++            grub_printf( "digest: " );
++            print_sha1( event->digest );
++            grub_printf( "\n\n" );
++        }
++    } else { /* print specific entry */
++        logAddr = eventLog;
++
++        unsigned long i;
++        for( i = 1; i < index; i++ ) {
++            event = (TCG_PCClientPCREvent *)logAddr;
++            logAddr += TCG_PCR_EVENT_SIZE + event->eventDataSize;
++
++            if( logAddr > edi ) { /* index not valid.  */
++                grub_fatal( "No entry at specified index" );
++            }
++        }
++
++        event = (TCG_PCClientPCREvent *)logAddr;
++        grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++        grub_printf( "eventType: %u \n", event->eventType );
++        grub_printf( "digest: " );
++        print_sha1( event->digest );
++        grub_printf( "\n\n" );
++    }
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_tcglog( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc == 0 ) {
++        grub_fatal( "grub_cmd_tcglog: index expected" );
++    }
++
++    if ( argc > 1 ) {
++        grub_fatal( "grub_cmd_tcglog: Too many arguments" );
++    }
++
++    unsigned long index = grub_strtoul( args[0], NULL, 10 );
++
++    /* if index is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_cmd_tcglog: invalid format for index" );
++    }
++
++    grub_TPM_read_tcglog( index ) ;
++
++    return GRUB_ERR_NONE;
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_measure( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc != 2 ) {
++        grub_fatal( "Wrong number of arguments" );
++    }
++
++    unsigned long index = grub_strtoul( args[1], NULL, 10 );
++
++    /* if index is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "invalid format for index" );
++    }
++
++    grub_TPM_measure_file( args[0], index );
++
++    return GRUB_ERR_NONE;
++}
++
++/* Invokes TCG_SetMemoryOverwriteRequestBit
++
++   grub_fatal() on error
++   Page 12 TCG Platform Reset Attack Mitigation Specification V 1.0.0
++ */
++static void
++tcg_SetMemoryOverwriteRequestBit( const SetMemoryOverwriteRequestBitInputParamBlock* input ) {
++
++    CHECK_FOR_NULL_ARGUMENT( input )
++
++    /* copy input buffer */
++    void* p = grub_map_memory( INPUT_PARAM_BLK_ADDR, input->iPBLength );
++
++    grub_memcpy( p, input, input->iPBLength );
++
++    grub_unmap_memory( p, input->iPBLength );
++
++    struct grub_bios_int_registers regs;
++    regs.eax = 0xBB08;
++    regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
++
++    regs.ebx = TCPA;
++    regs.ecx = 0;
++    regs.edx = 0;
++    regs.edi = INPUT_PARAM_BLK_ADDR & 0xF;
++    regs.es  = INPUT_PARAM_BLK_ADDR >> 4;
++
++    /* invoke assembler func */
++    grub_bios_interrupt (0x1A, &regs);
++
++    if ( regs.eax != TCG_PC_OK ) {
++        grub_fatal( "TCG_SetMemoryOverwriteRequestBit failed: 0x%x", regs.eax );
++    }
++}
++
++/* Sets Memory Overwrite Request bit */
++/* grub_fatal() on error */
++static void
++grub_TPM_SetMOR_Bit( const unsigned long disableAutoDetect ) {
++
++    SetMemoryOverwriteRequestBitInputParamBlock input;
++    input.iPBLength = 5;
++    input.reserved = 0;
++
++    // Reserved disableAutoDetect Reserved MOR-Bit
++    // 000             0            000      0
++
++    if( disableAutoDetect ) {
++        // disable autodetect
++        // 000 1 000 1
++        input.memoryOverwriteActionBitValue = 0x11;
++    } else{
++        // autodetect
++        // 000 0 000 1
++        input.memoryOverwriteActionBitValue = 0x01;
++    }
++
++    tcg_SetMemoryOverwriteRequestBit( &input );
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_setMOR( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc == 0 ) {
++        grub_fatal( "setMOR: BAD_ARGUMENT: value expected" );
++    }
++
++    if ( argc > 1 ) {
++        grub_fatal( "setMOR: Too many arguments" );
++    }
++
++    unsigned long disableAutoDetect = grub_strtoul( args[0], NULL, 10 );
++
++    /* if disableAutoDetect is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "setMOR: BAD_ARGUMENT: invalid format for 'disableAutoDetect' " );
++    }
++
++    if( disableAutoDetect > 1 ) {
++        grub_fatal( "setMOR: BAD_ARGUMENT: Value must be 0 or 1" );
++    }
++
++    grub_TPM_SetMOR_Bit( disableAutoDetect );
++    return GRUB_ERR_NONE;
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_getRandom( const unsigned long randomBytesRequested, grub_uint8_t* result ) {
++
++    CHECK_FOR_NULL_ARGUMENT( result )
++    CHECK_FOR_NULL_ARGUMENT( randomBytesRequested )
++
++    GetRandomIncoming* getRandomInput = NULL;
++    PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *getRandomInput );
++
++    /* TPM_GetRandom Outgoing Operand */
++    struct {
++        grub_uint16_t tag;
++        grub_uint32_t paramSize;
++        grub_uint32_t returnCode;
++        grub_uint32_t randomBytesSize;
++        grub_uint8_t randomBytes[randomBytesRequested];
++    } GRUB_PACKED *getRandomOutput;
++
++    PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *getRandomOutput );
++
++    passThroughInput = grub_zalloc( inputlen );
++    if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_getRandom: memory allocation failed" );
++    }
++
++    passThroughInput->IPBLength = inputlen;
++    passThroughInput->OPBLength = outputlen;
++
++    getRandomInput = (void *)passThroughInput->TPMOperandIn;
++    getRandomInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++    getRandomInput->paramSize = grub_swap_bytes32( sizeof( *getRandomInput ) );
++    getRandomInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_GetRandom );
++    getRandomInput->bytesRequested = grub_swap_bytes32( (grub_uint32_t) randomBytesRequested );
++
++    passThroughOutput = grub_zalloc( outputlen );
++    if( ! passThroughOutput ) {
++        grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_getRandom: memory allocation failed" );
++    }
++
++    grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    getRandomOutput = (void *)passThroughOutput->TPMOperandOut;
++    grub_uint32_t tpm_getRandomReturnCode = grub_swap_bytes32( getRandomOutput->returnCode );
++
++    if( tpm_getRandomReturnCode != TPM_SUCCESS ) {
++        grub_free( passThroughOutput );
++
++        grub_fatal( "grub_TPM_getRandom: tpm_getRandomReturnCode: %u", tpm_getRandomReturnCode );
++    }
++
++    if( grub_swap_bytes32( getRandomOutput->randomBytesSize ) != randomBytesRequested ) {
++        grub_free( passThroughOutput );
++        DEBUG_PRINT( ( "tpmOutput->randomBytesSize != randomBytesRequested\n" ) );
++        DEBUG_PRINT( ( "tpmOutput->randomBytesSize = %u \n", grub_swap_bytes32( getRandomOutput->randomBytesSize ) ) );
++        DEBUG_PRINT( ( "randomBytesRequested = %lu \n", randomBytesRequested ) );
++        grub_fatal( "grub_TPM_getRandom: tpmOutput->randomBytesSize != randomBytesRequested" );
++    }
++
++    grub_memcpy( result, &getRandomOutput->randomBytes[0], (grub_uint32_t) randomBytesRequested );
++
++    grub_free( passThroughOutput );
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_openOIAP_Session( grub_uint32_t* authHandle, grub_uint8_t* nonceEven ) {
++
++    CHECK_FOR_NULL_ARGUMENT( authHandle )
++    CHECK_FOR_NULL_ARGUMENT( nonceEven )
++
++    OIAP_Incoming* oiapInput = NULL;
++    PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *oiapInput );
++
++    OIAP_Outgoing* oiapOutput = NULL;
++    PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *oiapOutput );
++
++    passThroughInput = grub_zalloc( inputlen );
++    if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_openOIAP_Session: memory allocation failed");
++    }
++
++    passThroughInput->IPBLength = inputlen;
++    passThroughInput->OPBLength = outputlen;
++
++    oiapInput = (void *)passThroughInput->TPMOperandIn;
++    oiapInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++    oiapInput->paramSize = grub_swap_bytes32( sizeof( *oiapInput ) );
++    oiapInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_OIAP );
++
++    passThroughOutput = grub_zalloc( outputlen );
++    if( ! passThroughOutput ) {
++        grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOIAP_Session: memory allocation failed");
++    }
++
++    grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    oiapOutput = (void *)passThroughOutput->TPMOperandOut;
++    grub_uint32_t tpm_OIAP_ReturnCode = grub_swap_bytes32( oiapOutput->returnCode );
++
++    if( tpm_OIAP_ReturnCode != TPM_SUCCESS ) {
++        grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOIAP_Session: tpm_OIAP_ReturnCode: %u", tpm_OIAP_ReturnCode );
++    }
++
++    *authHandle = grub_swap_bytes32( oiapOutput->authHandle );
++
++    grub_memcpy( nonceEven, oiapOutput->nonceEven, TPM_NONCE_SIZE );
++
++    grub_free( passThroughOutput );
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_openOSAP_Session( const grub_uint16_t entityType, const grub_uint32_t entityValue, const grub_uint8_t* nonceOddOSAP,
++        grub_uint32_t* authHandle, grub_uint8_t* nonceEven, grub_uint8_t* nonceEvenOSAP ) {
++
++    CHECK_FOR_NULL_ARGUMENT( authHandle )
++    CHECK_FOR_NULL_ARGUMENT( nonceEven )
++    CHECK_FOR_NULL_ARGUMENT( nonceEvenOSAP )
++
++    OSAP_Incoming* osapInput = NULL;
++    PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *osapInput );
++
++    OSAP_Outgoing* osapOutput = NULL;
++    PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *osapOutput );
++
++    passThroughInput = grub_zalloc( inputlen );
++    if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_openOSAP_Session: memory allocation failed" );
++    }
++
++    passThroughInput->IPBLength = inputlen;
++    passThroughInput->OPBLength = outputlen;
++
++    osapInput = (void *)passThroughInput->TPMOperandIn;
++    osapInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++    osapInput->paramSize = grub_swap_bytes32( sizeof( *osapInput ) );
++    osapInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_OSAP );
++    osapInput->entityType = grub_swap_bytes16( entityType );
++    osapInput->entityValue = grub_swap_bytes32( entityValue );
++
++    grub_memcpy( osapInput->nonceOddOSAP, nonceOddOSAP, TPM_NONCE_SIZE );
++
++    passThroughOutput = grub_zalloc( outputlen );
++    if( ! passThroughOutput ) {
++        grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_openOSAP_Session: memory allocation failed" );
++    }
++
++    grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    osapOutput = (void *)passThroughOutput->TPMOperandOut;
++    grub_uint32_t tpm_OSAP_ReturnCode = grub_swap_bytes32( osapOutput->returnCode );
++
++    if( tpm_OSAP_ReturnCode != TPM_SUCCESS ) {
++        grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOSAP_Session: tpm_OSAP_ReturnCode: %u", tpm_OSAP_ReturnCode );
++    }
++
++    *authHandle = grub_swap_bytes32( osapOutput->authHandle );
++
++    grub_memcpy( nonceEven, osapOutput->nonceEven, TPM_NONCE_SIZE );
++    grub_memcpy( nonceEvenOSAP, osapOutput->nonceEvenOSAP, TPM_NONCE_SIZE );
++
++    grub_free( passThroughOutput );
++}
++
++/* calculate shared-secret = HMAC( srkAuthData, nonceEvenOSAP || nonceOddOSAP ) */
++/* grub_fatal() on error */
++static void
++grub_TPM_calculate_osap_sharedSecret( const grub_uint8_t* nonceEvenOSAP, const grub_uint8_t* nonceOddOSAP, grub_uint8_t* result ) {
++
++    CHECK_FOR_NULL_ARGUMENT( nonceEvenOSAP )
++    CHECK_FOR_NULL_ARGUMENT( nonceOddOSAP )
++    CHECK_FOR_NULL_ARGUMENT( result )
++
++    grub_size_t dataSize = TPM_NONCE_SIZE * 2;
++
++    grub_uint8_t data[TPM_NONCE_SIZE * 2] = { 0 };
++    grub_uint8_t* dataPointer = &data[0];
++
++    grub_memcpy( dataPointer, nonceEvenOSAP, TPM_NONCE_SIZE );
++
++    dataPointer += TPM_NONCE_SIZE;
++
++    grub_memcpy( dataPointer, nonceOddOSAP, TPM_NONCE_SIZE );
++
++    gcry_err_code_t hmacErrorCode = grub_crypto_hmac_buffer( GRUB_MD_SHA1, srkAuthData, SHA1_DIGEST_SIZE, &data[0],
++                dataSize, result );
++
++    if( hmacErrorCode ) {
++        grub_fatal( "grub_TPM_calculate_osap_sharedSecre failed: hmacErrorCode: %u", hmacErrorCode );
++    }
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_calculate_Auth( const grub_uint8_t* sharedSecret, const grub_uint8_t* digest, const grub_uint8_t* nonceEven, const grub_uint8_t* nonceOdd,
++        const grub_uint8_t continueSession, grub_uint8_t* result ) {
++
++    CHECK_FOR_NULL_ARGUMENT( sharedSecret )
++    CHECK_FOR_NULL_ARGUMENT( digest )
++    CHECK_FOR_NULL_ARGUMENT( nonceEven )
++    CHECK_FOR_NULL_ARGUMENT( nonceOdd )
++    CHECK_FOR_NULL_ARGUMENT( result )
++
++    grub_size_t dataSize = SHA1_DIGEST_SIZE /* hashed ordinal and inData */ +
++                TPM_NONCE_SIZE /* authLastNonceEven */ +
++                TPM_NONCE_SIZE /* nonceOdd */ +
++                sizeof( continueSession ) /* continueAuthSession */;
++
++    grub_uint8_t data[SHA1_DIGEST_SIZE + TPM_NONCE_SIZE + TPM_NONCE_SIZE + sizeof( continueSession )] = { 0 };
++    grub_uint8_t* dataPointer = &data[0];
++
++    grub_memcpy( dataPointer, digest, SHA1_DIGEST_SIZE );
++
++    dataPointer += SHA1_DIGEST_SIZE;
++
++    grub_memcpy( dataPointer, nonceEven, TPM_NONCE_SIZE );
++
++    dataPointer += TPM_NONCE_SIZE;
++
++    grub_memcpy( dataPointer, nonceOdd, TPM_NONCE_SIZE );
++
++    dataPointer += TPM_NONCE_SIZE;
++
++    grub_memcpy( dataPointer, &continueSession, sizeof( continueSession ) );
++
++    gcry_err_code_t hmacErrorCode = grub_crypto_hmac_buffer( GRUB_MD_SHA1, sharedSecret, SHA1_DIGEST_SIZE, &data[0],
++            dataSize, result );
++
++    if( hmacErrorCode ) {
++        grub_fatal( "grub_TPM_calculate_Auth failed: hmacErrorCode: %u", hmacErrorCode );
++    }
++}
++
++/************************* non-static functions *************************/
++
++/* grub_fatal() on error */
++void
++grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, grub_uint8_t** result, grub_size_t* resultSize ) {
++
++    CHECK_FOR_NULL_ARGUMENT( sealedBuffer )
++    CHECK_FOR_NULL_ARGUMENT( resultSize)
++
++    /* TPM_UNSEAL Incoming Operand */
++    struct {
++        grub_uint16_t tag;
++        grub_uint32_t paramSize;
++        grub_uint32_t ordinal;
++        grub_uint32_t parentHandle;
++        grub_uint8_t  sealedData[inputSize];
++        grub_uint32_t authHandle;
++        grub_uint8_t  nonceOdd[TPM_NONCE_SIZE];
++        grub_uint8_t  continueAuthSession;
++        grub_uint8_t  parentAuth[TPM_AUTHDATA_SIZE];
++        grub_uint32_t dataAuthHandle;
++        grub_uint8_t  dataNonceOdd[TPM_NONCE_SIZE];
++        grub_uint8_t  continueDataSession;
++        grub_uint8_t  dataAuth[TPM_AUTHDATA_SIZE];
++    } GRUB_PACKED *unsealInput;
++
++    PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
++    grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *unsealInput );
++
++    /* TPM_UNSEAL Outgoing Operand */
++    struct {
++        grub_uint16_t tag;
++        grub_uint32_t paramSize;
++        grub_uint32_t returnCode;
++        grub_uint32_t secretSize;
++        grub_uint8_t  unsealedData[inputSize];      /* FIXME: what size to use here? */
++        grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++        grub_uint8_t  continueAuthSession;
++        grub_uint8_t  resAuth[TPM_AUTHDATA_SIZE];
++        grub_uint8_t  dataNonceEven[TPM_NONCE_SIZE];
++        grub_uint8_t  continueDataSession;
++        grub_uint8_t  dataAuth[TPM_AUTHDATA_SIZE];
++    } GRUB_PACKED *unsealOutput;
++
++    PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
++    grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *unsealOutput );
++
++    passThroughInput = grub_zalloc( inputlen );
++    if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++    }
++
++    passThroughInput->IPBLength = inputlen;
++    passThroughInput->OPBLength = outputlen;
++
++    unsealInput = (void*) passThroughInput->TPMOperandIn;
++    unsealInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_AUTH2_COMMAND );
++    unsealInput->paramSize = grub_swap_bytes32( sizeof( *unsealInput ) );
++    unsealInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_Unseal );
++    unsealInput->parentHandle = grub_swap_bytes32_compile_time( TPM_KH_SRK );
++
++    grub_memcpy ( unsealInput->sealedData, sealedBuffer, inputSize );
++
++    /* open OSAP Session */
++
++    /* get random for nonceOddOSAP */
++    grub_uint8_t nonceOddOSAP[TPM_NONCE_SIZE] = { 0 };
++    grub_TPM_getRandom( TPM_NONCE_SIZE, &nonceOddOSAP[0] );
++
++    grub_uint32_t authHandle = 0;
++    grub_uint8_t authLastNonceEven[TPM_NONCE_SIZE] = { 0 };
++    grub_uint8_t nonceEvenOSAP[TPM_NONCE_SIZE] = { 0 };
++    grub_TPM_openOSAP_Session( TPM_ET_SRK, TPM_KH_SRK, &nonceOddOSAP[0], &authHandle, &authLastNonceEven[0], &nonceEvenOSAP[0] );
++
++    unsealInput->authHandle = grub_swap_bytes32( authHandle );
++
++    grub_uint8_t sharedSecret[SHA1_DIGEST_SIZE] = { 0 };
++    grub_TPM_calculate_osap_sharedSecret( &nonceEvenOSAP[0], &nonceOddOSAP[0], &sharedSecret[0] );
++
++    /* open OIAP Session */
++    grub_uint8_t dataLastNonceEven[TPM_NONCE_SIZE] = { 0 };
++    grub_uint32_t dataAuthHandle = 0;
++    grub_TPM_openOIAP_Session( &dataAuthHandle, &dataLastNonceEven[0] );
++
++    unsealInput->dataAuthHandle = grub_swap_bytes32( dataAuthHandle );
++
++    /* calc authData */
++
++    /* SHA1( ordinal, inData ) */
++    grub_uint32_t dataToHashSize = sizeof( unsealInput->ordinal ) + inputSize;
++
++    grub_uint8_t* dataToHash = grub_zalloc( dataToHashSize );
++    if( ! dataToHash ) {
++        grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++    }
++
++    /* copy ordinal */
++    grub_memcpy( dataToHash, &unsealInput->ordinal, sizeof( unsealInput->ordinal ) );
++
++    /* copy inData */
++    grub_memcpy( dataToHash + sizeof( unsealInput->ordinal ), unsealInput->sealedData, inputSize );
++
++    grub_uint8_t hashResult[SHA1_DIGEST_SIZE] = { 0 };
++    grub_crypto_hash( GRUB_MD_SHA1, &hashResult[0], dataToHash, dataToHashSize );
++    grub_free( dataToHash );
++
++    /* calc parentAuth */
++
++    /* HMAC( sharedSecret, SHA1( ordinal, inData ) || authLastNonceEven || nonceOdd || continueAuthSession ) */
++
++    /* get random for nonceOdd */
++    grub_TPM_getRandom( TPM_NONCE_SIZE, unsealInput->nonceOdd );
++
++    unsealInput->continueAuthSession = 0;
++    grub_TPM_calculate_Auth( &sharedSecret[0], &hashResult[0], &authLastNonceEven[0], unsealInput->nonceOdd, unsealInput->continueAuthSession, unsealInput->parentAuth );
++
++    /* calc dataAuth */
++
++    /* HMAC( entity.usageAuth, SHA1( ordinal, inData ) || dataLastNonceEven || dataNonceOdd || continueDataSession ) */
++
++    /* get random for dataNonceOdd */
++    grub_TPM_getRandom( TPM_NONCE_SIZE, unsealInput->dataNonceOdd );
++
++    unsealInput->continueDataSession = 0;
++    grub_TPM_calculate_Auth( blobAuthData, &hashResult[0], &dataLastNonceEven[0], unsealInput->dataNonceOdd, unsealInput->continueDataSession, unsealInput->dataAuth );
++
++    passThroughOutput = grub_zalloc( outputlen );
++    if( ! passThroughOutput ) {
++        grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++    }
++
++    grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    unsealOutput = (void *)passThroughOutput->TPMOperandOut;
++    grub_uint32_t tpm_UnsealReturnCode = grub_swap_bytes32( unsealOutput->returnCode );
++
++    if( tpm_UnsealReturnCode != TPM_SUCCESS ) {
++        grub_free( passThroughOutput );
++
++        if( tpm_UnsealReturnCode == TPM_AUTHFAIL ) {
++            grub_fatal( "grub_TPM_unseal: Authentication failed" );
++        }
++
++        grub_fatal( "grub_TPM_unseal: Unsealing failed: %u", tpm_UnsealReturnCode );
++    }
++
++    /* skip check for returned AuthData */
++
++    /* return result */
++    *resultSize = grub_swap_bytes32( unsealOutput->secretSize );
++    *result = grub_zalloc( *resultSize );       /* caller has to clean up */
++
++    if( ! *result ) {
++        grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++    }
++
++    grub_memcpy( *result, &unsealOutput->unsealedData[0], *resultSize );
++
++    grub_free( passThroughOutput );
++}
++
++#ifdef TGRUB_DEBUG
++static grub_err_t
++grub_cmd_unseal( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc == 0 ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "value expected" ) );
++    }
++
++    if ( argc > 1 ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Too many arguments" ) );
++    }
++
++    /* open file */
++    grub_file_t file = grub_file_open( args[0] );
++    if( ! file ) {
++        return grub_errno;
++    }
++
++    grub_size_t fileSize = file->size;
++
++    DEBUG_PRINT( ( "sealed file size = %d\n", fileSize ) );
++
++    grub_uint8_t* buf = grub_zalloc( fileSize );
++    if ( ! buf ) {
++        grub_file_close (file);
++        return grub_error( GRUB_ERR_OUT_OF_MEMORY, N_( "grub_cmd_unseal: memory allocation failed" ) );
++    }
++
++    /* read file */
++    if ( grub_file_read( file, buf, fileSize ) != (grub_ssize_t) fileSize ) {
++        grub_free( buf );
++        grub_file_close (file);
++        return grub_errno;
++    }
++
++    grub_file_close( file );
++
++    if ( grub_errno ) {
++        return grub_errno;
++    }
++
++    grub_uint8_t* result = NULL;
++    grub_size_t resultSize = 0;
++    grub_TPM_unseal( buf, fileSize, &result, &resultSize );
++
++    grub_free( buf );
++    grub_free( result );
++
++    return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_getRandom( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++    if ( argc == 0 ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "value expected" ) );
++    }
++
++    if ( argc > 1 ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Too many arguments" ) );
++    }
++
++    unsigned long randomBytesRequested = grub_strtoul( args[0], NULL, 10 );
++
++    /* if randomBytesRequested is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "invalid format for 'randomBytesRequested' " ) );
++    }
++
++    if( randomBytesRequested == 0 ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Value must be greater 0" ) );
++    }
++
++    grub_uint8_t* random;
++    random = grub_zalloc( randomBytesRequested );
++    if( ! random ) {
++        grub_fatal( "grub_cmd_getRandom: memory allocation failed" );
++    }
++
++    grub_TPM_getRandom( randomBytesRequested, &random[0] );
++
++    grub_printf( "random bytes: " );
++    unsigned int j;
++    for( j = 0; j < randomBytesRequested; ++j ) {
++        grub_printf( "%02x", random[j] );
++    }
++    grub_printf( "\n\n" );
++
++    grub_free( random );
++
++    return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_openOIAP(grub_command_t cmd __attribute__ ((unused)), int argc __attribute__ ((unused)), char** args __attribute__ ((unused))) {
++
++    grub_uint32_t authHandle = 0;
++    grub_uint8_t nonceEven[TPM_NONCE_SIZE];
++
++    grub_TPM_openOIAP_Session( &authHandle, &nonceEven[0] );
++
++    grub_printf( "authHandle: 0x%x \n", authHandle );
++
++    grub_printf( "nonceEven: " );
++    unsigned int j;
++    for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++        grub_printf( "%02x", nonceEven[j] );
++    }
++    grub_printf( "\n\n" );
++
++    return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_openOSAP(grub_command_t cmd __attribute__ ((unused)), int argc __attribute__ ((unused)), char** args __attribute__ ((unused))) {
++
++    /* get random for nonceOddOSAP */
++    grub_uint8_t nonceOddOSAP[TPM_NONCE_SIZE];
++    grub_TPM_getRandom( TPM_NONCE_SIZE, &nonceOddOSAP[0] );
++
++    grub_uint32_t authHandle = 0;
++    grub_uint8_t nonceEven[TPM_NONCE_SIZE];
++    grub_uint8_t nonceEvenOSAP[TPM_NONCE_SIZE];
++
++    grub_TPM_openOSAP_Session( TPM_ET_SRK, TPM_KH_SRK, &nonceOddOSAP[0], &authHandle, &nonceEven[0], &nonceEvenOSAP[0] );
++
++    grub_printf( "authHandle: 0x%x \n", authHandle );
++
++    grub_printf( "nonceEven: " );
++    unsigned int j;
++    for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++        grub_printf( "%02x", nonceEven[j] );
++    }
++
++    grub_printf( "\n nonceEvenOSAP: " );
++    for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++        grub_printf( "%02x", nonceEvenOSAP[j] );
++    }
++    grub_printf( "\n\n" );
++
++    return GRUB_ERR_NONE;
++}
++#endif
++
++static grub_command_t cmd_readpcr, cmd_tcglog, cmd_measure, cmd_setMOR;
++
++#ifdef TGRUB_DEBUG
++    static grub_command_t cmd_random, cmd_oiap, cmd_osap, cmd_unseal;
++#endif
++
++GRUB_MOD_INIT(tpm)
++{
++    cmd_readpcr = grub_register_command( "readpcr", grub_cmd_readpcr, N_( "pcrindex" ),
++        N_( "Display current value of the PCR (Platform Configuration Register) within "
++            "TPM (Trusted Platform Module) at index, pcrindex." ) );
++
++    cmd_tcglog = grub_register_command( "tcglog", grub_cmd_tcglog, N_( "logindex" ),
++        N_( "Displays TCG event log entry at position, logindex. Type in 0 for all entries." ) );
++
++    cmd_measure = grub_register_command( "measure", grub_cmd_measure, N_( "FILE pcrindex" ),
++        N_( "Perform TCG measurement operation with the file FILE and with PCR( pcrindex )." ) );
++
++    cmd_setMOR = grub_register_command( "setmor", grub_cmd_setMOR, N_( "disableAutoDetect" ),
++            N_( "Sets Memory Overwrite Request Bit with auto detect enabled (0) or disabled (1)" ) );
++
++#ifdef TGRUB_DEBUG
++    cmd_random = grub_register_command( "random", grub_cmd_getRandom, N_( "bytesRequested" ),
++                N_( "Gets random bytes from TPM." ) );
++    cmd_oiap = grub_register_command( "oiap", grub_cmd_openOIAP, 0,
++                    N_( "Opens OIAP Session" ) );
++    cmd_osap = grub_register_command( "osap", grub_cmd_openOSAP, 0,
++                        N_( "Opens OSAP Session" ) );
++    cmd_unseal = grub_register_command( "unseal", grub_cmd_unseal, N_( "sealedFile" ),
++                N_( "Unseals 'sealedFile' " ) );
++#endif
++
++}
++
++GRUB_MOD_FINI(tpm)
++{
++    grub_unregister_command( cmd_readpcr );
++    grub_unregister_command( cmd_tcglog );
++    grub_unregister_command( cmd_measure );
++    grub_unregister_command( cmd_setMOR );
++
++#ifdef TGRUB_DEBUG
++    grub_unregister_command( cmd_random );
++    grub_unregister_command( cmd_oiap );
++    grub_unregister_command( cmd_osap );
++    grub_unregister_command( cmd_unseal );
++#endif
++
++}
++
++#pragma GCC diagnostic pop
++
++/* End TCG extension */
+diff --git a/include/grub/err.h b/include/grub/err.h
+index 1590c688e..4658adb6a 100644
+--- a/include/grub/err.h
++++ b/include/grub/err.h
+@@ -71,7 +71,9 @@ typedef enum
+     GRUB_ERR_NET_PACKET_TOO_BIG,
+     GRUB_ERR_NET_NO_DOMAIN,
+     GRUB_ERR_EOF,
+-    GRUB_ERR_BAD_SIGNATURE
++    GRUB_ERR_BAD_SIGNATURE,
++    GRUB_ERR_NO_TPM,   /* TPM not available */
++    GRUB_ERR_TPM,   /* Errors from TPM functions */
+   }
+ grub_err_t;
+ 
+diff --git a/include/grub/file.h b/include/grub/file.h
+index 739488cbe..25f395eeb 100644
+--- a/include/grub/file.h
++++ b/include/grub/file.h
+@@ -132,6 +132,7 @@ grub_file_filter_disable_pubkey (void)
+ char *EXPORT_FUNC(grub_file_get_device_name) (const char *name);
+ 
+ grub_file_t EXPORT_FUNC(grub_file_open) (const char *name);
++
+ grub_ssize_t EXPORT_FUNC(grub_file_read) (grub_file_t file, void *buf,
+ 					  grub_size_t len);
+ grub_off_t EXPORT_FUNC(grub_file_seek) (grub_file_t file, grub_off_t offset);
+diff --git a/include/grub/i386/pc/boot.h b/include/grub/i386/pc/boot.h
+index a4d42ff3c..424a23e87 100644
+--- a/include/grub/i386/pc/boot.h
++++ b/include/grub/i386/pc/boot.h
+@@ -21,6 +21,10 @@
+ 
+ #include <grub/offsets.h>
+ 
++/* Begin TCG Extension */
++#define ENABLE_TGRUB2 /* Comment this line to recover CHS-support */
++/* End TCG Extension */
++
+ /* The signature for bootloader.  */
+ #define GRUB_BOOT_MACHINE_SIGNATURE	0xaa55
+ 
+diff --git a/include/grub/i386/pc/tpm.h b/include/grub/i386/pc/tpm.h
+new file mode 100644
+index 000000000..1e3202444
+--- /dev/null
++++ b/include/grub/i386/pc/tpm.h
+@@ -0,0 +1,89 @@
++/* Begin TCG extension */
++
++/* i386-pc specific header file */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef GRUB_CPU_TPM_I386_PC_H
++#define GRUB_CPU_TPM_I386_PC_H
++
++#include <grub/types.h>
++#include <grub/err.h>
++
++/************************* constants *************************/
++
++/* int1A return codes */
++#define TCG_PC_OK		0x0000
++#define TCG_PC_TPMERROR(TPM_driver_error) \
++	((TCG_PC_OK + 0x01) | ((TPM_driver_error) << 16))
++#define TCG_PC_LOGOVERFLOW	(TCG_PC_OK + 0x02)
++#define TCG_PC_UNSUPPORTED	(TCG_PC_OK + 0x03)
++
++/* Command return codes */
++#define TPM_BASE 0x0
++#define TPM_SUCCESS TPM_BASE
++#define TPM_AUTHFAIL (TPM_BASE + 0x1)
++#define TPM_BADINDEX (TPM_BASE + 0x2)
++
++/* TODO: 0x10000 does not work for some reason */
++/* is  0x20000 and 0x30000 a good choice? */
++#define INPUT_PARAM_BLK_ADDR 0x30000
++#define OUTPUT_PARAM_BLK_ADDR 0x20000
++
++#define TPM_TAG_RQU_COMMAND 0x00C1
++
++#define TCPA 0x41504354
++
++/************************* macros *************************/
++
++#define CHECK_FOR_NULL_ARGUMENT( argument ) 						                    \
++			if( ! argument ) {										                    \
++				grub_fatal( "BAD_ARGUMENT: argument is NULL" );   				\
++			}
++
++/************************* struct typedefs *************************/
++
++/* TCG_PassThroughToTPM Input Parameter Block */
++typedef struct {
++	grub_uint16_t IPBLength;
++	grub_uint16_t Reserved1;
++	grub_uint16_t OPBLength;
++	grub_uint16_t Reserved2;
++	grub_uint8_t TPMOperandIn[1];
++} GRUB_PACKED PassThroughToTPM_InputParamBlock;
++
++/* TCG_PassThroughToTPM Output Parameter Block */
++typedef struct {
++	grub_uint16_t OPBLength;
++	grub_uint16_t Reserved;
++	grub_uint8_t TPMOperandOut[1];
++} GRUB_PACKED PassThroughToTPM_OutputParamBlock;
++
++/************************* functions *************************/
++
++/* Invokes TCG_StatusCheck Int1A interrupt */
++grub_err_t EXPORT_FUNC(grub_TPM_int1A_statusCheck)( grub_uint32_t* returnCode, grub_uint8_t* major, grub_uint8_t* minor,
++		grub_uint32_t* featureFlags, grub_uint32_t* eventLog, grub_uint32_t* edi );
++
++/* pass commands to TPM */
++void EXPORT_FUNC(grub_TPM_int1A_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,
++		PassThroughToTPM_OutputParamBlock* output );
++
++#endif
++/* End TCG Extension */
+diff --git a/include/grub/sha1.h b/include/grub/sha1.h
+new file mode 100644
+index 000000000..88b00b6fb
+--- /dev/null
++++ b/include/grub/sha1.h
+@@ -0,0 +1,40 @@
++/* Begin TCG Extension */
++
++#ifndef GRUB_SHA1_H
++#define GRUB_SHA1_H	1
++
++#define SHA1_DIGEST_SIZE 20
++
++#define TCG_BUFFER_SIZE  4096
++
++#include <grub/file.h>
++
++/* Typedefs needed for the SHA1-implementation */
++typedef unsigned int      t_U32;
++typedef unsigned short     t_U16;
++typedef unsigned char      t_U8;
++typedef signed long        t_S32;
++typedef signed short       t_S16;
++typedef signed char        t_S8;
++typedef char*              t_string;
++
++/* Struct for SHA1-Context */
++typedef struct
++{
++  t_U32 total_bytes_Hi; /* high word of 64-bit value for bytes count */
++  t_U32 total_bytes_Lo; /* low word of 64-bit value for bytes count  */
++  t_U32 vector[5];      /* 5  32-bit hash words                     */
++  t_U8  buffer[64];     /* 64 byte buffer                            */
++} sha1_context;
++
++/* Creates SHA1-Hash of a file and stores digest in result */
++grub_err_t sha1_hash_file( const grub_file_t file, void* result );
++
++/* Creates SHA1-Hash of a string and stores digest in result */
++grub_err_t sha1_hash_string( const char* string, void* result );
++
++/* Creates SHA1-Hash of a buffer and stores digest in result */
++grub_err_t sha1_hash_buffer( const void* buffer, const grub_uint32_t bufferLen, void* result );
++
++#endif /* ! GRUB_SHA1_H */
++/* End TCG Extension */
+diff --git a/include/grub/tpm.h b/include/grub/tpm.h
+new file mode 100644
+index 000000000..5d34248ba
+--- /dev/null
++++ b/include/grub/tpm.h
+@@ -0,0 +1,64 @@
++/* Begin TCG extension */
++
++/* Common header file for i386-pc and EFI */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#ifndef GRUB_CPU_TPM_H
++#define GRUB_CPU_TPM_H
++
++#include <grub/types.h>
++
++/************************* constants *************************/
++
++#define SHA1_DIGEST_SIZE 20
++
++/* Measure into following PCRs */
++#define TPM_LOADER_MEASUREMENT_PCR 10
++#define TPM_COMMAND_MEASUREMENT_PCR 11
++#define TPM_LUKS_HEADER_MEASUREMENT_PCR 12
++#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 13
++
++/************************* macros *************************/
++
++#ifdef TGRUB_DEBUG
++    #define DEBUG_PRINT( x ) grub_printf x
++#else
++    #define DEBUG_PRINT( x )
++#endif
++
++/************************* functions *************************/
++
++/* print SHA1 hash of input */
++void EXPORT_FUNC(print_sha1) ( grub_uint8_t* inDigest );
++
++/*  Measure string */
++void EXPORT_FUNC(grub_TPM_measure_string) ( const char* string );
++/*  Measure file */
++void EXPORT_FUNC(grub_TPM_measure_file) ( const char* filename, const grub_uint8_t index );
++/*  Measure buffer */
++void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, grub_uint32_t bufferLen, const grub_uint8_t index );
++
++void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* result );
++
++void grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, grub_uint8_t** result, grub_size_t* resultSize );
++
++#endif
++
++/* End TCG Extension */
+diff --git a/runSonarQubeAnalysis.sh b/runSonarQubeAnalysis.sh
+new file mode 100644
+index 000000000..5e530d3f1
+--- /dev/null
++++ b/runSonarQubeAnalysis.sh
+@@ -0,0 +1,41 @@
++#!/bin/sh
++# Exit on failure
++set -e
++
++installBuildWrapper() {
++  curl -LsS https://sonarqube.com/static/cpp/build-wrapper-linux-x86.zip > build-wrapper-linux-x86.zip
++  unzip build-wrapper-linux-x86.zip
++}
++
++build() {
++  # triggers the compilation through the build wrapper to gather compilation database
++  make distclean && ./autogen.sh && ./configure --target=i386 -with-platform=pc
++  ./build-wrapper-linux-x86/build-wrapper-linux-x86-64 --out-dir bw-outputs make ${DEFINES} -j 2
++}
++
++# run the analysis
++if [ "$TRAVIS_BRANCH" = "master" ] && [ "$TRAVIS_PULL_REQUEST" = "false" ] && [ "$SONARQUBE" = "TRUE" ]; then
++	# => This will run a full analysis of the project and push results to the SonarQube server.
++	#
++	# Analysis is done only on master so that build of branches don't push analyses to the same project and therefore "pollute" the results
++	echo "Starting analysis by SonarQube..."
++	installBuildWrapper
++	build
++	sonar-scanner -Dsonar.login=$SONAR_TOKEN
++elif [ "$TRAVIS_PULL_REQUEST" != "false" ] && [ -n "${GITHUB_TOKEN-}" ]  && [ "$SONARQUBE" = "TRUE" ]; then
++	# => This will analyse the PR and display found issues as comments in the PR, but it won't push results to the SonarQube server
++	#
++	# For security reasons environment variables are not available on the pull requests
++	# coming from outside repositories
++	# http://docs.travis-ci.com/user/pull-requests/#Security-Restrictions-when-testing-Pull-Requests
++	# That's why the analysis does not need to be executed if the variable GITHUB_TOKEN is not defined.
++	echo "Starting Pull Request analysis by SonarQube..."
++	installBuildWrapper
++	build
++	sonar-scanner -Dsonar.login=$SONAR_TOKEN \
++	-Dsonar.analysis.mode=preview \
++	-Dsonar.github.oauth=$GITHUB_TOKEN \
++	-Dsonar.github.repository=$TRAVIS_REPO_SLUG \
++	-Dsonar.github.pullRequest=$TRAVIS_PULL_REQUEST
++fi
++# When neither on master branch nor on a non-external pull request => nothing to do
+diff --git a/sonar-project.properties b/sonar-project.properties
+new file mode 100644
+index 000000000..9d8d1e990
+--- /dev/null
++++ b/sonar-project.properties
+@@ -0,0 +1,16 @@
++# Required metadata
++sonar.projectKey=TrustedGRUB2
++sonar.projectName=TrustedGRUB2
++sonar.projectVersion=1.0
++
++# Comma-separated paths to directories with sources (required)
++sonar.sources=grub-core
++
++# Language, needed for SonarQube < 4.2
++sonar.language=c
++
++# The build-wrapper output dir
++sonar.cfamily.build-wrapper-output=bw-outputs
++
++# Encoding of the source files
++sonar.sourceEncoding=UTF-8
+diff --git a/util/mkimage.c b/util/mkimage.c
+index 9ad4cfe42..d3a7d420d 100644
+--- a/util/mkimage.c
++++ b/util/mkimage.c
+@@ -1134,6 +1134,23 @@ grub_install_generate_image (const char *dir, const char *prefix,
+ 	grub_util_write_image (boot_img, boot_size, out, outname);
+ 	free (boot_img);
+ 	free (boot_path);
++
++/* BEGIN TCG EXTENSION */
++#ifdef TGRUB_HP_WORKAROUND
++	/* HP workaround */
++	/* core.img size has to be core_size % 512 != 0  */
++        size_t newCoreImgSize = ALIGN_UP (core_size, 512);
++	newCoreImgSize++;
++
++	void* newCoreImg = xmalloc (newCoreImgSize);
++        memset (newCoreImg, 0, newCoreImgSize);
++	memcpy(newCoreImg, core_img, core_size);
++	free (core_img);
++
++	core_img = newCoreImg;
++        core_size = newCoreImgSize;
++#endif
++/* END TCG EXTENSION */
+       }
+       break;
+     case IMAGE_EFI:

@@ -49,52 +49,6 @@ static char *linux_cmdline;
 
 #define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
 
-#define SHIM_LOCK_GUID \
-  { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} }
-
-struct grub_efi_shim_lock
-{
-  grub_efi_status_t (*verify) (void *buffer, grub_uint32_t size);
-};
-typedef struct grub_efi_shim_lock grub_efi_shim_lock_t;
-
-static grub_efi_boolean_t
-grub_linuxefi_secure_validate (void *data, grub_uint32_t size)
-{
-  grub_efi_guid_t guid = SHIM_LOCK_GUID;
-  grub_efi_shim_lock_t *shim_lock;
-  grub_efi_status_t status;
-
-  if (! grub_efi_secure_boot())
-    {
-      grub_dprintf ("linuxefi", "secure boot not enabled, not validating");
-      return 1;
-    }
-
-  grub_dprintf ("linuxefi", "Locating shim protocol\n");
-  shim_lock = grub_efi_locate_protocol(&guid, NULL);
-
-  if (!shim_lock)
-    {
-      grub_dprintf ("linuxefi", "shim not available\n");
-      return 0;
-    }
-
-  grub_dprintf ("linuxefi", "Asking shim to verify kernel signature\n");
-  status = shim_lock->verify(data, size);
-  if (status == GRUB_EFI_SUCCESS)
-    {
-      grub_dprintf ("linuxefi", "Kernel signature verification passed\n");
-      return 1;
-    }
-
-  grub_dprintf ("linuxefi", "Kernel signature verification failed (0x%lx)\n",
-		(unsigned long) status);
-  return 0;
-}
-
-typedef void(*handover_func)(void *, grub_efi_system_table_t *, struct linux_kernel_params *);
-
 static grub_err_t
 grub_linuxefi_boot (void)
 {
@@ -222,7 +176,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
   grub_file_t file = 0;
   struct linux_i386_kernel_header lh;
   grub_ssize_t len, start, filelen;
-  void *kernel;
+  void *kernel = NULL;
+
+  int rc;
 
   grub_dl_ref (my_mod);
 
@@ -257,6 +213,15 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
       goto fail;
     }
+
+  // validate linux image by shim
+  rc = grub_linuxefi_secure_validate (kernel, filelen);
+  if (rc < 0)
+    {
+      grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
+      goto fail;
+    }
+
 /*
   if (! grub_linuxefi_check_shim_lock ())
     {
@@ -354,9 +319,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
   grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
   loaded=1;
 
-  /* do not overwrite below boot_params->hdr to avoid setting the sentinel byte */
-  start = offsetof (struct linux_kernel_params, setup_sects);
-  grub_memcpy ((grub_uint8_t *)params + start, (grub_uint8_t *)&lh + start, 2 * 512 - start);
+  lh.code32_start = (grub_uint32_t)(grub_uint64_t) kernel_mem;
+  grub_memcpy (params, &lh, 2 * 512);
 
   params->type_of_loader = 0x21;
 

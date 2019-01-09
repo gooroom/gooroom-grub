@@ -127,7 +127,9 @@ set_background_image(){
 		echo "  set color_highlight=${3}"
 	fi
 	if [ -z "${2}" ] && [ -z "${3}" ]; then
-		echo "  true"
+		## Gooroom Title Theme
+		echo "  set color_normal=light-cyan/black"
+		echo "  set color_highlight=white/black"
 	fi
 	echo "else"
 	set_default_theme "  "

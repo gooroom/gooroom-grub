@@ -42,7 +42,7 @@ else
       OS="${GRUB_DISTRIBUTOR}"
       ;;
     *)
-      OS="${GRUB_DISTRIBUTOR} GNU/Linux"
+      OS="${GRUB_DISTRIBUTOR}"
       ;;
   esac
   CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1|LC_ALL=C sed 's,[^[:alnum:]_],_,g') ${CLASS}"
@@ -90,7 +90,7 @@ title_correction_code=
 if [ -x /lib/recovery-mode/recovery-menu ]; then
     GRUB_CMDLINE_LINUX_RECOVERY=recovery
 else
-    GRUB_CMDLINE_LINUX_RECOVERY=single
+    GRUB_CMDLINE_LINUX_RECOVERY=
 fi
 if [ "$ubuntu_recovery" = 1 ]; then
     GRUB_CMDLINE_LINUX_RECOVERY="$GRUB_CMDLINE_LINUX_RECOVERY nomodeset"
@@ -110,21 +110,6 @@ linux_entry ()
   version="$2"
   type="$3"
   args="$4"
-
-  sixteenbit=""
-  linuxefi="linux"
-  initrdefi="initrd"
-  case "$machine" in
-    i?86|x86_64)
-	sixteenbit="16"
-	linuxefi="linuxefi"
-	initrdefi="initrdefi"
-	;;
-    aarch64)
-	linuxefi="linux"
-	initrdefi="initrd"
-	;;
-  esac
 
   if [ -z "$boot_device_id" ]; then
       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
@@ -181,32 +166,46 @@ linux_entry ()
     if [ -z "${prepare_boot_cache}" ]; then
       prepare_boot_cache="$(prepare_grub_to_access_device ${GRUB_DEVICE_BOOT} | grub_add_tab)"
     fi
-    printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
+    if [ x$type = xrecovery ] ; then
+      printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/" | sed "s/GRM_ROOT_VOL/GRM_RECOVERY/g"
+    else
+      printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
+    fi
   fi
-  if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
-    message="$(gettext_printf "Loading Linux %s ..." ${version})"
+  if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
+    message="$(gettext_printf "Loading SecureBoot Linux %s ..." ${version})"
+    auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
+    linux_root_device_thisversion="LABEL=${auto_label}"
     sed "s/^/$submenu_indentation/" << EOF
-	echo	'$(echo "$message" | grub_quote)'
+        echo    '$(echo "$message" | grub_quote)'
+	linuxefi ${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
 EOF
-  fi
-  if test -d /sys/firmware/efi && test -e "${linux}.efi.signed"; then
+  elif [ x$type = xrecovery ] ; then
+    message="$(gettext_printf "Loading Linux %s ..." ${version})"
+    linux_recovery_device_thisversion="LABEL=GRM_RECOVERY"
     sed "s/^/$submenu_indentation/" << EOF
-	linux	${rel_dirname}/${basename}.efi.signed root=${linux_root_device_thisversion} ro ${args}
+        echo    '$(echo "$message" | grub_quote)'
+	linux	${rel_dirname}/${basename} root=${linux_recovery_device_thisversion} ro ${args} break=bottom
 EOF
   else
+    message="$(gettext_printf "Loading Linux %s ..." ${version})"
+    auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
+    linux_root_device_thisversion="LABEL=${auto_label}"
     sed "s/^/$submenu_indentation/" << EOF
+        echo    '$(echo "$message" | grub_quote)'
 	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
 EOF
   fi
-  if test -n "${initrd}" ; then
-    # TRANSLATORS: ramdisk isn't identifier. Should be translated.
-    if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
-      message="$(gettext_printf "Loading initial ramdisk ...")"
-      sed "s/^/$submenu_indentation/" << EOF
-	echo	'$(echo "$message" | grub_quote)'
-EOF
-    fi
+  if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
+    message="$(gettext_printf "Loading SecureBoot initial ramdisk ...")"
     sed "s/^/$submenu_indentation/" << EOF
+        echo    '$(echo "$message" | grub_quote)'
+	initrdefi ${rel_dirname}/${initrd}
+EOF
+  else
+    message="$(gettext_printf "Loading initial ramdisk ...")"
+    sed "s/^/$submenu_indentation/" << EOF
+        echo    '$(echo "$message" | grub_quote)'
 	initrd	${rel_dirname}/${initrd}
 EOF
   fi
@@ -296,7 +295,7 @@ is_top_level=true
 while [ "x$list" != "x" ] ; do
   linux=`version_find_latest $list`
   case $linux in
-    *.efi.signed)
+    *.sig)
       # We handle these in linux_entry.
       list=`echo $list | tr ' ' '\n' | grep -vx $linux | tr '\n' ' '`
       continue

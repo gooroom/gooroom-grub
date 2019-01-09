@@ -166,19 +166,9 @@ prepare_grub_to_access_device ()
       done
   fi
 
-  # If there's a filesystem UUID that GRUB is capable of identifying, use it;
-  # otherwise set root as per value in device.map.
-  fs_hint="`"${grub_probe}" --device $@ --target=compatibility_hint`"
-  if [ "x$fs_hint" != x ]; then
-    echo "set root='$fs_hint'"
-  fi
-  if fs_uuid="`"${grub_probe}" --device $@ --target=fs_uuid 2> /dev/null`" ; then
-    hints="`"${grub_probe}" --device $@ --target=hints_string 2> /dev/null`" || hints=
-    echo "if [ x\$feature_platform_search_hint = xy ]; then"
-    echo "  search --no-floppy --fs-uuid --set=root ${hints} ${fs_uuid}"
-    echo "else"
-    echo "  search --no-floppy --fs-uuid --set=root ${fs_uuid}"
-    echo "fi"
+  # Gooroom-grub forces the use of partition labels.
+  if fs_label="`"${grub_probe}" --device $@ --target=fs_label 2> /dev/null`" ; then
+    echo "search --no-floppy --label --set=root ${fs_label}"
   fi
   IFS="$old_ifs"
 

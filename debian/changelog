@@ -1,3 +1,9 @@
+gooroom-grub (2.02+dfsg1-9+grm1u1) unstable; urgency=medium
+
+  * Imported Gooroom Patchset
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Wed, 09 Jan 2019 15:29:49 +0900
+
 grub2 (2.02+dfsg1-9) unstable; urgency=medium
 
   [ Colin Watson ]

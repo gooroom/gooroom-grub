@@ -1,0 +1,299 @@
+From 8bc7122159ab14f23aa607b38540a568b1027e68 Mon Sep 17 00:00:00 2001
+From: "jongkyung.woo" <jkwoo@gooroom.kr>
+Date: Wed, 9 Jan 2019 12:42:26 +0900
+Subject: [PATCH] Imported Gooorom Patchset
+
+Change-Id: I192972fa21f7ca9918a8287870e33547d3d95c32
+---
+ grub-core/Makefile.am              |  3 --
+ grub-core/loader/efi/chainloader.c | 15 ---------
+ grub-core/loader/i386/efi/linux.c  | 64 +++++++++-----------------------------
+ util/grub-mkconfig_lib.in          | 16 ++--------
+ util/grub.d/10_linux.in            | 63 ++++++++++++++++++-------------------
+ 5 files changed, 48 insertions(+), 113 deletions(-)
+
+diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
+index c8494ab13..25bc4f40f 100644
+--- a/grub-core/Makefile.am
++++ b/grub-core/Makefile.am
+@@ -169,14 +169,11 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
+-<<<<<<< HEAD
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
+-=======
+ 
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/tpm.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
+->>>>>>> trustedgrub2/master
+ endif
+ 
+ if COND_ia64_efi
+diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
+index 87a91e16f..0ad580d08 100644
+--- a/grub-core/loader/efi/chainloader.c
++++ b/grub-core/loader/efi/chainloader.c
+@@ -300,21 +300,6 @@ image_is_64_bit (grub_pe_header_t *pe_hdr)
+   return 0;
+ }
+ 
+-static const grub_uint16_t machine_type =
+-#if defined(__x86_64__)
+-  GRUB_PE32_MACHINE_X86_64;
+-#elif defined(__aarch64__)
+-  GRUB_PE32_MACHINE_ARM64;
+-#elif defined(__arm__)
+-  GRUB_PE32_MACHINE_ARMTHUMB_MIXED;
+-#elif defined(__i386__) || defined(__i486__) || defined(__i686__)
+-  GRUB_PE32_MACHINE_I386;
+-#elif defined(__ia64__)
+-  GRUB_PE32_MACHINE_IA64;
+-#else
+-#error this architecture is not supported by grub2
+-#endif
+-
+ static grub_efi_status_t
+ relocate_coff (pe_coff_loader_image_context_t *context,
+ 	       struct grub_pe32_section_table *section,
+diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
+index a018f9eee..9c23566aa 100644
+--- a/grub-core/loader/i386/efi/linux.c
++++ b/grub-core/loader/i386/efi/linux.c
+@@ -49,52 +49,6 @@ static char *linux_cmdline;
+ 
+ #define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
+ 
+-#define SHIM_LOCK_GUID \
+-  { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} }
+-
+-struct grub_efi_shim_lock
+-{
+-  grub_efi_status_t (*verify) (void *buffer, grub_uint32_t size);
+-};
+-typedef struct grub_efi_shim_lock grub_efi_shim_lock_t;
+-
+-static grub_efi_boolean_t
+-grub_linuxefi_secure_validate (void *data, grub_uint32_t size)
+-{
+-  grub_efi_guid_t guid = SHIM_LOCK_GUID;
+-  grub_efi_shim_lock_t *shim_lock;
+-  grub_efi_status_t status;
+-
+-  if (! grub_efi_secure_boot())
+-    {
+-      grub_dprintf ("linuxefi", "secure boot not enabled, not validating");
+-      return 1;
+-    }
+-
+-  grub_dprintf ("linuxefi", "Locating shim protocol\n");
+-  shim_lock = grub_efi_locate_protocol(&guid, NULL);
+-
+-  if (!shim_lock)
+-    {
+-      grub_dprintf ("linuxefi", "shim not available\n");
+-      return 0;
+-    }
+-
+-  grub_dprintf ("linuxefi", "Asking shim to verify kernel signature\n");
+-  status = shim_lock->verify(data, size);
+-  if (status == GRUB_EFI_SUCCESS)
+-    {
+-      grub_dprintf ("linuxefi", "Kernel signature verification passed\n");
+-      return 1;
+-    }
+-
+-  grub_dprintf ("linuxefi", "Kernel signature verification failed (0x%lx)\n",
+-		(unsigned long) status);
+-  return 0;
+-}
+-
+-typedef void(*handover_func)(void *, grub_efi_system_table_t *, struct linux_kernel_params *);
+-
+ static grub_err_t
+ grub_linuxefi_boot (void)
+ {
+@@ -222,7 +176,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   grub_file_t file = 0;
+   struct linux_i386_kernel_header lh;
+   grub_ssize_t len, start, filelen;
+-  void *kernel;
++  void *kernel = NULL;
++
++  int rc;
+ 
+   grub_dl_ref (my_mod);
+ 
+@@ -257,6 +213,15 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+       grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
+       goto fail;
+     }
++
++  // validate linux image by shim
++  rc = grub_linuxefi_secure_validate (kernel, filelen);
++  if (rc < 0)
++    {
++      grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
++      goto fail;
++    }
++
+ /*
+   if (! grub_linuxefi_check_shim_lock ())
+     {
+@@ -354,9 +319,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
+   loaded=1;
+ 
+-  /* do not overwrite below boot_params->hdr to avoid setting the sentinel byte */
+-  start = offsetof (struct linux_kernel_params, setup_sects);
+-  grub_memcpy ((grub_uint8_t *)params + start, (grub_uint8_t *)&lh + start, 2 * 512 - start);
++  lh.code32_start = (grub_uint32_t)(grub_uint64_t) kernel_mem;
++  grub_memcpy (params, &lh, 2 * 512);
+ 
+   params->type_of_loader = 0x21;
+ 
+diff --git a/util/grub-mkconfig_lib.in b/util/grub-mkconfig_lib.in
+index 2c9743052..5f7d4fb97 100644
+--- a/util/grub-mkconfig_lib.in
++++ b/util/grub-mkconfig_lib.in
+@@ -166,19 +166,9 @@ prepare_grub_to_access_device ()
+       done
+   fi
+ 
+-  # If there's a filesystem UUID that GRUB is capable of identifying, use it;
+-  # otherwise set root as per value in device.map.
+-  fs_hint="`"${grub_probe}" --device $@ --target=compatibility_hint`"
+-  if [ "x$fs_hint" != x ]; then
+-    echo "set root='$fs_hint'"
+-  fi
+-  if fs_uuid="`"${grub_probe}" --device $@ --target=fs_uuid 2> /dev/null`" ; then
+-    hints="`"${grub_probe}" --device $@ --target=hints_string 2> /dev/null`" || hints=
+-    echo "if [ x\$feature_platform_search_hint = xy ]; then"
+-    echo "  search --no-floppy --fs-uuid --set=root ${hints} ${fs_uuid}"
+-    echo "else"
+-    echo "  search --no-floppy --fs-uuid --set=root ${fs_uuid}"
+-    echo "fi"
++  # Gooroom-grub forces the use of partition labels.
++  if fs_label="`"${grub_probe}" --device $@ --target=fs_label 2> /dev/null`" ; then
++    echo "search --no-floppy --label --set=root ${fs_label}"
+   fi
+   IFS="$old_ifs"
+ 
+diff --git a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
+index aa0010219..a1a3d5cb2 100644
+--- a/util/grub.d/10_linux.in
++++ b/util/grub.d/10_linux.in
+@@ -42,7 +42,7 @@ else
+       OS="${GRUB_DISTRIBUTOR}"
+       ;;
+     *)
+-      OS="${GRUB_DISTRIBUTOR} GNU/Linux"
++      OS="${GRUB_DISTRIBUTOR}"
+       ;;
+   esac
+   CLASS="--class $(echo ${GRUB_DISTRIBUTOR} | tr 'A-Z' 'a-z' | cut -d' ' -f1|LC_ALL=C sed 's,[^[:alnum:]_],_,g') ${CLASS}"
+@@ -90,7 +90,7 @@ title_correction_code=
+ if [ -x /lib/recovery-mode/recovery-menu ]; then
+     GRUB_CMDLINE_LINUX_RECOVERY=recovery
+ else
+-    GRUB_CMDLINE_LINUX_RECOVERY=single
++    GRUB_CMDLINE_LINUX_RECOVERY=
+ fi
+ if [ "$ubuntu_recovery" = 1 ]; then
+     GRUB_CMDLINE_LINUX_RECOVERY="$GRUB_CMDLINE_LINUX_RECOVERY nomodeset"
+@@ -111,21 +111,6 @@ linux_entry ()
+   type="$3"
+   args="$4"
+ 
+-  sixteenbit=""
+-  linuxefi="linux"
+-  initrdefi="initrd"
+-  case "$machine" in
+-    i?86|x86_64)
+-	sixteenbit="16"
+-	linuxefi="linuxefi"
+-	initrdefi="initrdefi"
+-	;;
+-    aarch64)
+-	linuxefi="linux"
+-	initrdefi="initrd"
+-	;;
+-  esac
+-
+   if [ -z "$boot_device_id" ]; then
+       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
+   fi
+@@ -181,32 +166,46 @@ linux_entry ()
+     if [ -z "${prepare_boot_cache}" ]; then
+       prepare_boot_cache="$(prepare_grub_to_access_device ${GRUB_DEVICE_BOOT} | grub_add_tab)"
+     fi
+-    printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
++    if [ x$type = xrecovery ] ; then
++      printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/" | sed "s/GRM_ROOT_VOL/GRM_RECOVERY/g"
++    else
++      printf '%s\n' "${prepare_boot_cache}" | sed "s/^/$submenu_indentation/"
++    fi
+   fi
+-  if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
+-    message="$(gettext_printf "Loading Linux %s ..." ${version})"
++  if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
++    message="$(gettext_printf "Loading SecureBoot Linux %s ..." ${version})"
++    auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
++    linux_root_device_thisversion="LABEL=${auto_label}"
+     sed "s/^/$submenu_indentation/" << EOF
+-	echo	'$(echo "$message" | grub_quote)'
++        echo    '$(echo "$message" | grub_quote)'
++	linuxefi ${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
+ EOF
+-  fi
+-  if test -d /sys/firmware/efi && test -e "${linux}.efi.signed"; then
++  elif [ x$type = xrecovery ] ; then
++    message="$(gettext_printf "Loading Linux %s ..." ${version})"
++    linux_recovery_device_thisversion="LABEL=GRM_RECOVERY"
+     sed "s/^/$submenu_indentation/" << EOF
+-	linux	${rel_dirname}/${basename}.efi.signed root=${linux_root_device_thisversion} ro ${args}
++        echo    '$(echo "$message" | grub_quote)'
++	linux	${rel_dirname}/${basename} root=${linux_recovery_device_thisversion} ro ${args} break=bottom
+ EOF
+   else
++    message="$(gettext_printf "Loading Linux %s ..." ${version})"
++    auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
++    linux_root_device_thisversion="LABEL=${auto_label}"
+     sed "s/^/$submenu_indentation/" << EOF
++        echo    '$(echo "$message" | grub_quote)'
+ 	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
+ EOF
+   fi
+-  if test -n "${initrd}" ; then
+-    # TRANSLATORS: ramdisk isn't identifier. Should be translated.
+-    if [ x"$quiet_boot" = x0 ] || [ x"$type" != xsimple ]; then
+-      message="$(gettext_printf "Loading initial ramdisk ...")"
+-      sed "s/^/$submenu_indentation/" << EOF
+-	echo	'$(echo "$message" | grub_quote)'
++  if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
++    message="$(gettext_printf "Loading SecureBoot initial ramdisk ...")"
++    sed "s/^/$submenu_indentation/" << EOF
++        echo    '$(echo "$message" | grub_quote)'
++	initrdefi ${rel_dirname}/${initrd}
+ EOF
+-    fi
++  else
++    message="$(gettext_printf "Loading initial ramdisk ...")"
+     sed "s/^/$submenu_indentation/" << EOF
++        echo    '$(echo "$message" | grub_quote)'
+ 	initrd	${rel_dirname}/${initrd}
+ EOF
+   fi
+@@ -296,7 +295,7 @@ is_top_level=true
+ while [ "x$list" != "x" ] ; do
+   linux=`version_find_latest $list`
+   case $linux in
+-    *.efi.signed)
++    *.sig)
+       # We handle these in linux_entry.
+       list=`echo $list | tr ' ' '\n' | grep -vx $linux | tr '\n' ' '`
+       continue
+-- 
+2.11.0
+

@@ -300,21 +300,6 @@ image_is_64_bit (grub_pe_header_t *pe_hdr)
   return 0;
 }
 
-static const grub_uint16_t machine_type =
-#if defined(__x86_64__)
-  GRUB_PE32_MACHINE_X86_64;
-#elif defined(__aarch64__)
-  GRUB_PE32_MACHINE_ARM64;
-#elif defined(__arm__)
-  GRUB_PE32_MACHINE_ARMTHUMB_MIXED;
-#elif defined(__i386__) || defined(__i486__) || defined(__i686__)
-  GRUB_PE32_MACHINE_I386;
-#elif defined(__ia64__)
-  GRUB_PE32_MACHINE_IA64;
-#else
-#error this architecture is not supported by grub2
-#endif
-
 static grub_efi_status_t
 relocate_coff (pe_coff_loader_image_context_t *context,
 	       struct grub_pe32_section_table *section,

@@ -1,0 +1,3620 @@
+From 542ed122f1bce85bbee940723c4f88fe049ea6af
+From: "jongkyung.woo" <jkwoo@gooroom.kr>
+Date: Wed, Jan 9 11:44:15 2019 +0900
+Subject: [PATCH] Merge remote-tracking branch 'trustedgrub2/master' into gooroom-devel
+
+Change-Id: I7fc063ff54e928d61ea045a083503c96445680ca
+---
+ grub-core/Makefile.am                               |   10 
+ grub-core/Makefile.core.def                         |   16 
+ grub-core/commands/configfile.c                     |   17 
+ grub-core/kern/dl.c                                 |   10 
+ grub-core/kern/efi/tpm/tpm_kern.c                   |  494 +++++++++
+ grub-core/kern/i386/pc/tpm/tpm_kern.c               |    1 
+ grub-core/kern/main.c                               |    2 
+ grub-core/loader/arm64/linux.c                      |  146 ++
+ grub-core/loader/efi/chainloader.c                  |  619 +++++++++++-
+ grub-core/loader/efi/linux.c                        |  179 +++
+ grub-core/loader/i386/efi/linux.c                   |  104 +-
+ grub-core/loader/i386/linux.c                       |    2 
+ grub-core/loader/linux.c                            |    8 
+ grub-core/loader/multiboot.c                        |    2 
+ grub-core/normal/main.c                             |    6 
+ grub-core/tpm/efi/tpm.c                             | 1006 ++++++++++++++++++++
+ grubconf/embedded.cfg                               |   30 
+ include/grub/arm64/linux.h                          |   12 
+ include/grub/efi/linux.h                            |   40 
+ include/grub/efi/pe32.h                             |   20 
+ include/grub/efi/tpm.h                              |  214 ++++
+ include/grub/tpm.h                                  |   22 
+ util/grub.d/10_linux.in                             |   23 
+ 26 files changed, 2859 insertions(+), 124 deletions(-)
+
+diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
+index 977600348..c8494ab13 100644
+--- a/grub-core/Makefile.am
++++ b/grub-core/Makefile.am
+@@ -111,6 +111,9 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pc/tpm.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
+ endif
+ 
+ if COND_i386_coreboot
+@@ -166,7 +169,14 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
++<<<<<<< HEAD
+ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
++=======
++
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/tpm.h
++KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
++>>>>>>> trustedgrub2/master
+ endif
+ 
+ if COND_ia64_efi
+diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
+index 18bbd4ba5..4491e3a12 100644
+--- a/grub-core/Makefile.core.def
++++ b/grub-core/Makefile.core.def
+@@ -223,6 +223,8 @@ kernel = {
+   i386_pc = term/i386/pc/console.c;
+   i386_pc = kern/i386/pc/tpm/tpm_kern.c;
+ 
++  x86_64_efi = kern/efi/tpm/tpm_kern.c;
++
+   i386_qemu = bus/pci.c;
+   i386_qemu = kern/vga_init.c;
+   i386_qemu = kern/i386/qemu/mmap.c;
+@@ -1647,7 +1649,7 @@ module = {
+ module = {
+   name = multiboot2;
+   cppflags = "-DGRUB_USE_MULTIBOOT2";
+-
++ 
+   common = loader/multiboot.c;
+   common = lib/cmdline.c;
+   common = loader/multiboot_mbi2.c;
+@@ -1684,6 +1686,8 @@ module = {
+   arm_efi = loader/arm64/linux.c;
+   arm_uboot = loader/arm/linux.c;
+   arm64 = loader/arm64/linux.c;
++  arm64 = loader/efi/linux.c;
++  fdt = lib/fdt.c;
+   common = loader/linux.c;
+   common = lib/cmdline.c;
+   enable = noemu;
+@@ -1751,6 +1755,7 @@ module = {
+   name = linuxefi;
+   efi = loader/i386/efi/linux.c;
+   efi = lib/cmdline.c;
++  efi = loader/efi/linux.c;
+   enable = i386_efi;
+   enable = x86_64_efi;
+ };
+@@ -2380,6 +2385,13 @@ module = {
+ 
+ module = {
+   name = tpm;
++
+   i386_pc = tpm/i386/pc/tpm.c;
+-  enable = i386_pc;
++
++  x86_64_efi = tpm/efi/tpm.c;
++  x86_64_efi = kern/efi/tpm/tpm_kern.c;
++  x86_64_efi = kern/sha1.c;
++  x86_64_efi = kern/tpm.c;
++
++  enable = x86_64_efi;
+ };
+diff --git a/grub-core/commands/configfile.c b/grub-core/commands/configfile.c
+index f2d2abb5f..aa8d27e07 100644
+--- a/grub-core/commands/configfile.c
++++ b/grub-core/commands/configfile.c
+@@ -24,6 +24,8 @@
+ #include <grub/command.h>
+ #include <grub/i18n.h>
+ 
++#include <grub/efi/linux.h>
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ static grub_err_t
+@@ -31,9 +33,22 @@ grub_cmd_source (grub_command_t cmd, int argc, char **args)
+ {
+   int new_env, extractor;
+ 
++  grub_file_t file = 0;
++
+   if (argc != 1)
+     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
+ 
++  file = grub_file_open (args[0]);
++  if (! file)
++  {
++    grub_verified_boot_fail();
++    return grub_error (GRUB_ERR_FILE_READ_ERROR, N_("file open failed"));
++  }
++  else
++  {
++    grub_file_close (file);
++  }
++
+   extractor = (cmd->name[0] == 'e');
+   new_env = (cmd->name[extractor ? sizeof ("extract_entries_") - 1 : 0] == 'c');
+ 
+@@ -57,7 +72,7 @@ grub_cmd_source (grub_command_t cmd, int argc, char **args)
+ 
+ static grub_command_t cmd_configfile, cmd_source, cmd_dot;
+ static grub_command_t cmd_extractor_source, cmd_extractor_configfile;
+-
++
+ GRUB_MOD_INIT(configfile)
+ {
+   cmd_configfile =
+diff --git a/grub-core/kern/dl.c b/grub-core/kern/dl.c
+index 39addaf7e..d2da3537f 100644
+--- a/grub-core/kern/dl.c
++++ b/grub-core/kern/dl.c
+@@ -42,6 +42,10 @@
+ #define GRUB_MODULES_MACHINE_READONLY
+ #endif
+ 
++#ifdef GRUB_MACHINE_EMU
++#include <sys/mman.h>
++#endif
++
+ #ifdef GRUB_MACHINE_EFI
+ #include <grub/efi/efi.h>
+ #endif
+@@ -700,6 +704,12 @@ grub_dl_load_file (const char *filename)
+     {
+       grub_error (GRUB_ERR_ACCESS_DENIED,
+ 		  "Secure Boot forbids loading module from %s", filename);
++#if 0
++      /* This is an error, but grub2-mkconfig still generates a pile of
++       * insmod commands, so emitting it would be mostly just obnoxious. */
++      grub_error (GRUB_ERR_ACCESS_DENIED,
++		  "Secure Boot forbids loading module from %s", filename);
++#endif
+       return 0;
+     }
+ #endif
+diff --git a/grub-core/kern/efi/tpm/tpm_kern.c b/grub-core/kern/efi/tpm/tpm_kern.c
+new file mode 100644
+index 000000000..8e8f57eb1
+--- /dev/null
++++ b/grub-core/kern/efi/tpm/tpm_kern.c
+@@ -0,0 +1,494 @@
++/* Begin TCG Extension */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/types.h>
++#include <grub/mm.h>
++#include <grub/err.h>
++#include <grub/file.h>
++#include <grub/sha1.h>
++#include <grub/misc.h>
++
++#include <grub/tpm.h>
++#include <grub/efi/tpm.h>
++#include <grub/efi/api.h>
++#include <grub/efi/efi.h>
++
++// should not be used
++//#include <grub/i386/pc/memory.h>
++//#include <grub/i386/pc/int.h>
++
++#ifdef TGRUB_DEBUG
++	#include <grub/time.h>
++#endif
++
++/************************* constants *************************/
++
++/* Ordinals */
++static const grub_uint32_t TPM_ORD_PcrRead = 0x00000015;
++
++/************************* struct typedefs *************************/
++
++/* TCG_HashLogExtendEvent Input Parameter Block (Format 2) */
++typedef struct {
++ 	grub_uint16_t ipbLength;
++ 	grub_uint16_t reserved;
++ 	grub_uint32_t hashDataPtr;
++ 	grub_uint32_t hashDataLen;
++ 	grub_uint32_t pcrIndex;
++ 	grub_uint32_t reserved2;
++ 	grub_uint32_t logDataPtr;
++ 	grub_uint32_t logDataLen;
++ } GRUB_PACKED EventIncoming;
++
++/* TCG_HashLogExtendEvent Output Parameter Block */
++typedef struct {
++ 	grub_uint16_t opbLength;
++ 	grub_uint16_t reserved;
++ 	grub_uint32_t eventNum;
++ 	grub_uint8_t  hashValue[SHA1_DIGEST_SIZE];
++} GRUB_PACKED EventOutgoing;
++
++typedef struct {
++	grub_uint32_t pcrIndex;
++	grub_uint32_t eventType;
++	grub_uint8_t digest[SHA1_DIGEST_SIZE];
++	grub_uint32_t eventDataSize;
++	grub_uint8_t event[0];
++} GRUB_PACKED Event;
++
++/* TPM_PCRRead Incoming Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t ordinal;
++	grub_uint32_t pcrIndex;
++} GRUB_PACKED PCRReadIncoming;
++
++/* TPM_PCRRead Outgoing Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t returnCode;
++	grub_uint8_t pcr_value[SHA1_DIGEST_SIZE];
++} GRUB_PACKED PCRReadOutgoing;
++
++/************************* static functions *************************/
++
++/* Invokes TCG_HashLogExtendEvent
++ *
++ * we hash ourself
++ *
++ *  grub_fatal() on error
++ *  Page 116 TCG_PCClientImplementation_1-21_1_00
++ */
++
++/*modified to use in efi*/
++
++//THIS IS GLOBAL VAR FOR EFI
++static grub_efi_guid_t tpm_guid = EFI_TPM_GUID;
++BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
++{
++
++	grub_efi_status_t status;
++	TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
++	grub_uint32_t flags;
++	grub_addr_t eventlog, lastevent;
++
++	if (tpm == NULL) {
++//		grub_fatal ( "grub_TPM not present._TPM_PRESENT");
++		return false;
++	}
++
++	caps.Size = (grub_uint8_t)sizeof(caps);
++	status = efi_call_5 (tpm->status_check, tpm, &caps, &flags,
++							   &eventlog, &lastevent);
++
++	if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
++		|| !caps.TPMPresentFlag)
++			return false;
++
++	return true;
++}
++
++grub_efi_status_t
++grub_TPM_efi_hashLogExtendEvent(efi_tpm_protocol_t* tpm, const grub_uint8_t* inDigest, grub_uint32_t size, grub_uint8_t pcrIndex, const char* descriptions )
++{
++	//grub_printf(" grub_TPM_efi_hashLogExtendEvent \n");
++	grub_efi_status_t status;
++
++	grub_uint32_t algorithm, eventnum = 0;
++	grub_addr_t lastevent;
++	Event* event;
++	
++	// Prepare Event struct
++	grub_uint32_t strSize = grub_strlen(descriptions);
++	grub_uint32_t eventStructSize = strSize + sizeof(Event);
++	event = grub_zalloc(eventStructSize);
++
++	if (!event)
++	{
++		grub_fatal( "grub_TPM_efi_hashLogExtendEvent: memory allocation failed" );
++	}
++
++	event->pcrIndex = pcrIndex;
++	event->eventType = 0x0d; // EV_IPL
++	event->eventDataSize = strSize + 1;
++	algorithm = 0x00000004;
++
++  	status = efi_call_7(tpm->log_extend_event, tpm, inDigest,
++                                           (grub_uint64_t)size, algorithm, event,
++                                           &eventnum, &lastevent);
++
++	switch (status) {
++		case GRUB_EFI_SUCCESS:
++//			grub_printf("EFI SUCCESS \n");
++			return EFI_SUCCESS;
++		case GRUB_EFI_DEVICE_ERROR:
++			return grub_error (GRUB_ERR_IO, N_("Command failed"));
++		case GRUB_EFI_INVALID_PARAMETER:
++			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Invalid parameter"));
++		case GRUB_EFI_BUFFER_TOO_SMALL:
++			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Output buffer too small"));
++		case GRUB_EFI_NOT_FOUND:
++			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("TPM unavailable"));
++		default:
++			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("Unknown TPM error"));
++	}
++}
++/************************* non-static functions *************************/
++
++/* grub_fatal() on error */
++void
++grub_TPM_readpcr( const grub_uint8_t index, grub_uint8_t* result ) {
++
++	CHECK_FOR_NULL_ARGUMENT( result )
++
++	PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
++	PCRReadIncoming *pcrReadIncoming = NULL;
++	PCRReadIncoming Incoming;
++	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *pcrReadIncoming );
++
++	PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
++	PCRReadOutgoing* pcrReadOutgoing = NULL;
++	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *pcrReadOutgoing );
++
++	passThroughInput = grub_zalloc( inputlen );
++	if( !passThroughInput ) {
++		grub_fatal( "readpcr: memory allocation failed" );
++	}
++
++	passThroughInput->IPBLength = inputlen;
++	passThroughInput->OPBLength = outputlen;
++
++	 pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
++	 Incoming.tag = TPM_TAG_RQU_COMMAND;
++	 Incoming.paramSize = sizeof( *pcrReadIncoming );
++	 Incoming.ordinal = TPM_ORD_PcrRead;
++	 Incoming.pcrIndex = index;
++
++	 pcrReadIncoming = &Incoming;
++	 //CONVERT
++	grub_uint32_t tmp = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++	pcrReadIncoming->tag = tmp;
++	tmp = grub_swap_bytes32( sizeof( *pcrReadIncoming ) );
++	pcrReadIncoming->paramSize = tmp;
++	tmp = grub_swap_bytes32_compile_time( TPM_ORD_PcrRead );
++	pcrReadIncoming->ordinal = tmp;
++	tmp = grub_swap_bytes32( (grub_uint32_t) index);
++	pcrReadIncoming->pcrIndex = tmp;
++
++	pcrReadIncoming = (PCRReadIncoming *)&(passThroughInput->TPMOperandIn[0]);
++	grub_memcpy(pcrReadIncoming, &Incoming, sizeof(Incoming));
++
++	passThroughOutput = grub_zalloc( outputlen );
++	if( ! passThroughOutput ) {
++		grub_free( passThroughInput );
++	        grub_fatal( "readpcr: memory allocation failed" );
++	}
++
++	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_free( passThroughInput );
++
++	pcrReadOutgoing = (void *)passThroughOutput->TPMOperandOut;
++	grub_uint32_t tpm_PCRreadReturnCode = grub_swap_bytes32( pcrReadOutgoing->returnCode );
++
++	if( tpm_PCRreadReturnCode != TPM_SUCCESS ) {
++		grub_free( passThroughOutput );
++
++		if( tpm_PCRreadReturnCode == TPM_BADINDEX ) {
++            grub_fatal( "readpcr: bad pcr index" );
++		}
++
++        grub_fatal( "readpcr: tpm_PCRreadReturnCode: %u", tpm_PCRreadReturnCode );
++	}
++
++	grub_memcpy( result, pcrReadOutgoing->pcr_value, SHA1_DIGEST_SIZE );
++	grub_free( passThroughOutput );
++}
++
++/* Invokes TCG_StatusCheck Int1A interrupt
++
++   Returns:
++   returnCode: int1A return codes
++   major version
++   minor version
++   featureFlags
++   eventLog
++   edi
++
++   For more information see page 115 TCG_PCClientImplementation 1.21
++
++ *//*modified to use in efi*/
++
++grub_err_t
++grub_TPM_efi_statusCheck( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t *eventLog, grub_addr_t *edi )
++{
++	//TPM TESTING
++	grub_printf("grub_TPM_efi_statusCheck \n");
++	efi_tpm_protocol_t *tpm;
++	grub_efi_status_t status;
++	TCG_EFI_BOOT_SERVICE_CAPABILITY caps;
++
++	grub_efi_handle_t *handles;
++	grub_efi_handle_t tpm_handle;
++	grub_efi_uintn_t num_handles;
++
++	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
++	if (handles && num_handles > 0) {
++		tpm_handle = handles[0];
++	} else {
++		grub_fatal ( "grub_efi locate_handle failed. TPM not present.TPM_efi_statusCheck");
++		return EFI_SUCCESS;
++	}
++
++	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
++
++	if (!tpm_present(tpm)) {
++		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present.TPM_efi_statusCheck");
++		return EFI_SUCCESS;
++	}
++
++	caps.Size = (grub_uint8_t)sizeof(caps);
++	status = efi_call_5 (tpm->status_check, tpm, &caps, featureFlags,
++							   eventLog, edi);
++
++	if (status != EFI_SUCCESS || caps.TPMDeactivatedFlag
++		|| !caps.TPMPresentFlag)
++			return EFI_SUCCESS;
++
++	*returnCode = status;
++	return EFI_SUCCESS;
++	// never reached here
++	// major,minor for compatibility
++	// ignore errors
++	if ( major == minor ) return true;
++}
++
++
++/* Invokes TCG_PassThroughToTPM
++
++   grub_fatal() on error
++   Page 112 TCG_PCClientImplementation_1-21_1_00
++ */
++
++/* Modified for efi use */
++grub_efi_status_t
++grub_TPM_efi_passThroughToTPM
++	(const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output )
++{
++	//TPM TESTING
++	grub_printf("grub_TPM_efi_passThroughToTPM \n");
++	grub_efi_status_t status;
++	efi_tpm_protocol_t *tpm = NULL;
++	grub_efi_handle_t *handles;
++	grub_efi_handle_t tpm_handle;
++	grub_efi_uintn_t num_handles;
++
++	grub_uint32_t inhdrsize = sizeof(*input) - sizeof(input->TPMOperandIn);
++	grub_uint32_t outhdrsize = sizeof(*output) - sizeof(output->TPMOperandOut);
++
++	CHECK_FOR_NULL_ARGUMENT( input );
++	CHECK_FOR_NULL_ARGUMENT( output );
++
++	if ( ! input->IPBLength || ! input->OPBLength ) {
++		 grub_fatal( "tcg_passThroughToTPM: ! input->IPBLength || ! input->OPBLength" );
++	}
++
++	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
++	if (handles && num_handles > 0) {
++		tpm_handle = handles[0];
++	} else {
++		grub_fatal ( "grub_efi locate_handle failed. TPM not present.TPM_efi_passThroughToTPM");
++		return EFI_SUCCESS;
++	}
++
++	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
++
++	if (!tpm_present(tpm)) {
++		grub_fatal ( "grub_efi_open_protocol failed. grub_TPM not present.TPM_efi_passThroughToTPM");
++		return EFI_SUCCESS;
++	}
++
++	status = efi_call_5 (tpm->pass_through_to_tpm, tpm,
++				input->IPBLength - inhdrsize, input->TPMOperandIn,
++				input->OPBLength - outhdrsize, output->TPMOperandOut);
++
++	switch (status) {
++		case GRUB_EFI_SUCCESS:
++			return EFI_SUCCESS;
++		case GRUB_EFI_DEVICE_ERROR:
++			return grub_error (GRUB_ERR_IO, N_("Command failed"));
++		case GRUB_EFI_INVALID_PARAMETER:
++			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Invalid parameter"));
++		case GRUB_EFI_BUFFER_TOO_SMALL:
++			return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("Output buffer too small"));
++		case GRUB_EFI_NOT_FOUND:
++			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("TPM unavailable"));
++		default:
++			return grub_error (GRUB_ERR_UNKNOWN_DEVICE, N_("Unknown TPM error"));
++	}
++}
++
++/* grub_fatal() on error */
++void
++grub_TPM_measure_string( const char* string ) {
++
++//	DEBUG_PRINT( "grub_TPM_measure_string \n" );
++
++	efi_tpm_protocol_t *tpm;
++
++	grub_efi_handle_t *handles;
++	grub_efi_handle_t tpm_handle;
++	grub_efi_uintn_t num_handles;
++
++	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
++	if (handles && num_handles > 0) {
++		tpm_handle = handles[0];
++	} else {
++		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present." );
++		return;
++	}
++
++	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
++
++	if (!tpm_present(tpm)) {
++		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
++		return;
++	}
++	/* TPM check end*/
++
++	grub_ssize_t len;
++
++	len = grub_strlen(string);
++	grub_TPM_efi_hashLogExtendEvent( tpm, (const grub_uint8_t *)string, len, TPM_COMMAND_MEASUREMENT_PCR, string );
++  
++}
++
++/* grub_fatal() on error */
++void
++grub_TPM_measure_file( const char* filename, const grub_uint8_t index ) {
++
++	DEBUG_PRINT("grub_TPM_measure_file \n");
++
++	efi_tpm_protocol_t *tpm;
++
++	grub_efi_handle_t *handles;
++	grub_efi_handle_t tpm_handle;
++	grub_efi_uintn_t num_handles;
++
++	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
++	if (handles && num_handles > 0) {
++		tpm_handle = handles[0];
++	} else {
++		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
++		return;
++	}
++
++	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
++
++	if (!tpm_present(tpm)) {
++		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
++		return;
++	}
++	/* TPM check end*/
++
++	CHECK_FOR_NULL_ARGUMENT( filename )
++
++	/* open file 'raw' (without any pre-processing filters) */
++	grub_file_filter_disable_compression ();
++	grub_file_t file = grub_file_open( filename );
++
++	if( ! file ) {
++        grub_print_error();
++        grub_fatal( "grub_TPM_measureFile: grub_file_open failed." );
++	}
++
++	grub_ssize_t len;
++	void *buffer = NULL;
++
++	len = grub_file_size ( file );
++
++	buffer = grub_malloc( len );
++
++	grub_file_close( file );
++
++	if (grub_file_read ( file, buffer, len) != len )
++	{
++		grub_print_error();
++		grub_fatal ( "Can't read file %s", filename );
++	}
++
++    	grub_TPM_efi_hashLogExtendEvent( tpm, buffer, len, index, filename );
++}
++
++void
++grub_TPM_measure_buffer( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index )
++{
++	DEBUG_PRINT("grub_TPM_measure_buffer \n");
++
++	efi_tpm_protocol_t *tpm;
++
++	grub_efi_handle_t *handles;
++	grub_efi_handle_t tpm_handle;
++	grub_efi_uintn_t num_handles;
++
++	handles = grub_efi_locate_handle(GRUB_EFI_BY_PROTOCOL, &tpm_guid, NULL, &num_handles);
++	if (handles && num_handles > 0) {
++		tpm_handle = handles[0];
++	} else {
++		DEBUG_PRINT ( "grub_efi locate_handle failed. TPM not present.");
++		return;
++	}
++
++	tpm = grub_efi_open_protocol(tpm_handle, &tpm_guid, GRUB_EFI_OPEN_PROTOCOL_GET_PROTOCOL);
++
++	if (!tpm_present(tpm)) {
++		DEBUG_PRINT ( "grub_efi_open_protocol failed. grub_TPM not present.");
++		return;
++	}
++	/* TPM check end*/
++
++	CHECK_FOR_NULL_ARGUMENT( buffer )
++
++	if(bufferLen == 0) return;
++
++	grub_TPM_efi_hashLogExtendEvent(tpm, buffer, bufferLen, index, "measured buffer" );
++}
++/* End TCG Extension */
+diff --git a/grub-core/kern/i386/pc/tpm/tpm_kern.c b/grub-core/kern/i386/pc/tpm/tpm_kern.c
+index e293e4274..4e6abb216 100644
+--- a/grub-core/kern/i386/pc/tpm/tpm_kern.c
++++ b/grub-core/kern/i386/pc/tpm/tpm_kern.c
+@@ -270,6 +270,7 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
+    grub_fatal() on error
+    Page 112 TCG_PCClientImplementation_1-21_1_00
+  */
++
+ void
+ grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
+ 
+diff --git a/grub-core/kern/main.c b/grub-core/kern/main.c
+index 19bab9991..8763718f5 100644
+--- a/grub-core/kern/main.c
++++ b/grub-core/kern/main.c
+@@ -280,7 +280,7 @@ grub_main (void)
+ #else
+   /* Hello.  */
+   grub_setcolorstate (GRUB_TERM_COLOR_HIGHLIGHT);
+-  grub_printf ("Welcome to TrustedGRUB2!\n\n");
++//  grub_printf ("Welcome to TrustedGRUB2!\n\n");
+   grub_setcolorstate (GRUB_TERM_COLOR_STANDARD);
+ #endif
+ 
+diff --git a/grub-core/loader/arm64/linux.c b/grub-core/loader/arm64/linux.c
+index 1f86229f8..281a09636 100644
+--- a/grub-core/loader/arm64/linux.c
++++ b/grub-core/loader/arm64/linux.c
+@@ -40,6 +40,7 @@ static int loaded;
+ 
+ static void *kernel_addr;
+ static grub_uint64_t kernel_size;
++static grub_uint32_t handover_offset;
+ 
+ static char *linux_args;
+ static grub_uint32_t cmdline_size;
+@@ -66,7 +67,12 @@ grub_armxx_efi_linux_check_image (struct linux_armxx_kernel_header * lh)
+ static grub_err_t
+ finalize_params_linux (void)
+ {
++  grub_efi_boot_services_t *b;
++  grub_efi_guid_t fdt_guid = GRUB_EFI_DEVICE_TREE_GUID;
++  grub_efi_status_t status;
++  grub_efi_loaded_image_t *loaded_image = NULL;
+   int node, retval;
++  int len;
+ 
+   void *fdt;
+ 
+@@ -101,6 +107,26 @@ finalize_params_linux (void)
+   if (grub_fdt_install() != GRUB_ERR_NONE)
+     goto failure;
+ 
++  grub_dprintf ("linux", "Installed/updated FDT configuration table @ %p\n",
++		fdt);
++
++  /* Convert command line to UCS-2 */
++  loaded_image = grub_efi_get_loaded_image (grub_efi_image_handle);
++  if (!loaded_image)
++    goto failure;
++
++  loaded_image->load_options_size = len =
++    (grub_strlen (linux_args) + 1) * sizeof (grub_efi_char16_t);
++  loaded_image->load_options =
++    grub_efi_allocate_pages (0,
++			     BYTES_TO_PAGES (loaded_image->load_options_size));
++  if (!loaded_image->load_options)
++    return grub_error(GRUB_ERR_BAD_OS, "failed to create kernel parameters");
++
++  loaded_image->load_options_size =
++    2 * grub_utf8_to_utf16 (loaded_image->load_options, len,
++			    (grub_uint8_t *) linux_args, len, NULL);
++
+   return GRUB_ERR_NONE;
+ 
+ failure:
+@@ -108,31 +134,103 @@ failure:
+   return grub_error(GRUB_ERR_BAD_OS, "failed to install/update FDT");
+ }
+ 
++static void
++free_params (void)
++{
++  grub_efi_loaded_image_t *loaded_image = NULL;
++
++  loaded_image = grub_efi_get_loaded_image (grub_efi_image_handle);
++  if (loaded_image)
++    {
++      if (loaded_image->load_options)
++	grub_efi_free_pages ((grub_efi_physical_address_t)
++			      loaded_image->load_options,
++			     BYTES_TO_PAGES (loaded_image->load_options_size));
++      loaded_image->load_options = NULL;
++      loaded_image->load_options_size = 0;
++    }
++}
++
++static grub_err_t
++grub_cmd_devicetree (grub_command_t cmd __attribute__ ((unused)),
++		     int argc, char *argv[])
++{
++  grub_file_t dtb;
++  void *blob = NULL;
++  int size;
++
++  if (!loaded)
++    {
++      grub_error (GRUB_ERR_BAD_ARGUMENT,
++		  N_("you need to load the kernel first"));
++      return GRUB_ERR_BAD_OS;
++    }
++
++  if (argc != 1)
++    return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
++
++  if (grub_efi_secure_boot ())
++    return grub_error (GRUB_ERR_INVALID_COMMAND,
++		       N_("Not loading devicetree - Secure Boot is enabled"));
++
++  if (loaded_fdt)
++    grub_free (loaded_fdt);
++  loaded_fdt = NULL;
++
++  dtb = grub_file_open (argv[0]);
++  if (!dtb)
++    goto out;
++
++  size = grub_file_size (dtb);
++  blob = grub_malloc (size);
++  if (!blob)
++    goto out;
++
++  if (grub_file_read (dtb, blob, size) < size)
++    {
++      if (!grub_errno)
++	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"), argv[0]);
++      goto out;
++    }
++
++  if (grub_fdt_check_header (blob, size) != 0)
++    {
++      grub_error (GRUB_ERR_BAD_OS, N_("invalid device tree"));
++      goto out;
++    }
++
++out:
++  if (dtb)
++    grub_file_close (dtb);
++
++  if (blob)
++    {
++      if (grub_errno == GRUB_ERR_NONE)
++	loaded_fdt = blob;
++      else
++	grub_free (blob);
++    }
++
++  return grub_errno;
++}
++
+ grub_err_t
+ grub_armxx_efi_linux_boot_image (grub_addr_t addr, grub_size_t size, char *args)
+ {
+-  grub_efi_memory_mapped_device_path_t *mempath;
+-  grub_efi_handle_t image_handle;
+-  grub_efi_boot_services_t *b;
+-  grub_efi_status_t status;
+-  grub_efi_loaded_image_t *loaded_image;
+-  int len;
++  grub_err_t retval;
+ 
+-  mempath = grub_malloc (2 * sizeof (grub_efi_memory_mapped_device_path_t));
+-  if (!mempath)
+-    return grub_errno;
++  retval = finalize_params();
++  if (retval != GRUB_ERR_NONE)
++    return retval;
+ 
+-  mempath[0].header.type = GRUB_EFI_HARDWARE_DEVICE_PATH_TYPE;
+-  mempath[0].header.subtype = GRUB_EFI_MEMORY_MAPPED_DEVICE_PATH_SUBTYPE;
+-  mempath[0].header.length = grub_cpu_to_le16_compile_time (sizeof (*mempath));
+-  mempath[0].memory_type = GRUB_EFI_LOADER_DATA;
+-  mempath[0].start_address = addr;
+-  mempath[0].end_address = addr + size;
++  grub_dprintf ("linux", "linux command line: '%s'\n", linux_args);
+ 
+-  mempath[1].header.type = GRUB_EFI_END_DEVICE_PATH_TYPE;
+-  mempath[1].header.subtype = GRUB_EFI_END_ENTIRE_DEVICE_PATH_SUBTYPE;
+-  mempath[1].header.length = sizeof (grub_efi_device_path_t);
++  retval = grub_efi_linux_boot ((char *)kernel_addr, handover_offset,
++				kernel_addr);
+ 
++  /* Never reached... */
++  free_params();
++  return retval;
+   b = grub_efi_system_table->boot_services;
+   status = b->load_image (0, grub_efi_image_handle,
+ 			  (grub_efi_device_path_t *) mempath,
+@@ -331,6 +429,15 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 
+   grub_dprintf ("linux", "kernel @ %p\n", kernel_addr);
+ 
++  if (!grub_linuxefi_secure_validate (kernel_addr, kernel_size))
++    {
++      grub_error (GRUB_ERR_INVALID_COMMAND, N_("%s has invalid signature"), argv[0]);
++      goto fail;
++    }
++
++  pe = (void *)((unsigned long)kernel_addr + lh.hdr_offset);
++  handover_offset = pe->opt.entry_addr;
++
+   cmdline_size = grub_loader_cmdline_size (argc, argv) + sizeof (LINUX_IMAGE);
+   linux_args = grub_malloc (cmdline_size);
+   if (!linux_args)
+@@ -369,8 +476,7 @@ fail:
+   return grub_errno;
+ }
+ 
+-
+-static grub_command_t cmd_linux, cmd_initrd;
++static grub_command_t cmd_linux, cmd_initrd, cmd_devicetree;
+ 
+ GRUB_MOD_INIT (linux)
+ {
+diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
+index adc856366..87a91e16f 100644
+--- a/grub-core/loader/efi/chainloader.c
++++ b/grub-core/loader/efi/chainloader.c
+@@ -32,6 +32,8 @@
+ #include <grub/efi/api.h>
+ #include <grub/efi/efi.h>
+ #include <grub/efi/disk.h>
++#include <grub/efi/pe32.h>
++#include <grub/efi/linux.h>
+ #include <grub/command.h>
+ #include <grub/i18n.h>
+ #include <grub/net.h>
+@@ -46,9 +48,14 @@ static grub_dl_t my_mod;
+ 
+ static grub_efi_physical_address_t address;
+ static grub_efi_uintn_t pages;
++static grub_ssize_t fsize;
+ static grub_efi_device_path_t *file_path;
+ static grub_efi_handle_t image_handle;
+ static grub_efi_char16_t *cmdline;
++static grub_ssize_t cmdline_len;
++static grub_efi_handle_t dev_handle;
++
++static grub_efi_status_t (*entry_point) (grub_efi_handle_t image_handle, grub_efi_system_table_t *system_table);
+ 
+ static grub_err_t
+ grub_chainloader_unload (void)
+@@ -63,6 +70,7 @@ grub_chainloader_unload (void)
+   grub_free (cmdline);
+   cmdline = 0;
+   file_path = 0;
++  dev_handle = 0;
+ 
+   grub_dl_unref (my_mod);
+   return GRUB_ERR_NONE;
+@@ -191,12 +199,523 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
+   return file_path;
+ }
+ 
++#define SHIM_LOCK_GUID \
++  { 0x605dab50, 0xe046, 0x4300, { 0xab,0xb6,0x3d,0xd8,0x10,0xdd,0x8b,0x23 } }
++
++typedef union
++{
++  struct grub_pe32_header_32 pe32;
++  struct grub_pe32_header_64 pe32plus;
++} grub_pe_header_t;
++
++struct pe_coff_loader_image_context
++{
++  grub_efi_uint64_t image_address;
++  grub_efi_uint64_t image_size;
++  grub_efi_uint64_t entry_point;
++  grub_efi_uintn_t size_of_headers;
++  grub_efi_uint16_t image_type;
++  grub_efi_uint16_t number_of_sections;
++  grub_efi_uint32_t section_alignment;
++  struct grub_pe32_section_table *first_section;
++  struct grub_pe32_data_directory *reloc_dir;
++  struct grub_pe32_data_directory *sec_dir;
++  grub_efi_uint64_t number_of_rva_and_sizes;
++  grub_pe_header_t *pe_hdr;
++};
++
++typedef struct pe_coff_loader_image_context pe_coff_loader_image_context_t;
++
++struct grub_efi_shim_lock
++{
++  grub_efi_status_t (*verify)(void *buffer,
++                              grub_efi_uint32_t size);
++  grub_efi_status_t (*hash)(void *data,
++                            grub_efi_int32_t datasize,
++                            pe_coff_loader_image_context_t *context,
++                            grub_efi_uint8_t *sha256hash,
++                            grub_efi_uint8_t *sha1hash);
++  grub_efi_status_t (*context)(void *data,
++                               grub_efi_uint32_t size,
++                               pe_coff_loader_image_context_t *context);
++};
++
++typedef struct grub_efi_shim_lock grub_efi_shim_lock_t;
++
++static grub_efi_boolean_t
++read_header (void *data, grub_efi_uint32_t size,
++	     pe_coff_loader_image_context_t *context)
++{
++  grub_efi_guid_t guid = SHIM_LOCK_GUID;
++  grub_efi_shim_lock_t *shim_lock;
++  grub_efi_status_t status;
++
++  shim_lock = grub_efi_locate_protocol (&guid, NULL);
++
++  if (!shim_lock)
++    {
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "no shim lock protocol");
++      return 0;
++    }
++
++  status = shim_lock->context (data, size, context);
++
++  if (status == GRUB_EFI_SUCCESS)
++    {
++      grub_dprintf ("chain", "context success\n");
++      return 1;
++    }
++
++  switch (status)
++    {
++      case GRUB_EFI_UNSUPPORTED:
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error unsupported");
++      break;
++      case GRUB_EFI_INVALID_PARAMETER:
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error invalid parameter");
++      break;
++      default:
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error code");
++      break;
++    }
++
++  return 0;
++}
++
++static void*
++image_address (void *image, grub_efi_uint64_t sz, grub_efi_uint64_t adr)
++{
++  if (adr > sz)
++    return NULL;
++
++  return ((grub_uint8_t*)image + adr);
++}
++
++static int
++image_is_64_bit (grub_pe_header_t *pe_hdr)
++{
++  /* .Magic is the same offset in all cases */
++  if (pe_hdr->pe32plus.optional_header.magic == GRUB_PE32_PE64_MAGIC)
++    return 1;
++  return 0;
++}
++
++static const grub_uint16_t machine_type =
++#if defined(__x86_64__)
++  GRUB_PE32_MACHINE_X86_64;
++#elif defined(__aarch64__)
++  GRUB_PE32_MACHINE_ARM64;
++#elif defined(__arm__)
++  GRUB_PE32_MACHINE_ARMTHUMB_MIXED;
++#elif defined(__i386__) || defined(__i486__) || defined(__i686__)
++  GRUB_PE32_MACHINE_I386;
++#elif defined(__ia64__)
++  GRUB_PE32_MACHINE_IA64;
++#else
++#error this architecture is not supported by grub2
++#endif
++
++static grub_efi_status_t
++relocate_coff (pe_coff_loader_image_context_t *context,
++	       struct grub_pe32_section_table *section,
++	       void *orig, void *data)
++{
++  struct grub_pe32_data_directory *reloc_base, *reloc_base_end;
++  grub_efi_uint64_t adjust;
++  struct grub_pe32_fixup_block *reloc, *reloc_end;
++  char *fixup, *fixup_base, *fixup_data = NULL;
++  grub_efi_uint16_t *fixup_16;
++  grub_efi_uint32_t *fixup_32;
++  grub_efi_uint64_t *fixup_64;
++  grub_efi_uint64_t size = context->image_size;
++  void *image_end = (char *)orig + size;
++  int n = 0;
++
++  if (image_is_64_bit (context->pe_hdr))
++    context->pe_hdr->pe32plus.optional_header.image_base =
++      (grub_uint64_t)(unsigned long)data;
++  else
++    context->pe_hdr->pe32.optional_header.image_base =
++      (grub_uint32_t)(unsigned long)data;
++
++  /* Alright, so here's how this works:
++   *
++   * context->reloc_dir gives us two things:
++   * - the VA the table of base relocation blocks are (maybe) to be
++   *   mapped at (reloc_dir->rva)
++   * - the virtual size (reloc_dir->size)
++   *
++   * The .reloc section (section here) gives us some other things:
++   * - the name! kind of. (section->name)
++   * - the virtual size (section->virtual_size), which should be the same
++   *   as RelocDir->Size
++   * - the virtual address (section->virtual_address)
++   * - the file section size (section->raw_data_size), which is
++   *   a multiple of optional_header->file_alignment.  Only useful for image
++   *   validation, not really useful for iteration bounds.
++   * - the file address (section->raw_data_offset)
++   * - a bunch of stuff we don't use that's 0 in our binaries usually
++   * - Flags (section->characteristics)
++   *
++   * and then the thing that's actually at the file address is an array
++   * of struct grub_pe32_fixup_block structs with some values packed behind
++   * them.  The block_size field of this structure includes the
++   * structure itself, and adding it to that structure's address will
++   * yield the next entry in the array.
++   */
++
++  reloc_base = image_address (orig, size, section->raw_data_offset);
++  reloc_base_end = image_address (orig, size, section->raw_data_offset
++				  + section->virtual_size - 1);
++
++  grub_dprintf ("chain", "reloc_base %p reloc_base_end %p\n", reloc_base,
++		reloc_base_end);
++
++  if (!reloc_base && !reloc_base_end)
++    return GRUB_EFI_SUCCESS;
++
++  if (!reloc_base || !reloc_base_end)
++    {
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc table overflows binary");
++      return GRUB_EFI_UNSUPPORTED;
++    }
++
++  adjust = (grub_uint64_t)data - context->image_address;
++  if (adjust == 0)
++    return GRUB_EFI_SUCCESS;
++
++  while (reloc_base < reloc_base_end)
++    {
++      grub_uint16_t *entry;
++      reloc = (struct grub_pe32_fixup_block *)((char*)reloc_base);
++
++      if ((reloc_base->size == 0) ||
++	  (reloc_base->size > context->reloc_dir->size))
++	{
++	  grub_error (GRUB_ERR_BAD_ARGUMENT,
++		      "Reloc %d block size %d is invalid\n", n,
++		      reloc_base->size);
++	  return GRUB_EFI_UNSUPPORTED;
++	}
++
++      entry = &reloc->entries[0];
++      reloc_end = (struct grub_pe32_fixup_block *)
++	((char *)reloc_base + reloc_base->size);
++
++      if ((void *)reloc_end < data || (void *)reloc_end > image_end)
++        {
++          grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc entry %d overflows binary",
++		      n);
++          return GRUB_EFI_UNSUPPORTED;
++        }
++
++      fixup_base = image_address(data, size, reloc_base->rva);
++
++      if (!fixup_base)
++        {
++          grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc %d Invalid fixupbase", n);
++          return GRUB_EFI_UNSUPPORTED;
++        }
++
++      while ((void *)entry < (void *)reloc_end)
++        {
++          fixup = fixup_base + (*entry & 0xFFF);
++          switch ((*entry) >> 12)
++            {
++              case GRUB_PE32_REL_BASED_ABSOLUTE:
++                break;
++              case GRUB_PE32_REL_BASED_HIGH:
++                fixup_16 = (grub_uint16_t *)fixup;
++                *fixup_16 = (grub_uint16_t)
++		  (*fixup_16 + ((grub_uint16_t)((grub_uint32_t)adjust >> 16)));
++                if (fixup_data != NULL)
++                  {
++                    *(grub_uint16_t *) fixup_data = *fixup_16;
++                    fixup_data = fixup_data + sizeof (grub_uint16_t);
++                  }
++                break;
++              case GRUB_PE32_REL_BASED_LOW:
++                fixup_16 = (grub_uint16_t *)fixup;
++                *fixup_16 = (grub_uint16_t) (*fixup_16 + (grub_uint16_t)adjust);
++                if (fixup_data != NULL)
++                  {
++                    *(grub_uint16_t *) fixup_data = *fixup_16;
++                    fixup_data = fixup_data + sizeof (grub_uint16_t);
++                  }
++                break;
++              case GRUB_PE32_REL_BASED_HIGHLOW:
++                fixup_32 = (grub_uint32_t *)fixup;
++                *fixup_32 = *fixup_32 + (grub_uint32_t)adjust;
++                if (fixup_data != NULL)
++                  {
++                    fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint32_t));
++                    *(grub_uint32_t *) fixup_data = *fixup_32;
++                    fixup_data += sizeof (grub_uint32_t);
++                  }
++                break;
++              case GRUB_PE32_REL_BASED_DIR64:
++                fixup_64 = (grub_uint64_t *)fixup;
++                *fixup_64 = *fixup_64 + (grub_uint64_t)adjust;
++                if (fixup_data != NULL)
++                  {
++                    fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint64_t));
++                    *(grub_uint64_t *) fixup_data = *fixup_64;
++                    fixup_data += sizeof (grub_uint64_t);
++                  }
++                break;
++              default:
++                grub_error (GRUB_ERR_BAD_ARGUMENT,
++			    "Reloc %d unknown relocation type %d",
++			    n, (*entry) >> 12);
++                return GRUB_EFI_UNSUPPORTED;
++            }
++          entry += 1;
++        }
++      reloc_base = (struct grub_pe32_data_directory *)reloc_end;
++      n++;
++    }
++
++  return GRUB_EFI_SUCCESS;
++}
++
++static grub_efi_device_path_t *
++grub_efi_get_media_file_path (grub_efi_device_path_t *dp)
++{
++  while (1)
++    {
++      grub_efi_uint8_t type = GRUB_EFI_DEVICE_PATH_TYPE (dp);
++      grub_efi_uint8_t subtype = GRUB_EFI_DEVICE_PATH_SUBTYPE (dp);
++
++      if (type == GRUB_EFI_END_DEVICE_PATH_TYPE)
++        break;
++      else if (type == GRUB_EFI_MEDIA_DEVICE_PATH_TYPE
++            && subtype == GRUB_EFI_FILE_PATH_DEVICE_PATH_SUBTYPE)
++      return dp;
++
++      dp = GRUB_EFI_NEXT_DEVICE_PATH (dp);
++    }
++
++    return NULL;
++}
++
++static grub_efi_boolean_t
++handle_image (void *data, grub_efi_uint32_t datasize)
++{
++  grub_efi_boot_services_t *b;
++  grub_efi_loaded_image_t *li, li_bak;
++  grub_efi_status_t efi_status;
++  char *buffer = NULL;
++  char *buffer_aligned = NULL;
++  grub_efi_uint32_t i, size;
++  struct grub_pe32_section_table *section;
++  char *base, *end;
++  pe_coff_loader_image_context_t context;
++  grub_uint32_t section_alignment;
++  grub_uint32_t buffer_size;
++
++  b = grub_efi_system_table->boot_services;
++
++  if (read_header (data, datasize, &context))
++    {
++      grub_dprintf ("chain", "Succeed to read header\n");
++    }
++  else
++    {
++      grub_dprintf ("chain", "Failed to read header\n");
++      goto error_exit;
++    }
++
++  section_alignment = context.section_alignment;
++  buffer_size = context.image_size + section_alignment;
++
++  efi_status = efi_call_3 (b->allocate_pool, GRUB_EFI_LOADER_DATA,
++			   buffer_size, &buffer);
++
++  if (efi_status != GRUB_EFI_SUCCESS)
++    {
++      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
++      goto error_exit;
++    }
++
++  buffer_aligned = (char *)ALIGN_UP ((grub_addr_t)buffer, section_alignment);
++
++  if (!buffer_aligned)
++    {
++      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
++      goto error_exit;
++    }
++
++  grub_memcpy (buffer_aligned, data, context.size_of_headers);
++
++  char *reloc_base, *reloc_base_end;
++  reloc_base = image_address (buffer_aligned, datasize,
++			      context.reloc_dir->rva);
++  /* RelocBaseEnd here is the address of the last byte of the table */
++  reloc_base_end = image_address (buffer_aligned, datasize,
++				  context.reloc_dir->rva
++				  + context.reloc_dir->size - 1);
++  struct grub_pe32_section_table *reloc_section = NULL;
++
++  section = context.first_section;
++  for (i = 0; i < context.number_of_sections; i++, section++)
++    {
++      size = section->virtual_size;
++      if (size > section->raw_data_size)
++        size = section->raw_data_size;
++
++      base = image_address (buffer_aligned, context.image_size,
++			    section->virtual_address);
++      end = image_address (buffer_aligned, context.image_size,
++			   section->virtual_address + size - 1);
++
++
++      /* We do want to process .reloc, but it's often marked
++       * discardable, so we don't want to memcpy it. */
++      if (grub_memcmp (section->name, ".reloc\0\0", 8) == 0)
++	{
++	  if (reloc_section)
++	    {
++	      grub_error (GRUB_ERR_BAD_ARGUMENT,
++			  "Image has multiple relocation sections");
++	      goto error_exit;
++	    }
++
++	  /* If it has nonzero sizes, and our bounds check
++	   * made sense, and the VA and size match RelocDir's
++	   * versions, then we believe in this section table. */
++	  if (section->raw_data_size && section->virtual_size &&
++	      base && end && reloc_base == base && reloc_base_end == end)
++	    {
++	      reloc_section = section;
++	    }
++	}
++
++      if (section->characteristics && GRUB_PE32_SCN_MEM_DISCARDABLE)
++	continue;
++
++      if (!base || !end)
++        {
++          grub_error (GRUB_ERR_BAD_ARGUMENT, "Invalid section size");
++          goto error_exit;
++        }
++
++      if (section->virtual_address < context.size_of_headers ||
++	  section->raw_data_offset < context.size_of_headers)
++	{
++	  grub_error (GRUB_ERR_BAD_ARGUMENT,
++		      "Section %d is inside image headers", i);
++	  goto error_exit;
++	}
++
++      if (section->raw_data_size > 0)
++        grub_memcpy (base, (grub_efi_uint8_t*)data + section->raw_data_offset,
++		     size);
++
++      if (size < section->virtual_size)
++        grub_memset (base + size, 0, section->virtual_size - size);
++
++      grub_dprintf ("chain", "copied section %s\n", section->name);
++    }
++
++  /* 5 == EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC */
++  if (context.number_of_rva_and_sizes <= 5)
++    {
++      grub_dprintf ("chain", "image has no relocation entry\n");
++      goto error_exit;
++    }
++
++  if (context.reloc_dir->size && reloc_section)
++    {
++      /* run the relocation fixups */
++      efi_status = relocate_coff (&context, reloc_section, data,
++				  buffer_aligned);
++
++      if (efi_status != GRUB_EFI_SUCCESS)
++	{
++	  grub_error (GRUB_ERR_BAD_ARGUMENT, "relocation failed");
++	  goto error_exit;
++	}
++    }
++
++  entry_point = image_address (buffer_aligned, context.image_size,
++			       context.entry_point);
++
++  if (!entry_point)
++    {
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "invalid entry point");
++      goto error_exit;
++    }
++
++  li = grub_efi_get_loaded_image (grub_efi_image_handle);
++  if (!li)
++    {
++      grub_error (GRUB_ERR_BAD_ARGUMENT, "no loaded image available");
++      goto error_exit;
++    }
++
++  grub_memcpy (&li_bak, li, sizeof (grub_efi_loaded_image_t));
++  li->image_base = buffer_aligned;
++  li->image_size = context.image_size;
++  li->load_options = cmdline;
++  li->load_options_size = cmdline_len;
++  li->file_path = grub_efi_get_media_file_path (file_path);
++  li->device_handle = dev_handle;
++  if (li->file_path)
++    {
++      grub_printf ("file path: ");
++      grub_efi_print_device_path (li->file_path);
++    }
++  else
++    {
++      grub_error (GRUB_ERR_UNKNOWN_DEVICE, "no matching file path found");
++      goto error_exit;
++    }
++
++  efi_status = efi_call_2 (entry_point, grub_efi_image_handle,
++			   grub_efi_system_table);
++
++  grub_memcpy (li, &li_bak, sizeof (grub_efi_loaded_image_t));
++  efi_status = efi_call_1 (b->free_pool, buffer);
++
++  return 1;
++
++error_exit:
++  if (buffer)
++      efi_call_1 (b->free_pool, buffer);
++
++  return 0;
++}
++
++static grub_err_t
++grub_secureboot_chainloader_unload (void)
++{
++  grub_efi_boot_services_t *b;
++
++  b = grub_efi_system_table->boot_services;
++  efi_call_2 (b->free_pages, address, pages);
++  grub_free (file_path);
++  grub_free (cmdline);
++  cmdline = 0;
++  file_path = 0;
++  dev_handle = 0;
++
++  grub_dl_unref (my_mod);
++  return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_secureboot_chainloader_boot (void)
++{
++  handle_image ((void *)address, fsize);
++  grub_loader_unset ();
++  return grub_errno;
++}
++
+ static grub_err_t
+ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+ 		      int argc, char *argv[])
+ {
+   grub_file_t file = 0;
+-  grub_ssize_t size;
+   grub_efi_status_t status;
+   grub_efi_boot_services_t *b;
+   grub_device_t dev = 0;
+@@ -204,7 +723,6 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+   grub_efi_loaded_image_t *loaded_image;
+   char *filename;
+   void *boot_image = 0;
+-  grub_efi_handle_t dev_handle = 0;
+ 
+   if (argc == 0)
+     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
+@@ -216,15 +734,45 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+   address = 0;
+   image_handle = 0;
+   file_path = 0;
++  dev_handle = 0;
+ 
+   b = grub_efi_system_table->boot_services;
+ 
++  if (argc > 1)
++    {
++      int i;
++      grub_efi_char16_t *p16;
++
++      for (i = 1, cmdline_len = 0; i < argc; i++)
++        cmdline_len += grub_strlen (argv[i]) + 1;
++
++      cmdline_len *= sizeof (grub_efi_char16_t);
++      cmdline = p16 = grub_malloc (cmdline_len);
++      if (! cmdline)
++        goto fail;
++
++      for (i = 1; i < argc; i++)
++        {
++          char *p8;
++
++          p8 = argv[i];
++          while (*p8)
++            *(p16++) = *(p8++);
++
++          *(p16++) = ' ';
++        }
++      *(--p16) = 0;
++    }
++
+   file = grub_file_open (filename);
+   if (! file)
+     goto fail;
+ 
+-  /* Get the root device's device path.  */
+-  dev = grub_device_open (0);
++  /* Get the device path from filename. */
++  char *devname = grub_file_get_device_name (filename);
++  dev = grub_device_open (devname);
++  if (devname)
++    grub_free (devname);
+   if (! dev)
+     goto fail;
+ 
+@@ -264,14 +812,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+   grub_printf ("file path: ");
+   grub_efi_print_device_path (file_path);
+ 
+-  size = grub_file_size (file);
+-  if (!size)
++  fsize = grub_file_size (file);
++  if (!fsize)
+     {
+       grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+ 		  filename);
+       goto fail;
+     }
+-  pages = (((grub_efi_uintn_t) size + ((1 << 12) - 1)) >> 12);
++  pages = (((grub_efi_uintn_t) fsize + ((1 << 12) - 1)) >> 12);
+ 
+   status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
+ 			      GRUB_EFI_LOADER_CODE,
+@@ -285,7 +833,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   boot_image = (void *) ((grub_addr_t) address);
+-  if (grub_file_read (file, boot_image, size) != size)
++  if (grub_file_read (file, boot_image, fsize) != fsize)
+     {
+       if (grub_errno == GRUB_ERR_NONE)
+ 	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+@@ -295,7 +843,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+ #if defined (__i386__) || defined (__x86_64__)
+-  if (size >= (grub_ssize_t) sizeof (struct grub_macho_fat_header))
++  if (fsize >= (grub_ssize_t) sizeof (struct grub_macho_fat_header))
+     {
+       struct grub_macho_fat_header *head = boot_image;
+       if (head->magic
+@@ -304,6 +852,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+ 	  grub_uint32_t i;
+ 	  struct grub_macho_fat_arch *archs
+ 	    = (struct grub_macho_fat_arch *) (head + 1);
++
++	  if (grub_efi_secure_boot())
++	    {
++	      grub_error (GRUB_ERR_BAD_OS,
++			  "MACHO binaries are forbidden with Secure Boot");
++	      goto fail;
++	    }
++
+ 	  for (i = 0; i < grub_cpu_to_le32 (head->nfat_arch); i++)
+ 	    {
+ 	      if (GRUB_MACHO_CPUTYPE_IS_HOST_CURRENT (archs[i].cputype))
+@@ -318,21 +874,28 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+ 	      > ~grub_cpu_to_le32 (archs[i].size)
+ 	      || grub_cpu_to_le32 (archs[i].offset)
+ 	      + grub_cpu_to_le32 (archs[i].size)
+-	      > (grub_size_t) size)
++	      > (grub_size_t) fsize)
+ 	    {
+ 	      grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+ 			  filename);
+ 	      goto fail;
+ 	    }
+ 	  boot_image = (char *) boot_image + grub_cpu_to_le32 (archs[i].offset);
+-	  size = grub_cpu_to_le32 (archs[i].size);
++	  fsize = grub_cpu_to_le32 (archs[i].size);
+ 	}
+     }
+ #endif
+ 
++  if (grub_linuxefi_secure_validate((void *)address, fsize))
++    {
++      grub_file_close (file);
++      grub_loader_set (grub_secureboot_chainloader_boot,
++		       grub_secureboot_chainloader_unload, 0);
++      return 0;
++    }
++
+   status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path,
+-		       boot_image, size,
+-		       &image_handle);
++		       boot_image, fsize, &image_handle);
+   if (status != GRUB_EFI_SUCCESS)
+     {
+       if (status == GRUB_EFI_OUT_OF_RESOURCES)
+@@ -354,33 +917,10 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+     }
+   loaded_image->device_handle = dev_handle;
+ 
+-  if (argc > 1)
++  if (cmdline)
+     {
+-      int i, len;
+-      grub_efi_char16_t *p16;
+-
+-      for (i = 1, len = 0; i < argc; i++)
+-        len += grub_strlen (argv[i]) + 1;
+-
+-      len *= sizeof (grub_efi_char16_t);
+-      cmdline = p16 = grub_malloc (len);
+-      if (! cmdline)
+-        goto fail;
+-
+-      for (i = 1; i < argc; i++)
+-        {
+-          char *p8;
+-
+-          p8 = argv[i];
+-          while (*p8)
+-            *(p16++) = *(p8++);
+-
+-          *(p16++) = ' ';
+-        }
+-      *(--p16) = 0;
+-
+       loaded_image->load_options = cmdline;
+-      loaded_image->load_options_size = len;
++      loaded_image->load_options_size = cmdline_len;
+     }
+ 
+   grub_file_close (file);
+@@ -402,6 +942,9 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+   if (address)
+     efi_call_2 (b->free_pages, address, pages);
+ 
++  if (cmdline)
++    grub_free (cmdline);
++
+   grub_dl_unref (my_mod);
+ 
+   return grub_errno;
+diff --git a/grub-core/loader/efi/linux.c b/grub-core/loader/efi/linux.c
+new file mode 100644
+index 000000000..e4c5a7433
+--- /dev/null
++++ b/grub-core/loader/efi/linux.c
+@@ -0,0 +1,179 @@
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014 Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/err.h>
++#include <grub/mm.h>
++#include <grub/types.h>
++#include <grub/cpu/linux.h>
++#include <grub/efi/efi.h>
++#include <grub/efi/pe32.h>
++#include <grub/efi/linux.h>
++
++#include <grub/video.h>
++#include <grub/gfxterm.h>
++#include <grub/bitmap.h>
++#include <grub/bitmap_scale.h>
++
++#define SHIM_LOCK_GUID \
++ { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} }
++
++struct grub_efi_shim_lock
++{
++  grub_efi_status_t (*verify) (void *buffer, grub_uint32_t size);
++};
++typedef struct grub_efi_shim_lock grub_efi_shim_lock_t;
++
++grub_efi_boolean_t
++grub_linuxefi_secure_validate (void *data, grub_uint32_t size)
++{
++  grub_efi_guid_t guid = SHIM_LOCK_GUID;
++  grub_efi_shim_lock_t *shim_lock;
++
++  shim_lock = grub_efi_locate_protocol(&guid, NULL);
++
++  if (!shim_lock || shim_lock->verify(data, size) != GRUB_EFI_SUCCESS) {
++    /* The SHIM_LOCK protocol is missing or verification failed. */
++    return 0;
++  }
++
++  return 1;
++}
++
++grub_efi_boolean_t
++grub_linuxefi_check_shim_lock (void)
++{
++  grub_efi_guid_t guid = SHIM_LOCK_GUID;
++  grub_efi_shim_lock_t *shim_lock;
++
++  shim_lock = grub_efi_locate_protocol(&guid, NULL);
++
++  if (!shim_lock) {
++    /* The SHIM_LOCK protocol is missing. */
++    return 0;
++  }
++
++  return 1;
++}
++
++typedef void (*handover_func) (void *, grub_efi_system_table_t *, void *);
++
++grub_err_t
++grub_efi_linux_boot (void *kernel_addr, grub_off_t offset,
++		     void *kernel_params)
++{
++  handover_func hf;
++
++  hf = (handover_func)((char *)kernel_addr + offset);
++  hf (grub_efi_image_handle, grub_efi_system_table, kernel_params);
++
++  return GRUB_ERR_BUG;
++}
++
++void
++grub_verified_boot_fail (void)
++{
++  grub_cls();
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++//  grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_config_error.png");
++  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_fail.png");
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++//  grub_xputs ("\n");
++
++  grub_getkey ();
++
++  grub_reboot ();
++}
++
++void
++grub_verified_boot_config_error (void)
++{
++  grub_cls();
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++//  grub_gfxterm_warning_image("/usr/share/plymouth/themes/gooroom/verified_boot_config_error.png");
++  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_config_error.png");
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++//  grub_xputs ("\n");
++
++  grub_getkey ();
++
++  grub_reboot ();
++}
++
++grub_err_t
++grub_gfxterm_warning_image (const char *filename)
++{
++	/* Check that we have video adapter active.  */
++	if (grub_video_get_info(NULL) != GRUB_ERR_NONE)
++		return grub_errno;
++
++	/* Destroy existing background bitmap if loaded.  */
++	if (grub_gfxterm_background.bitmap)
++	{
++		grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
++		grub_gfxterm_background.bitmap = 0;
++		grub_gfxterm_background.blend_text_bg = 0;
++
++		/* Mark whole screen as dirty.  */
++		grub_gfxterm_schedule_repaint ();
++	}
++
++	/* Try to load new one.  */
++	grub_video_bitmap_load (&grub_gfxterm_background.bitmap, filename);
++	if (grub_errno != GRUB_ERR_NONE)
++		return grub_errno;
++
++	unsigned int width, height;
++	grub_gfxterm_get_dimensions (&width, &height);
++	if (width != grub_video_bitmap_get_width (grub_gfxterm_background.bitmap)
++	|| height != grub_video_bitmap_get_height (grub_gfxterm_background.bitmap))
++	{
++		struct grub_video_bitmap *scaled_bitmap;
++
++		grub_video_bitmap_create_scaled (&scaled_bitmap,
++										  width,
++										  height,
++										  grub_gfxterm_background.bitmap,
++										  GRUB_VIDEO_BITMAP_SCALE_METHOD_BEST);
++		if (grub_errno == GRUB_ERR_NONE)
++		{
++			/* Replace the original bitmap with the scaled one.  */
++			grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
++			grub_gfxterm_background.bitmap = scaled_bitmap;
++		}
++	}
++
++	/* If bitmap was loaded correctly, display it.  */
++	if (grub_gfxterm_background.bitmap)
++	{
++		grub_gfxterm_background.blend_text_bg = 1;
++
++		/* Mark whole screen as dirty.  */
++		grub_gfxterm_schedule_repaint ();
++	}
++
++	/* All was ok.  */
++	grub_errno = GRUB_ERR_NONE;
++	return grub_errno;
++}
++
+diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
+index 0f4b0b4ab..a018f9eee 100644
+--- a/grub-core/loader/i386/efi/linux.c
++++ b/grub-core/loader/i386/efi/linux.c
+@@ -27,7 +27,14 @@
+ #include <grub/i18n.h>
+ #include <grub/lib/cmdline.h>
+ #include <grub/efi/efi.h>
+-#include <stddef.h>
++#include <grub/efi/linux.h>
++/* Begin TCG Extension */
++#include <grub/tpm.h>
++/* End TCG Extension */
++
++#include <grub/term.h>
++#include <grub/normal.h>
++#include <grub/time.h>
+ 
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+@@ -91,21 +98,15 @@ typedef void(*handover_func)(void *, grub_efi_system_table_t *, struct linux_ker
+ static grub_err_t
+ grub_linuxefi_boot (void)
+ {
+-  handover_func hf;
+   int offset = 0;
+ 
+ #ifdef __x86_64__
+   offset = 512;
+ #endif
+-
+-  hf = (handover_func)((char *)kernel_mem + handover_offset + offset);
+-
+   asm volatile ("cli");
+ 
+-  hf (grub_efi_image_handle, grub_efi_system_table, params);
+-
+-  /* Not reached */
+-  return GRUB_ERR_NONE;
++  return grub_efi_linux_boot ((char *)kernel_mem, handover_offset + offset,
++			      params);
+ }
+ 
+ static grub_err_t
+@@ -153,8 +154,13 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+     {
+       grub_file_filter_disable_compression ();
+       files[i] = grub_file_open (argv[i]);
++//      if (! files[i])
++//        goto fail;
+       if (! files[i])
++      {
++        grub_verified_boot_fail();
+         goto fail;
++      }
+       nfiles++;
+       size += ALIGN_UP (grub_file_size (files[i]), 4);
+     }
+@@ -170,7 +176,7 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+   grub_dprintf ("linuxefi", "initrd_mem = %lx\n", (unsigned long) initrd_mem);
+ 
+   params->ramdisk_size = size;
+-  params->ramdisk_image = (grub_uint32_t)(grub_addr_t) initrd_mem;
++  params->ramdisk_image = (grub_uint32_t)(grub_uint64_t) initrd_mem;
+ 
+   ptr = initrd_mem;
+ 
+@@ -191,13 +197,20 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+ 
+   params->ramdisk_size = size;
+ 
++  /* Begin TCG Extension */
++  grub_TPM_measure_buffer( initrd_mem, size, TPM_LOADER_MEASUREMENT_PCR );
++  // from TrustedGRUB2 loader/linux.c
++  // measure from the beginning (initrd_mem),
++  // not ptr
++  /* End TCG Extension */
++
+  fail:
+   for (i = 0; i < nfiles; i++)
+     grub_file_close (files[i]);
+   grub_free (files);
+ 
+   if (initrd_mem && grub_errno)
+-    grub_efi_free_pages((grub_efi_physical_address_t)(grub_addr_t)initrd_mem, BYTES_TO_PAGES(size));
++    grub_efi_free_pages((grub_efi_physical_address_t)initrd_mem, BYTES_TO_PAGES(size));
+ 
+   return grub_errno;
+ }
+@@ -220,8 +233,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   file = grub_file_open (argv[0]);
++//  if (! file)
++//    goto fail;
++
+   if (! file)
++  {
++    grub_verified_boot_fail();
+     goto fail;
++  }
+ 
+   filelen = grub_file_size (file);
+ 
+@@ -238,17 +257,19 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+       grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
+       goto fail;
+     }
+-
+-  if (! grub_linuxefi_secure_validate (kernel, filelen))
++/*
++  if (! grub_linuxefi_check_shim_lock ())
+     {
+-      grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
+-      grub_free (kernel);
++      grub_verified_boot_config_error();
+       goto fail;
+     }
++*/
+ 
+-  grub_file_seek (file, 0);
+-
+-  grub_free(kernel);
++  if (! grub_efi_secure_boot ())
++    {
++      grub_verified_boot_config_error();
++      goto fail;
++    }
+ 
+   params = grub_efi_allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(16384));
+ 
+@@ -262,13 +283,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 
+   grub_memset (params, 0, 16384);
+ 
+-  if (grub_file_read (file, &lh, sizeof (lh)) != sizeof (lh))
+-    {
+-      if (!grub_errno)
+-	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		    argv[0]);
+-      goto fail;
+-    }
++  grub_memcpy (&lh, kernel, sizeof (lh));
+ 
+   if (lh.boot_flag != grub_cpu_to_le16 (0xaa55))
+     {
+@@ -311,7 +326,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+                               linux_cmdline + sizeof (LINUX_IMAGE) - 1,
+ 			      lh.cmdline_size - (sizeof (LINUX_IMAGE) - 1));
+ 
+-  lh.cmd_line_ptr = (grub_uint32_t)(grub_addr_t)linux_cmdline;
++  lh.cmd_line_ptr = (grub_uint32_t)(grub_uint64_t)linux_cmdline;
+ 
+   handover_offset = lh.handover_offset;
+ 
+@@ -331,27 +346,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+       goto fail;
+     }
+ 
+-  grub_dprintf ("linuxefi", "kernel_mem = %lx\n", (unsigned long) kernel_mem);
+-
+-  if (grub_file_seek (file, start) == (grub_off_t) -1)
+-    {
+-      grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		  argv[0]);
+-      goto fail;
+-    }
+-
+-  if (grub_file_read (file, kernel_mem, len) != len && !grub_errno)
+-    {
+-      grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+-		  argv[0]);
+-    }
+-
+-  if (grub_errno == GRUB_ERR_NONE)
+-    {
+-      grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
+-      loaded = 1;
+-      lh.code32_start = (grub_uint32_t)(grub_addr_t) kernel_mem;
+-    }
++  /* Begin TCG Extension */
++  // Measure before copy?
++  grub_TPM_measure_buffer( (char *)kernel + start, len, TPM_LOADER_MEASUREMENT_PCR );
++  /* End TCG Extension */
++  grub_memcpy (kernel_mem, (char *)kernel + start, len);
++  grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
++  loaded=1;
+ 
+   /* do not overwrite below boot_params->hdr to avoid setting the sentinel byte */
+   start = offsetof (struct linux_kernel_params, setup_sects);
+@@ -364,6 +365,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+   if (file)
+     grub_file_close (file);
+ 
++  if (kernel)
++    grub_free (kernel);
++
+   if (grub_errno != GRUB_ERR_NONE)
+     {
+       grub_dl_unref (my_mod);
+@@ -371,13 +375,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   if (linux_cmdline && !loaded)
+-    grub_efi_free_pages((grub_efi_physical_address_t)(grub_addr_t)linux_cmdline, BYTES_TO_PAGES(lh.cmdline_size + 1));
++    grub_efi_free_pages((grub_efi_physical_address_t)linux_cmdline, BYTES_TO_PAGES(lh.cmdline_size + 1));
+ 
+   if (kernel_mem && !loaded)
+-    grub_efi_free_pages((grub_efi_physical_address_t)(grub_addr_t)kernel_mem, BYTES_TO_PAGES(kernel_size));
++    grub_efi_free_pages((grub_efi_physical_address_t)kernel_mem, BYTES_TO_PAGES(kernel_size));
+ 
+   if (params && !loaded)
+-    grub_efi_free_pages((grub_efi_physical_address_t)(grub_addr_t)params, BYTES_TO_PAGES(16384));
++    grub_efi_free_pages((grub_efi_physical_address_t)params, BYTES_TO_PAGES(16384));
+ 
+   return grub_errno;
+ }
+diff --git a/grub-core/loader/i386/linux.c b/grub-core/loader/i386/linux.c
+index aba0b3761..ef825777d 100644
+--- a/grub-core/loader/i386/linux.c
++++ b/grub-core/loader/i386/linux.c
+@@ -1084,6 +1084,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
+       loaded = 1;
+ 
++      //TPM TESTING
++      grub_printf("loader/i386/linux.c \n");
+       DEBUG_PRINT( ("measured linux kernel: \n") );
+       grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
+     }
+diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
+index 947f97b83..5eeb1439b 100644
+--- a/grub-core/loader/linux.c
++++ b/grub-core/loader/linux.c
+@@ -162,6 +162,9 @@ grub_initrd_init (int argc, char *argv[],
+ 
+   initrd_ctx->size = 0;
+ 
++  //TPM testing
++  grub_printf("initrd init\n");
++
+   for (i = 0; i < argc; i++)
+     {
+       const char *fname = argv[i];
+@@ -252,6 +255,7 @@ grub_err_t
+ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+ 		  char *argv[], void *target)
+ {
++	grub_printf("initrd_load\n");
+   grub_uint8_t *ptr = target;
+   int i;
+   int newc = 0;
+@@ -292,6 +296,10 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+ 	  grub_initrd_close (initrd_ctx);
+ 	  return grub_errno;
+ 	}
++
++      //Modified for efi testing
++
++      grub_dprintf("linux","in linux.c before TPM measure buffer\n");
+       /* Begin TCG Extension */
+       grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
+       /* End TCG Extension */
+diff --git a/grub-core/loader/multiboot.c b/grub-core/loader/multiboot.c
+index 08cec39cd..594a17ffa 100644
+--- a/grub-core/loader/multiboot.c
++++ b/grub-core/loader/multiboot.c
+@@ -432,7 +432,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   /* Begin TCG Extension */
+-  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
++//  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
+   grub_TPM_measure_buffer( module, size, TPM_LOADER_MEASUREMENT_PCR );
+   /* End TCG Extension */
+ 
+diff --git a/grub-core/normal/main.c b/grub-core/normal/main.c
+index 2592a9446..bc43897c1 100644
+--- a/grub-core/normal/main.c
++++ b/grub-core/normal/main.c
+@@ -35,7 +35,8 @@
+ #include <grub/bufio.h>
+ 
+ /* BEGIN TCG EXTENSION */
+-#define TGRUB_VERSION "1.40"
++//#define TGRUB_VERSION "1.40"
++#define GGRUB_VERSION "Beta"
+ /* END TCG EXTENSION */
+ 
+ GRUB_MOD_LICENSE ("GPLv3+");
+@@ -212,7 +213,8 @@ grub_normal_init_page (struct grub_term_output *term,
+  
+   grub_term_cls (term);
+ 
+-  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
++//  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
++  msg_formatted = grub_xasprintf (_("GooroomGRUB  version %s"), GGRUB_VERSION);
+   if (!msg_formatted)
+     return;
+  
+diff --git a/grub-core/tpm/efi/tpm.c b/grub-core/tpm/efi/tpm.c
+new file mode 100644
+index 000000000..f14bca6b6
+--- /dev/null
++++ b/grub-core/tpm/efi/tpm.c
+@@ -0,0 +1,1006 @@
++/* Begin TCG extension */
++
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014,2015 Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++
++#include <grub/types.h>
++#include <grub/extcmd.h>
++#include <grub/mm.h>
++#include <grub/dl.h>
++#include <grub/crypto.h>
++#include <grub/file.h>
++
++#include <grub/tpm.h>
++#include <grub/efi/efi.h>
++#include <grub/efi/tpm.h>
++
++// should not be used
++//#include <grub/i386/pc/tpm.h>
++//#include <grub/i386/pc/boot.h>
++//#include <grub/i386/pc/memory.h>
++//#include <grub/i386/pc/int.h>
++
++GRUB_MOD_LICENSE ("GPLv3+");
++
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wvla"
++
++/************************* constants *************************/
++
++/* TPM_ENTITY_TYPE values */
++static const grub_uint16_t TPM_ET_SRK =  0x0004;
++
++/* Reserved Key Handles */
++static const grub_uint32_t TPM_KH_SRK = 0x40000000;
++
++/* Ordinals */
++static const grub_uint32_t TPM_ORD_OSAP = 0x0000000B;
++static const grub_uint32_t TPM_ORD_Unseal = 0x00000018;
++static const grub_uint32_t TPM_ORD_GetRandom = 0x00000046;
++static const grub_uint32_t TPM_ORD_OIAP = 0x0000000A;
++
++static const grub_uint32_t TCG_PCR_EVENT_SIZE = 32;
++
++static const grub_uint16_t TPM_TAG_RQU_AUTH2_COMMAND = 0x00C3;
++
++#define TPM_NONCE_SIZE 20
++#define TPM_AUTHDATA_SIZE 20
++
++static const grub_uint8_t srkAuthData[SHA1_DIGEST_SIZE] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
++static const grub_uint8_t blobAuthData[SHA1_DIGEST_SIZE] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
++
++/************************* struct typedefs *************************/
++
++/* TCG_SetMemoryOverwriteRequestBit Input Parameter Block */
++typedef struct {
++	grub_uint16_t iPBLength;
++	grub_uint16_t reserved;
++	grub_uint8_t  memoryOverwriteActionBitValue;
++} GRUB_PACKED SetMemoryOverwriteRequestBitInputParamBlock;
++
++/* TPM_GetRandom Incoming Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t ordinal;
++	grub_uint32_t bytesRequested;
++} GRUB_PACKED GetRandomIncoming;
++
++/* TPM_OIAP Incoming Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t ordinal;
++} GRUB_PACKED OIAP_Incoming;
++
++/* TPM_OIAP Outgoing Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t returnCode;
++	grub_uint32_t authHandle;
++	grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++} GRUB_PACKED OIAP_Outgoing;
++
++/* TPM_OSAP Incoming Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t ordinal;
++	grub_uint16_t entityType;
++	grub_uint32_t entityValue;
++	grub_uint8_t  nonceOddOSAP[TPM_NONCE_SIZE];
++} GRUB_PACKED OSAP_Incoming;
++
++/* TPM_OSAP Outgoing Operand */
++typedef struct {
++	grub_uint16_t tag;
++	grub_uint32_t paramSize;
++	grub_uint32_t returnCode;
++	grub_uint32_t authHandle;
++	grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++	grub_uint8_t  nonceEvenOSAP[TPM_NONCE_SIZE];
++} GRUB_PACKED OSAP_Outgoing;
++
++typedef struct tdTCG_PCClientPCREventStruc {
++	grub_uint32_t pcrIndex;
++	grub_uint32_t eventType;
++	grub_uint8_t digest[SHA1_DIGEST_SIZE];
++	grub_uint32_t eventDataSize;
++	grub_uint8_t event[1];
++} GRUB_PACKED TCG_PCClientPCREvent;
++
++/************************* static functions *************************/
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_readpcr( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc == 0 ) {
++		grub_fatal( "grub_cmd_readpcr: index expected" );
++		return GRUB_ERR_NONE;
++	}
++
++	if ( argc > 1 ) {
++		grub_fatal( "grub_cmd_readpcr: Too many arguments" );
++		return GRUB_ERR_NONE;
++	}
++
++	unsigned long index = grub_strtoul( args[0], NULL, 10 );
++
++	/* if index is invalid */
++	if( grub_errno != GRUB_ERR_NONE ) {
++		grub_fatal( "grub_cmd_readpcr: invalid format for index" );
++		return GRUB_ERR_NONE;
++	}
++
++	grub_uint8_t result[SHA1_DIGEST_SIZE] = { 0 };
++	grub_TPM_readpcr( index, &result[0] );
++
++	grub_printf( "read value PCR[%lu]=", index );
++	print_sha1( result );
++	grub_printf("\n");
++
++	return GRUB_ERR_NONE;
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_read_tcglog( const unsigned long index ) {
++
++	grub_uint32_t returnCode;
++	grub_uint32_t featureFlags;
++	grub_addr_t eventLog = 0,logAddr = 0, edi = 0;
++	grub_uint8_t major, minor;
++
++	/* get event log pointer */
++    grub_TPM_efi_statusCheck( &returnCode, &major, &minor, &featureFlags, &eventLog, &edi);
++
++	/* edi = 0 means event log is empty */
++	if( edi == 0 ) {
++        grub_fatal( "Event log is empty" );
++	}
++
++	logAddr = eventLog;
++	TCG_PCClientPCREvent *event = NULL;
++	/* index = 0: print all entries */
++	if ( index == 0 ) {
++
++		/* eventLog = absolute pointer to the beginning of the event log. */
++		event = (TCG_PCClientPCREvent *) logAddr;
++
++		/* If there is exactly one entry */
++		if( edi == eventLog ) {
++			grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++			grub_printf( "eventType: %u \n", event->eventType );
++			grub_printf( "digest: " );
++			print_sha1( event->digest );
++			grub_printf( "\n\n" );
++		} else {	/* If there is more than one entry */
++			do {
++				grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++				grub_printf( "eventType: %u \n", event->eventType );
++				grub_printf( "digest: " );
++				print_sha1( event->digest );
++				grub_printf( "\n\n" );
++
++				logAddr += TCG_PCR_EVENT_SIZE + event->eventDataSize;
++				event = (TCG_PCClientPCREvent *)logAddr;
++			} while( logAddr != edi );
++
++			/* print the last one */
++			grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++			grub_printf( "eventType: %u \n", event->eventType );
++			grub_printf( "digest: " );
++			print_sha1( event->digest );
++			grub_printf( "\n\n" );
++		}
++	} else { /* print specific entry */
++		logAddr = eventLog;
++
++		unsigned long i;
++		for( i = 1; i < index; i++ ) {
++			event = (TCG_PCClientPCREvent *)logAddr;
++			logAddr += TCG_PCR_EVENT_SIZE + event->eventDataSize;
++
++			if( logAddr > edi ) { /* index not valid.  */
++                grub_fatal( "No entry at specified index" );
++			}
++		}
++
++		event = (TCG_PCClientPCREvent *)logAddr;
++		grub_printf( "pcrIndex: %u \n", event->pcrIndex );
++		grub_printf( "eventType: %u \n", event->eventType );
++		grub_printf( "digest: " );
++		print_sha1( event->digest );
++		grub_printf( "\n\n" );
++	}
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_tcglog( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc == 0 ) {
++		grub_fatal( "grub_cmd_tcglog: index expected" );
++		return GRUB_ERR_NONE;
++	}
++
++	if ( argc > 1 ) {
++		grub_fatal( "grub_cmd_tcglog: Too many arguments" );
++		return GRUB_ERR_NONE;
++	}
++
++	unsigned long index = grub_strtoul( args[0], NULL, 10 );
++
++    /* if index is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "grub_cmd_tcglog: invalid format for index" );
++		return GRUB_ERR_NONE;
++    }
++
++	grub_TPM_read_tcglog( index ) ;
++
++	return GRUB_ERR_NONE;
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_measure( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc != 2 ) {
++		grub_fatal( "Wrong number of arguments" );
++	}
++
++	unsigned long index = grub_strtoul( args[1], NULL, 10 );
++
++    /* if index is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "invalid format for index" );
++    }
++
++	grub_TPM_measure_file( args[0], index );
++
++	return GRUB_ERR_NONE;
++}
++
++/* Modified for efi use*/
++/* Memmory functions as static from ./include/grub/i386/memory.h " */
++
++typedef grub_addr_t grub_phys_addr_t;
++
++static inline void *grub_map_memory (grub_addr_t a, grub_size_t size __attribute__ ((unused)))
++{
++	return (void *) a;
++}
++
++static inline void
++grub_unmap_memory (void *a __attribute__ ((unused)),grub_size_t size __attribute__ ((unused)))
++{
++}
++
++#ifdef tcg_setMOR
++/* Invokes TCG_SetMemoryOverwriteRequestBit
++
++   grub_fatal() on error
++   Page 12 TCG Platform Reset Attack Mitigation Specification V 1.0.0
++ */
++static void
++tcg_SetMemoryOverwriteRequestBit( const SetMemoryOverwriteRequestBitInputParamBlock* input ) {
++
++    CHECK_FOR_NULL_ARGUMENT( input )
++
++	/* copy input buffer */
++	void* p = grub_map_memory( INPUT_PARAM_BLK_ADDR, input->iPBLength );
++
++	grub_memcpy( p, input, input->iPBLength );
++
++	grub_unmap_memory( p, input->iPBLength );
++
++	struct grub_bios_int_registers regs;
++	regs.eax = 0xBB08;
++	regs.flags = GRUB_CPU_INT_FLAGS_DEFAULT;
++
++	regs.ebx = TCPA;
++	regs.ecx = 0;
++	regs.edx = 0;
++	regs.edi = INPUT_PARAM_BLK_ADDR & 0xF;
++	regs.es  = INPUT_PARAM_BLK_ADDR >> 4;
++
++	/* invoke assembler func */
++	grub_bios_interrupt (0x1A, &regs);
++
++	if ( regs.eax != TCG_PC_OK ) {
++        grub_fatal( "TCG_SetMemoryOverwriteRequestBit failed: 0x%x", regs.eax );
++	}
++}
++
++/* Sets Memory Overwrite Request bit */
++/* grub_fatal() on error */
++static void
++grub_TPM_SetMOR_Bit( const unsigned long disableAutoDetect ) {
++
++	SetMemoryOverwriteRequestBitInputParamBlock input;
++	input.iPBLength = 5;
++	input.reserved = 0;
++
++	// Reserved disableAutoDetect Reserved MOR-Bit
++	// 000             0            000      0
++
++	if( disableAutoDetect ) {
++		// disable autodetect
++		// 000 1 000 1
++		input.memoryOverwriteActionBitValue = 0x11;
++	} else{
++		// autodetect
++		// 000 0 000 1
++		input.memoryOverwriteActionBitValue = 0x01;
++	}
++
++	tcg_SetMemoryOverwriteRequestBit( &input );
++}
++
++/* grub_fatal() on error */
++static grub_err_t
++grub_cmd_setMOR( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc == 0 ) {
++		grub_fatal( "setMOR: BAD_ARGUMENT: value expected" );
++	}
++
++	if ( argc > 1 ) {
++		grub_fatal( "setMOR: Too many arguments" );
++	}
++
++	unsigned long disableAutoDetect = grub_strtoul( args[0], NULL, 10 );
++
++	/* if disableAutoDetect is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        grub_fatal( "setMOR: BAD_ARGUMENT: invalid format for 'disableAutoDetect' " );
++    }
++
++	if( disableAutoDetect > 1 ) {
++		grub_fatal( "setMOR: BAD_ARGUMENT: Value must be 0 or 1" );
++	}
++
++	grub_TPM_SetMOR_Bit( disableAutoDetect );
++	return GRUB_ERR_NONE;
++}
++
++#endif
++
++/* grub_fatal() on error */
++static void
++grub_TPM_getRandom( const unsigned long randomBytesRequested, grub_uint8_t* result ) {
++
++	CHECK_FOR_NULL_ARGUMENT( result )
++	CHECK_FOR_NULL_ARGUMENT( randomBytesRequested )
++
++	GetRandomIncoming* getRandomInput = NULL;
++	PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *getRandomInput );
++
++	/* TPM_GetRandom Outgoing Operand */
++	struct {
++		grub_uint16_t tag;
++		grub_uint32_t paramSize;
++		grub_uint32_t returnCode;
++		grub_uint32_t randomBytesSize;
++		grub_uint8_t randomBytes[randomBytesRequested];
++	} GRUB_PACKED *getRandomOutput;
++
++	PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *getRandomOutput );
++
++	passThroughInput = grub_zalloc( inputlen );
++	if( ! passThroughInput ) {
++		grub_fatal( "grub_TPM_getRandom: memory allocation failed" );
++	}
++
++	passThroughInput->IPBLength = inputlen;
++	passThroughInput->OPBLength = outputlen;
++
++	getRandomInput = (void *)passThroughInput->TPMOperandIn;
++	getRandomInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++	getRandomInput->paramSize = grub_swap_bytes32( sizeof( *getRandomInput ) );
++	getRandomInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_GetRandom );
++	getRandomInput->bytesRequested = grub_swap_bytes32( (grub_uint32_t) randomBytesRequested );
++
++	passThroughOutput = grub_zalloc( outputlen );
++	if( ! passThroughOutput ) {
++		grub_free( passThroughInput );
++		grub_fatal( "grub_TPM_getRandom: memory allocation failed" );
++	}
++
++	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
++    grub_free( passThroughInput );
++
++    getRandomOutput = (void *)passThroughOutput->TPMOperandOut;
++	grub_uint32_t tpm_getRandomReturnCode = grub_swap_bytes32( getRandomOutput->returnCode );
++
++	if( tpm_getRandomReturnCode != TPM_SUCCESS ) {
++		grub_free( passThroughOutput );
++
++        grub_fatal( "grub_TPM_getRandom: tpm_getRandomReturnCode: %u", tpm_getRandomReturnCode );
++	}
++
++	if( grub_swap_bytes32( getRandomOutput->randomBytesSize ) != randomBytesRequested ) {
++		grub_free( passThroughOutput );
++		DEBUG_PRINT( ( "tpmOutput->randomBytesSize != randomBytesRequested\n" ) );
++		DEBUG_PRINT( ( "tpmOutput->randomBytesSize = %u \n", grub_swap_bytes32( getRandomOutput->randomBytesSize ) ) );
++		DEBUG_PRINT( ( "randomBytesRequested = %lu \n", randomBytesRequested ) );
++        grub_fatal( "grub_TPM_getRandom: tpmOutput->randomBytesSize != randomBytesRequested" );
++	}
++
++	grub_memcpy( result, &getRandomOutput->randomBytes[0], (grub_uint32_t) randomBytesRequested );
++
++	grub_free( passThroughOutput );
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_openOIAP_Session( grub_uint32_t* authHandle, grub_uint8_t* nonceEven ) {
++
++    CHECK_FOR_NULL_ARGUMENT( authHandle )
++    CHECK_FOR_NULL_ARGUMENT( nonceEven )
++
++	OIAP_Incoming* oiapInput = NULL;
++	PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *oiapInput );
++
++	OIAP_Outgoing* oiapOutput = NULL;
++	PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *oiapOutput );
++
++	passThroughInput = grub_zalloc( inputlen );
++	if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_openOIAP_Session: memory allocation failed");
++	}
++
++	passThroughInput->IPBLength = inputlen;
++	passThroughInput->OPBLength = outputlen;
++
++	oiapInput = (void *)passThroughInput->TPMOperandIn;
++	oiapInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++	oiapInput->paramSize = grub_swap_bytes32( sizeof( *oiapInput ) );
++	oiapInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_OIAP );
++
++	passThroughOutput = grub_zalloc( outputlen );
++	if( ! passThroughOutput ) {
++		grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOIAP_Session: memory allocation failed");
++	}
++
++	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_free( passThroughInput );
++
++	oiapOutput = (void *)passThroughOutput->TPMOperandOut;
++	grub_uint32_t tpm_OIAP_ReturnCode = grub_swap_bytes32( oiapOutput->returnCode );
++
++	if( tpm_OIAP_ReturnCode != TPM_SUCCESS ) {
++		grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOIAP_Session: tpm_OIAP_ReturnCode: %u", tpm_OIAP_ReturnCode );
++	}
++
++	*authHandle = grub_swap_bytes32( oiapOutput->authHandle );
++
++    grub_memcpy( nonceEven, oiapOutput->nonceEven, TPM_NONCE_SIZE );
++
++	grub_free( passThroughOutput );
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_openOSAP_Session( const grub_uint16_t entityType, const grub_uint32_t entityValue, const grub_uint8_t* nonceOddOSAP,
++		grub_uint32_t* authHandle, grub_uint8_t* nonceEven, grub_uint8_t* nonceEvenOSAP ) {
++
++    CHECK_FOR_NULL_ARGUMENT( authHandle )
++    CHECK_FOR_NULL_ARGUMENT( nonceEven )
++    CHECK_FOR_NULL_ARGUMENT( nonceEvenOSAP )
++
++	OSAP_Incoming* osapInput = NULL;
++	PassThroughToTPM_InputParamBlock* passThroughInput = NULL;
++	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *osapInput );
++
++	OSAP_Outgoing* osapOutput = NULL;
++	PassThroughToTPM_OutputParamBlock* passThroughOutput = NULL;
++	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *osapOutput );
++
++	passThroughInput = grub_zalloc( inputlen );
++	if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_openOSAP_Session: memory allocation failed" );
++	}
++
++	passThroughInput->IPBLength = inputlen;
++	passThroughInput->OPBLength = outputlen;
++
++	osapInput = (void *)passThroughInput->TPMOperandIn;
++	osapInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_COMMAND );
++	osapInput->paramSize = grub_swap_bytes32( sizeof( *osapInput ) );
++	osapInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_OSAP );
++	osapInput->entityType = grub_swap_bytes16( entityType );
++	osapInput->entityValue = grub_swap_bytes32( entityValue );
++
++	grub_memcpy( osapInput->nonceOddOSAP, nonceOddOSAP, TPM_NONCE_SIZE );
++
++	passThroughOutput = grub_zalloc( outputlen );
++	if( ! passThroughOutput ) {
++		grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_openOSAP_Session: memory allocation failed" );
++	}
++
++	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_free( passThroughInput );
++
++	osapOutput = (void *)passThroughOutput->TPMOperandOut;
++	grub_uint32_t tpm_OSAP_ReturnCode = grub_swap_bytes32( osapOutput->returnCode );
++
++	if( tpm_OSAP_ReturnCode != TPM_SUCCESS ) {
++		grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_openOSAP_Session: tpm_OSAP_ReturnCode: %u", tpm_OSAP_ReturnCode );
++	}
++
++	*authHandle = grub_swap_bytes32( osapOutput->authHandle );
++
++	grub_memcpy( nonceEven, osapOutput->nonceEven, TPM_NONCE_SIZE );
++	grub_memcpy( nonceEvenOSAP, osapOutput->nonceEvenOSAP, TPM_NONCE_SIZE );
++
++	grub_free( passThroughOutput );
++}
++
++/* calculate shared-secret = HMAC( srkAuthData, nonceEvenOSAP || nonceOddOSAP ) */
++/* grub_fatal() on error */
++static void
++grub_TPM_calculate_osap_sharedSecret( const grub_uint8_t* nonceEvenOSAP, const grub_uint8_t* nonceOddOSAP, grub_uint8_t* result ) {
++
++    CHECK_FOR_NULL_ARGUMENT( nonceEvenOSAP )
++	CHECK_FOR_NULL_ARGUMENT( nonceOddOSAP )
++	CHECK_FOR_NULL_ARGUMENT( result )
++
++	grub_size_t dataSize = TPM_NONCE_SIZE * 2;
++
++	grub_uint8_t data[TPM_NONCE_SIZE * 2] = { 0 };
++	grub_uint8_t* dataPointer = &data[0];
++
++	grub_memcpy( dataPointer, nonceEvenOSAP, TPM_NONCE_SIZE );
++
++	dataPointer += TPM_NONCE_SIZE;
++
++	grub_memcpy( dataPointer, nonceOddOSAP, TPM_NONCE_SIZE );
++
++	gcry_err_code_t hmacErrorCode = grub_crypto_hmac_buffer( GRUB_MD_SHA1, srkAuthData, SHA1_DIGEST_SIZE, &data[0],
++				dataSize, result );
++
++	if( hmacErrorCode ) {
++        grub_fatal( "grub_TPM_calculate_osap_sharedSecre failed: hmacErrorCode: %u", hmacErrorCode );
++	}
++}
++
++/* grub_fatal() on error */
++static void
++grub_TPM_calculate_Auth( const grub_uint8_t* sharedSecret, const grub_uint8_t* digest, const grub_uint8_t* nonceEven, const grub_uint8_t* nonceOdd,
++		const grub_uint8_t continueSession, grub_uint8_t* result ) {
++
++	CHECK_FOR_NULL_ARGUMENT( sharedSecret )
++	CHECK_FOR_NULL_ARGUMENT( digest )
++	CHECK_FOR_NULL_ARGUMENT( nonceEven )
++	CHECK_FOR_NULL_ARGUMENT( nonceOdd )
++	CHECK_FOR_NULL_ARGUMENT( result )
++
++	grub_size_t dataSize = SHA1_DIGEST_SIZE /* hashed ordinal and inData */ +
++				TPM_NONCE_SIZE /* authLastNonceEven */ +
++				TPM_NONCE_SIZE /* nonceOdd */ +
++				sizeof( continueSession ) /* continueAuthSession */;
++
++	grub_uint8_t data[SHA1_DIGEST_SIZE + TPM_NONCE_SIZE + TPM_NONCE_SIZE + sizeof( continueSession )] = { 0 };
++	grub_uint8_t* dataPointer = &data[0];
++
++	grub_memcpy( dataPointer, digest, SHA1_DIGEST_SIZE );
++
++	dataPointer += SHA1_DIGEST_SIZE;
++
++	grub_memcpy( dataPointer, nonceEven, TPM_NONCE_SIZE );
++
++	dataPointer += TPM_NONCE_SIZE;
++
++	grub_memcpy( dataPointer, nonceOdd, TPM_NONCE_SIZE );
++
++	dataPointer += TPM_NONCE_SIZE;
++
++	grub_memcpy( dataPointer, &continueSession, sizeof( continueSession ) );
++
++	gcry_err_code_t hmacErrorCode = grub_crypto_hmac_buffer( GRUB_MD_SHA1, sharedSecret, SHA1_DIGEST_SIZE, &data[0],
++			dataSize, result );
++
++	if( hmacErrorCode ) {
++        grub_fatal( "grub_TPM_calculate_Auth failed: hmacErrorCode: %u", hmacErrorCode );
++	}
++}
++
++/************************* non-static functions *************************/
++
++/* grub_fatal() on error */
++void
++grub_TPM_unseal( const grub_uint8_t* sealedBuffer, const grub_size_t inputSize, grub_uint8_t** result, grub_size_t* resultSize ) {
++
++	CHECK_FOR_NULL_ARGUMENT( sealedBuffer )
++	CHECK_FOR_NULL_ARGUMENT( resultSize)
++
++	/* TPM_UNSEAL Incoming Operand */
++	struct {
++		grub_uint16_t tag;
++		grub_uint32_t paramSize;
++		grub_uint32_t ordinal;
++		grub_uint32_t parentHandle;
++		grub_uint8_t  sealedData[inputSize];
++		grub_uint32_t authHandle;
++		grub_uint8_t  nonceOdd[TPM_NONCE_SIZE];
++		grub_uint8_t  continueAuthSession;
++		grub_uint8_t  parentAuth[TPM_AUTHDATA_SIZE];
++		grub_uint32_t dataAuthHandle;
++		grub_uint8_t  dataNonceOdd[TPM_NONCE_SIZE];
++		grub_uint8_t  continueDataSession;
++		grub_uint8_t  dataAuth[TPM_AUTHDATA_SIZE];
++	} GRUB_PACKED *unsealInput;
++
++	PassThroughToTPM_InputParamBlock *passThroughInput = NULL;
++	grub_uint16_t inputlen = sizeof( *passThroughInput ) - sizeof( passThroughInput->TPMOperandIn ) + sizeof( *unsealInput );
++
++	/* TPM_UNSEAL Outgoing Operand */
++	struct {
++		grub_uint16_t tag;
++		grub_uint32_t paramSize;
++		grub_uint32_t returnCode;
++		grub_uint32_t secretSize;
++		grub_uint8_t  unsealedData[inputSize];		/* FIXME: what size to use here? */
++		grub_uint8_t  nonceEven[TPM_NONCE_SIZE];
++		grub_uint8_t  continueAuthSession;
++		grub_uint8_t  resAuth[TPM_AUTHDATA_SIZE];
++		grub_uint8_t  dataNonceEven[TPM_NONCE_SIZE];
++		grub_uint8_t  continueDataSession;
++		grub_uint8_t  dataAuth[TPM_AUTHDATA_SIZE];
++	} GRUB_PACKED *unsealOutput;
++
++	PassThroughToTPM_OutputParamBlock *passThroughOutput = NULL;
++	grub_uint16_t outputlen = sizeof( *passThroughOutput ) - sizeof( passThroughOutput->TPMOperandOut ) + sizeof( *unsealOutput );
++
++	passThroughInput = grub_zalloc( inputlen );
++	if( ! passThroughInput ) {
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++	}
++
++	passThroughInput->IPBLength = inputlen;
++	passThroughInput->OPBLength = outputlen;
++
++	unsealInput = (void*) passThroughInput->TPMOperandIn;
++	unsealInput->tag = grub_swap_bytes16_compile_time( TPM_TAG_RQU_AUTH2_COMMAND );
++	unsealInput->paramSize = grub_swap_bytes32( sizeof( *unsealInput ) );
++	unsealInput->ordinal = grub_swap_bytes32_compile_time( TPM_ORD_Unseal );
++	unsealInput->parentHandle = grub_swap_bytes32_compile_time( TPM_KH_SRK );
++
++	grub_memcpy ( unsealInput->sealedData, sealedBuffer, inputSize );
++
++	/* open OSAP Session */
++
++	/* get random for nonceOddOSAP */
++	grub_uint8_t nonceOddOSAP[TPM_NONCE_SIZE] = { 0 };
++	grub_TPM_getRandom( TPM_NONCE_SIZE, &nonceOddOSAP[0] );
++
++	grub_uint32_t authHandle = 0;
++	grub_uint8_t authLastNonceEven[TPM_NONCE_SIZE] = { 0 };
++	grub_uint8_t nonceEvenOSAP[TPM_NONCE_SIZE] = { 0 };
++	grub_TPM_openOSAP_Session( TPM_ET_SRK, TPM_KH_SRK, &nonceOddOSAP[0], &authHandle, &authLastNonceEven[0], &nonceEvenOSAP[0] );
++
++	unsealInput->authHandle = grub_swap_bytes32( authHandle );
++
++	grub_uint8_t sharedSecret[SHA1_DIGEST_SIZE] = { 0 };
++	grub_TPM_calculate_osap_sharedSecret( &nonceEvenOSAP[0], &nonceOddOSAP[0], &sharedSecret[0] );
++
++	/* open OIAP Session */
++	grub_uint8_t dataLastNonceEven[TPM_NONCE_SIZE] = { 0 };
++	grub_uint32_t dataAuthHandle = 0;
++	grub_TPM_openOIAP_Session( &dataAuthHandle, &dataLastNonceEven[0] );
++
++	unsealInput->dataAuthHandle = grub_swap_bytes32( dataAuthHandle );
++
++	/* calc authData */
++
++	/* SHA1( ordinal, inData ) */
++	grub_uint32_t dataToHashSize = sizeof( unsealInput->ordinal ) + inputSize;
++
++	grub_uint8_t* dataToHash = grub_zalloc( dataToHashSize );
++	if( ! dataToHash ) {
++		grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++	}
++
++	/* copy ordinal */
++	grub_memcpy( dataToHash, &unsealInput->ordinal, sizeof( unsealInput->ordinal ) );
++
++	/* copy inData */
++	grub_memcpy( dataToHash + sizeof( unsealInput->ordinal ), unsealInput->sealedData, inputSize );
++
++	grub_uint8_t hashResult[SHA1_DIGEST_SIZE] = { 0 };
++	grub_crypto_hash( GRUB_MD_SHA1, &hashResult[0], dataToHash, dataToHashSize );
++	grub_free( dataToHash );
++
++	/* calc parentAuth */
++
++	/* HMAC( sharedSecret, SHA1( ordinal, inData ) || authLastNonceEven || nonceOdd || continueAuthSession ) */
++
++	/* get random for nonceOdd */
++	grub_TPM_getRandom( TPM_NONCE_SIZE, unsealInput->nonceOdd );
++
++	unsealInput->continueAuthSession = 0;
++	grub_TPM_calculate_Auth( &sharedSecret[0], &hashResult[0], &authLastNonceEven[0], unsealInput->nonceOdd, unsealInput->continueAuthSession, unsealInput->parentAuth );
++
++	/* calc dataAuth */
++
++	/* HMAC( entity.usageAuth, SHA1( ordinal, inData ) || dataLastNonceEven || dataNonceOdd || continueDataSession ) */
++
++	/* get random for dataNonceOdd */
++	grub_TPM_getRandom( TPM_NONCE_SIZE, unsealInput->dataNonceOdd );
++
++	unsealInput->continueDataSession = 0;
++	grub_TPM_calculate_Auth( blobAuthData, &hashResult[0], &dataLastNonceEven[0], unsealInput->dataNonceOdd, unsealInput->continueDataSession, unsealInput->dataAuth );
++
++	passThroughOutput = grub_zalloc( outputlen );
++	if( ! passThroughOutput ) {
++		grub_free( passThroughInput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++	}
++
++	//grub_TPM_int1A_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_TPM_efi_passThroughToTPM( passThroughInput, passThroughOutput );
++	grub_free( passThroughInput );
++
++	unsealOutput = (void *)passThroughOutput->TPMOperandOut;
++	grub_uint32_t tpm_UnsealReturnCode = grub_swap_bytes32( unsealOutput->returnCode );
++
++	if( tpm_UnsealReturnCode != TPM_SUCCESS ) {
++		grub_free( passThroughOutput );
++
++		if( tpm_UnsealReturnCode == TPM_AUTHFAIL ) {
++            grub_fatal( "grub_TPM_unseal: Authentication failed" );
++		}
++
++        grub_fatal( "grub_TPM_unseal: Unsealing failed: %u", tpm_UnsealReturnCode );
++	}
++
++	/* skip check for returned AuthData */
++
++	/* return result */
++	*resultSize = grub_swap_bytes32( unsealOutput->secretSize );
++	*result = grub_zalloc( *resultSize );		/* caller has to clean up */
++
++    if( ! *result ) {
++        grub_free( passThroughOutput );
++        grub_fatal( "grub_TPM_unseal: memory allocation failed" );
++    }
++
++	grub_memcpy( *result, &unsealOutput->unsealedData[0], *resultSize );
++
++	grub_free( passThroughOutput );
++}
++
++#ifdef TGRUB_DEBUG
++static grub_err_t
++grub_cmd_unseal( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc == 0 ) {
++		return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "value expected" ) );
++	}
++
++	if ( argc > 1 ) {
++		return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Too many arguments" ) );
++	}
++
++	/* open file */
++	grub_file_t file = grub_file_open( args[0] );
++    if( ! file ) {
++        return grub_errno;
++    }
++
++	grub_size_t fileSize = file->size;
++
++	DEBUG_PRINT( ( "sealed file size = %d\n", (int)fileSize ) );
++
++	grub_uint8_t* buf = grub_zalloc( fileSize );
++	if ( ! buf ) {
++		grub_file_close (file);
++        return grub_error( GRUB_ERR_OUT_OF_MEMORY, N_( "grub_cmd_unseal: memory allocation failed" ) );
++	}
++
++	/* read file */
++	if ( grub_file_read( file, buf, fileSize ) != (grub_ssize_t) fileSize ) {
++		grub_free( buf );
++		grub_file_close (file);
++        return grub_errno;
++	}
++
++	grub_file_close( file );
++
++    if ( grub_errno ) {
++        return grub_errno;
++    }
++
++	grub_uint8_t* result = NULL;
++	grub_size_t resultSize = 0;
++	grub_TPM_unseal( buf, fileSize, &result, &resultSize );
++
++	grub_free( buf );
++	grub_free( result );
++
++	return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_getRandom( grub_command_t cmd __attribute__ ((unused)), int argc, char **args) {
++
++	if ( argc == 0 ) {
++		return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "value expected" ) );
++	}
++
++	if ( argc > 1 ) {
++		return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Too many arguments" ) );
++	}
++
++	unsigned long randomBytesRequested = grub_strtoul( args[0], NULL, 10 );
++
++    /* if randomBytesRequested is invalid */
++    if( grub_errno != GRUB_ERR_NONE ) {
++        return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "invalid format for 'randomBytesRequested' " ) );
++    }
++
++	if( randomBytesRequested == 0 ) {
++		return grub_error( GRUB_ERR_BAD_ARGUMENT, N_( "Value must be greater 0" ) );
++	}
++
++	grub_uint8_t* random;
++	random = grub_zalloc( randomBytesRequested );
++	if( ! random ) {
++		grub_fatal( "grub_cmd_getRandom: memory allocation failed" );
++	}
++
++	grub_TPM_getRandom( randomBytesRequested, &random[0] );
++
++	grub_printf( "random bytes: " );
++	unsigned int j;
++	for( j = 0; j < randomBytesRequested; ++j ) {
++		grub_printf( "%02x", random[j] );
++	}
++	grub_printf( "\n\n" );
++
++	grub_free( random );
++
++	return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_openOIAP(grub_command_t cmd __attribute__ ((unused)), int argc __attribute__ ((unused)), char** args __attribute__ ((unused))) {
++
++	grub_uint32_t authHandle = 0;
++	grub_uint8_t nonceEven[TPM_NONCE_SIZE];
++
++	grub_TPM_openOIAP_Session( &authHandle, &nonceEven[0] );
++
++	grub_printf( "authHandle: 0x%x \n", authHandle );
++
++	grub_printf( "nonceEven: " );
++	unsigned int j;
++	for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++		grub_printf( "%02x", nonceEven[j] );
++	}
++	grub_printf( "\n\n" );
++
++	return GRUB_ERR_NONE;
++}
++
++static grub_err_t
++grub_cmd_openOSAP(grub_command_t cmd __attribute__ ((unused)), int argc __attribute__ ((unused)), char** args __attribute__ ((unused))) {
++
++	/* get random for nonceOddOSAP */
++	grub_uint8_t nonceOddOSAP[TPM_NONCE_SIZE];
++	grub_TPM_getRandom( TPM_NONCE_SIZE, &nonceOddOSAP[0] );
++
++	grub_uint32_t authHandle = 0;
++	grub_uint8_t nonceEven[TPM_NONCE_SIZE];
++	grub_uint8_t nonceEvenOSAP[TPM_NONCE_SIZE];
++
++	grub_TPM_openOSAP_Session( TPM_ET_SRK, TPM_KH_SRK, &nonceOddOSAP[0], &authHandle, &nonceEven[0], &nonceEvenOSAP[0] );
++
++	grub_printf( "authHandle: 0x%x \n", authHandle );
++
++	grub_printf( "nonceEven: " );
++	unsigned int j;
++	for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++		grub_printf( "%02x", nonceEven[j] );
++	}
++
++	grub_printf( "\n nonceEvenOSAP: " );
++	for( j = 0; j < TPM_NONCE_SIZE; ++j ) {
++		grub_printf( "%02x", nonceEvenOSAP[j] );
++	}
++	grub_printf( "\n\n" );
++
++	return GRUB_ERR_NONE;
++}
++#endif
++
++#ifdef tcg_setMOR
++static grub_command_t cmd_setMOR;
++#endif
++static grub_command_t cmd_readpcr, cmd_tcglog, cmd_measure;
++
++#ifdef TGRUB_DEBUG
++	static grub_command_t cmd_random, cmd_oiap, cmd_osap, cmd_unseal;
++#endif
++
++GRUB_MOD_INIT(tpm)
++{
++	cmd_readpcr = grub_register_command( "readpcr", grub_cmd_readpcr, N_( "pcrindex" ),
++  		N_( "Display current value of the PCR (Platform Configuration Register) within "
++  		    "TPM (Trusted Platform Module) at index, pcrindex." ) );
++
++	cmd_tcglog = grub_register_command( "tcglog", grub_cmd_tcglog, N_( "logindex" ),
++		N_( "Displays TCG event log entry at position, logindex. Type in 0 for all entries." ) );
++
++	cmd_measure = grub_register_command( "measure", grub_cmd_measure, N_( "FILE pcrindex" ),
++	  	N_( "Perform TCG measurement operation with the file FILE and with PCR( pcrindex )." ) );
++
++#ifdef tcg_setMOR
++	cmd_setMOR = grub_register_command( "setmor", grub_cmd_setMOR, N_( "disableAutoDetect" ),
++		  	N_( "Sets Memory Overwrite Request Bit with auto detect enabled (0) or disabled (1)" ) );
++#endif
++#ifdef TGRUB_DEBUG
++	cmd_random = grub_register_command( "random", grub_cmd_getRandom, N_( "bytesRequested" ),
++			  	N_( "Gets random bytes from TPM." ) );
++	cmd_oiap = grub_register_command( "oiap", grub_cmd_openOIAP, 0,
++				  	N_( "Opens OIAP Session" ) );
++	cmd_osap = grub_register_command( "osap", grub_cmd_openOSAP, 0,
++					  	N_( "Opens OSAP Session" ) );
++	cmd_unseal = grub_register_command( "unseal", grub_cmd_unseal, N_( "sealedFile" ),
++			  	N_( "Unseals 'sealedFile' " ) );
++#endif
++
++}
++
++GRUB_MOD_FINI(tpm)
++{
++	grub_unregister_command( cmd_readpcr );
++	grub_unregister_command( cmd_tcglog );
++	grub_unregister_command( cmd_measure );
++#ifdef tcg_setMOR
++	grub_unregister_command( cmd_setMOR );
++#endif
++
++#ifdef TGRUB_DEBUG
++	grub_unregister_command( cmd_random );
++	grub_unregister_command( cmd_oiap );
++	grub_unregister_command( cmd_osap );
++	grub_unregister_command( cmd_unseal );
++#endif
++
++}
++
++#pragma GCC diagnostic pop
++
++/* End TCG extension */
+diff --git a/grubconf/embedded.cfg b/grubconf/embedded.cfg
+new file mode 100644
+index 000000000..6eff41a34
+--- /dev/null
++++ b/grubconf/embedded.cfg
+@@ -0,0 +1,30 @@
++#search.fs_uuid eec3d141-d590-47d3-9ff4-58ac6c19c8a3 root ahci0,gpt2
++#search.fs_uuid 1781d1d7-9446-4424-9fc9-1f86cde29643 root ahci0,gpt2
++#search.fs_uuid b60af08c-f250-4738-ad28-82b1011efaa1 root hd0,msdos3
++#search.fs_uuid b529a3a4-9ecc-4ce2-bc7b-73fceb380943 root hd0,gpt2
++#search.fs_uuid 36f9fd8f-6a4c-46c8-a0f8-63aa023b5aab root hd0,msdos2
++search --no-floppy --label --set=root GRM_ROOT_VOL
++
++set prefix=($root)'/boot/grub'
++
++function load_video {
++  if [ x$feature_all_video_module = xy ]; then
++    insmod all_video
++  else
++    insmod efi_gop
++    insmod efi_uga
++    insmod ieee1275_fb
++    insmod vbe
++    insmod vga
++    insmod video_bochs
++    insmod video_cirrus
++  fi
++}
++
++set gfxmode=auto
++load_video
++insmod gfxterm
++terminal_output gfxterm
++
++#configfile $prefix/grub.test.cfg
++configfile $prefix/grub.cfg
+diff --git a/include/grub/arm64/linux.h b/include/grub/arm64/linux.h
+index 8655067e0..cdd9c61d8 100644
+--- a/include/grub/arm64/linux.h
++++ b/include/grub/arm64/linux.h
+@@ -19,8 +19,13 @@
+ #ifndef GRUB_ARM64_LINUX_HEADER
+ #define GRUB_ARM64_LINUX_HEADER 1
+ 
++#include <grub/efi/efi.h>
++#include <grub/efi/pe32.h>
++
+ #define GRUB_LINUX_ARM64_MAGIC_SIGNATURE 0x644d5241 /* 'ARM\x64' */
+ 
++#define GRUB_EFI_PE_MAGIC	0x5A4D
++
+ /* From linux/Documentation/arm64/booting.txt */
+ struct linux_arm64_kernel_header
+ {
+@@ -36,6 +41,13 @@ struct linux_arm64_kernel_header
+   grub_uint32_t hdr_offset;	/* Offset of PE/COFF header */
+ };
+ 
++struct grub_arm64_linux_pe_header
++{
++  grub_uint32_t magic;
++  struct grub_pe32_coff_header coff;
++  struct grub_pe64_optional_header opt;
++};
++
+ #if defined(__aarch64__)
+ # define GRUB_LINUX_ARMXX_MAGIC_SIGNATURE GRUB_LINUX_ARM64_MAGIC_SIGNATURE
+ # define linux_armxx_kernel_header linux_arm64_kernel_header
+diff --git a/include/grub/efi/linux.h b/include/grub/efi/linux.h
+new file mode 100644
+index 000000000..99b09908e
+--- /dev/null
++++ b/include/grub/efi/linux.h
+@@ -0,0 +1,40 @@
++/*
++ *  GRUB  --  GRand Unified Bootloader
++ *  Copyright (C) 2014  Free Software Foundation, Inc.
++ *
++ *  GRUB is free software: you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License as published by
++ *  the Free Software Foundation, either version 3 of the License, or
++ *  (at your option) any later version.
++ *
++ *  GRUB is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
++ */
++#ifndef GRUB_EFI_LINUX_HEADER
++#define GRUB_EFI_LINUX_HEADER	1
++
++#include <grub/efi/api.h>
++#include <grub/err.h>
++#include <grub/symbol.h>
++
++grub_efi_boolean_t
++EXPORT_FUNC(grub_linuxefi_secure_validate) (void *data, grub_uint32_t size);
++grub_err_t
++EXPORT_FUNC(grub_efi_linux_boot) (void *kernel_address, grub_off_t offset,
++				  void *kernel_param);
++grub_efi_boolean_t
++EXPORT_FUNC(grub_linuxefi_check_shim_lock) (void);
++grub_err_t
++EXPORT_FUNC(grub_gfxterm_warning_image) (const char *filename);
++
++void
++EXPORT_FUNC(grub_verified_boot_fail) (void);
++void
++EXPORT_FUNC(grub_verified_boot_config_error) (void);
++
++#endif /* ! GRUB_EFI_LINUX_HEADER */
+diff --git a/include/grub/efi/pe32.h b/include/grub/efi/pe32.h
+index 7d44732d2..6e24dae2c 100644
+--- a/include/grub/efi/pe32.h
++++ b/include/grub/efi/pe32.h
+@@ -214,7 +214,11 @@ struct grub_pe64_optional_header
+ struct grub_pe32_section_table
+ {
+   char name[8];
+-  grub_uint32_t virtual_size;
++  union
++    {
++      grub_uint32_t physical_address;
++      grub_uint32_t virtual_size;
++    };
+   grub_uint32_t virtual_address;
+   grub_uint32_t raw_data_size;
+   grub_uint32_t raw_data_offset;
+@@ -265,6 +269,20 @@ struct grub_pe32_header
+ #endif
+ };
+ 
++struct grub_pe32_header_32
++{
++  char signature[GRUB_PE32_SIGNATURE_SIZE];
++  struct grub_pe32_coff_header coff_header;
++  struct grub_pe32_optional_header optional_header;
++};
++
++struct grub_pe32_header_64
++{
++  char signature[GRUB_PE32_SIGNATURE_SIZE];
++  struct grub_pe32_coff_header coff_header;
++  struct grub_pe64_optional_header optional_header;
++};
++
+ struct grub_pe32_fixup_block
+ {
+   grub_uint32_t page_rva;
+diff --git a/include/grub/efi/tpm.h b/include/grub/efi/tpm.h
+new file mode 100644
+index 000000000..8c24c27b8
+--- /dev/null
++++ b/include/grub/efi/tpm.h
+@@ -0,0 +1,214 @@
++#include <grub/efi/api.h>
++
++#define EFI_TPM_GUID {0xf541796d, 0xa62e, 0x4954, {0xa7, 0x75, 0x95, 0x84, 0xf6, 0x1b, 0x9c, 0xdd }};
++#define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
++#define EFIAPI
++
++#ifndef TPM_BOOLEAN
++typedef enum { false = 0, true = 1 } BOOLEAN;
++#define TPM_BOOLEAN
++#endif
++/*modified for grub*/
++grub_efi_status_t tpm_log_event(grub_addr_t buf, grub_uint64_t size, grub_uint8_t pcr,
++			 const unsigned char *description);
++//EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
++//			 const CHAR8 *description);
++
++
++/************************* constants *************************/
++
++#define EFI_SUCCESS	0
++
++/* Command return codes */
++#define TPM_BASE 0x0
++#define TPM_SUCCESS TPM_BASE
++#define TPM_AUTHFAIL (TPM_BASE + 0x1)
++#define TPM_BADINDEX (TPM_BASE + 0x2)
++
++
++/* TODO: 0x10000 does not work for some reason */
++/* is  0x20000 and 0x30000 a good choice? */
++
++#define INPUT_PARAM_BLK_ADDR 0x30000
++#define OUTPUT_PARAM_BLK_ADDR 0x20000
++
++#define TPM_TAG_RQU_COMMAND 0x00C1
++
++#define TCPA 0x41504354
++/************************* macros *************************/
++
++#define CHECK_FOR_NULL_ARGUMENT( argument )                                                                 \
++                        if( ! argument ) {                                                                                                  \
++                                grub_fatal( "BAD_ARGUMENT: argument is NULL" );                                 \
++                        }
++
++/************************* struct typedefs *************************/
++
++typedef struct {
++  grub_uint8_t Major;
++  grub_uint8_t Minor;
++  grub_uint8_t RevMajor;
++  grub_uint8_t RevMinor;
++} TCG_VERSION;
++
++typedef struct _TCG_EFI_BOOT_SERVICE_CAPABILITY {
++  grub_uint8_t          Size;                /// Size of this structure.
++  TCG_VERSION    StructureVersion;
++  TCG_VERSION    ProtocolSpecVersion;
++  grub_uint8_t          HashAlgorithmBitmap; /// Hash algorithms .
++  char        TPMPresentFlag;      /// 00h = TPM not present.
++  char        TPMDeactivatedFlag;  /// 01h = TPM currently deactivated.
++} TCG_EFI_BOOT_SERVICE_CAPABILITY;
++
++typedef struct _TCG_PCR_EVENT {
++  grub_uint32_t PCRIndex;
++  grub_uint32_t EventType;
++  grub_uint8_t digest[20];
++  grub_uint32_t EventSize;
++  grub_uint8_t  Event[1];
++} TCG_PCR_EVENT;
++
++struct efi_tpm_protocol
++{
++  grub_efi_status_t (EFIAPI *status_check) (struct efi_tpm_protocol *this,
++				     TCG_EFI_BOOT_SERVICE_CAPABILITY *ProtocolCapability,
++				     grub_uint32_t *TCGFeatureFlags,
++				     grub_addr_t *EventLogLocation,
++				     grub_addr_t *EventLogLastEntry);
++  grub_efi_status_t (EFIAPI *hash_all) (struct efi_tpm_protocol *this,
++				 grub_uint8_t *HashData,
++				 grub_uint64_t HashLen,
++				 grub_uint32_t AlgorithmId,
++				 grub_uint64_t *HashedDataLen,
++				 grub_uint8_t **HashedDataResult);
++  grub_efi_status_t (EFIAPI *log_event) (struct efi_tpm_protocol *this,
++				  TCG_PCR_EVENT *TCGLogData,
++				  grub_uint32_t *EventNumber,
++				  grub_uint32_t Flags);
++  grub_efi_status_t (EFIAPI *pass_through_to_tpm) (struct efi_tpm_protocol *this,
++					    grub_uint32_t TpmInputParameterBlockSize,
++					    grub_uint8_t *TpmInputParameterBlock,
++					    grub_uint32_t TpmOutputParameterBlockSize,
++					    grub_uint8_t *TpmOutputParameterBlock);
++  grub_efi_status_t (EFIAPI *log_extend_event) (struct efi_tpm_protocol *this,
++					 grub_addr_t HashData,
++					 grub_uint64_t HashDataLen,
++					 grub_uint32_t AlgorithmId,
++					 TCG_PCR_EVENT *TCGLogData,
++					 grub_uint32_t *EventNumber,
++					 grub_addr_t *EventLogLastEntry);
++};
++
++typedef struct efi_tpm_protocol efi_tpm_protocol_t;
++
++typedef grub_uint32_t EFI_TCG2_EVENT_LOG_BITMAP;
++typedef grub_uint32_t EFI_TCG2_EVENT_LOG_FORMAT;
++typedef grub_uint32_t EFI_TCG2_EVENT_ALGORITHM_BITMAP;
++
++typedef struct tdEFI_TCG2_VERSION {
++  grub_uint8_t Major;
++  grub_uint8_t Minor;
++} __attribute__ ((packed)) EFI_TCG2_VERSION;
++
++typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 {
++  grub_uint8_t Size;
++  EFI_TCG2_VERSION StructureVersion;
++  EFI_TCG2_VERSION ProtocolVersion;
++  EFI_TCG2_EVENT_ALGORITHM_BITMAP HashAlgorithmBitmap;
++  EFI_TCG2_EVENT_LOG_BITMAP SupportedEventLogs;
++  BOOLEAN TPMPresentFlag;
++  grub_uint16_t MaxCommandSize;
++  grub_uint16_t MaxResponseSize;
++  grub_uint32_t ManufacturerID;
++  grub_uint32_t NumberOfPcrBanks;
++  EFI_TCG2_EVENT_ALGORITHM_BITMAP ActivePcrBanks;
++} EFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0;
++
++typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY {
++  grub_uint8_t Size;
++  EFI_TCG2_VERSION StructureVersion;
++  EFI_TCG2_VERSION ProtocolVersion;
++  EFI_TCG2_EVENT_ALGORITHM_BITMAP HashAlgorithmBitmap;
++  EFI_TCG2_EVENT_LOG_BITMAP SupportedEventLogs;
++  BOOLEAN TPMPresentFlag;
++  grub_uint16_t MaxCommandSize;
++  grub_uint16_t MaxResponseSize;
++  grub_uint32_t ManufacturerID;
++  grub_uint32_t NumberOfPcrBanks;
++  EFI_TCG2_EVENT_ALGORITHM_BITMAP ActivePcrBanks;
++} __attribute__ ((packed))  EFI_TCG2_BOOT_SERVICE_CAPABILITY;
++
++typedef grub_uint32_t TCG_PCRINDEX;
++typedef grub_uint32_t TCG_EVENTTYPE;
++
++typedef struct tdEFI_TCG2_EVENT_HEADER {
++  grub_uint32_t HeaderSize;
++  grub_uint16_t HeaderVersion;
++  TCG_PCRINDEX PCRIndex;
++  TCG_EVENTTYPE EventType;
++} __attribute__ ((packed)) EFI_TCG2_EVENT_HEADER;
++
++typedef struct tdEFI_TCG2_EVENT {
++  grub_uint32_t Size;
++  EFI_TCG2_EVENT_HEADER Header;
++  grub_uint8_t Event[1];
++} __attribute__ ((packed)) EFI_TCG2_EVENT;
++
++struct efi_tpm2_protocol
++{
++  grub_efi_status_t (EFIAPI *get_capability) (struct efi_tpm2_protocol *this,
++				       EFI_TCG2_BOOT_SERVICE_CAPABILITY *ProtocolCapability);
++  grub_efi_status_t (EFIAPI *get_event_log) (struct efi_tpm2_protocol *this,
++				      EFI_TCG2_EVENT_LOG_FORMAT EventLogFormat,
++				      grub_addr_t *EventLogLocation,
++				      grub_addr_t *EventLogLastEntry,
++				      BOOLEAN *EventLogTruncated);
++  grub_efi_status_t (EFIAPI *hash_log_extend_event) (struct efi_tpm2_protocol *this,
++					      grub_uint64_t Flags,
++					      grub_addr_t DataToHash,
++					      grub_uint64_t DataToHashLen,
++					      EFI_TCG2_EVENT *EfiTcgEvent);
++  grub_efi_status_t (EFIAPI *submit_command) (struct efi_tpm2_protocol *this,
++				       grub_uint32_t InputParameterBlockSize,
++				       grub_uint8_t *InputParameterBlock,
++				       grub_uint32_t OutputParameterBlockSize,
++				       grub_uint8_t *OutputParameterBlock);
++  grub_efi_status_t (EFIAPI *get_active_pcr_blanks) (struct efi_tpm2_protocol *this,
++					      grub_uint32_t *ActivePcrBanks);
++  grub_efi_status_t (EFIAPI *set_active_pcr_banks) (struct efi_tpm2_protocol *this,
++					     grub_uint32_t ActivePcrBanks);
++  grub_efi_status_t (EFIAPI *get_result_of_set_active_pcr_banks) (struct efi_tpm2_protocol *this,
++							   grub_uint32_t *OperationPresent,
++							   grub_uint32_t *Response);
++};
++
++typedef struct efi_tpm2_protocol efi_tpm2_protocol_t;
++
++/* TCG_PassThroughToTPM Input Parameter Block */
++typedef struct {
++	grub_uint16_t IPBLength;
++	grub_uint16_t Reserved1;
++	grub_uint16_t OPBLength;
++	grub_uint16_t Reserved2;
++	grub_uint8_t TPMOperandIn[1];
++} GRUB_PACKED PassThroughToTPM_InputParamBlock;
++
++/* TCG_PassThroughToTPM Output Parameter Block */
++typedef struct {
++	grub_uint16_t OPBLength;
++	grub_uint16_t Reserved;
++	grub_uint8_t TPMOperandOut[1];
++} GRUB_PACKED PassThroughToTPM_OutputParamBlock;
++
++/************************* functions *************************/
++
++/* Invokes TCG_StatusCheck */
++grub_err_t EXPORT_FUNC(grub_TPM_efi_statusCheck)( grub_uint32_t* returnCode, const grub_uint8_t* major, const grub_uint8_t* minor, grub_uint32_t* featureFlags, grub_addr_t* eventLog, grub_addr_t* edi);
++
++BOOLEAN EXPORT_FUNC(tpm_present)(efi_tpm_protocol_t *tpm);
++
++grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_hashLogExtendEvent)(efi_tpm_protocol_t* tpm, const grub_uint8_t * inDigest, grub_uint32_t size, grub_uint8_t pcrIndex, const char* descriptions );
++
++/* pass commands to TPM */
++grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,
++		PassThroughToTPM_OutputParamBlock* output );
+diff --git a/include/grub/tpm.h b/include/grub/tpm.h
+index 5d34248ba..d4ebb3cdc 100644
+--- a/include/grub/tpm.h
++++ b/include/grub/tpm.h
+@@ -25,22 +25,28 @@
+ 
+ #include <grub/types.h>
+ 
++#ifndef TPM_BOOLEAN
++typedef enum { false = 0, true = 1 } BOOLEAN;
++#define TPM_BOOLEAN
++#endif
++
+ /************************* constants *************************/
+ 
+ #define SHA1_DIGEST_SIZE 20
+ 
+ /* Measure into following PCRs */
+-#define TPM_LOADER_MEASUREMENT_PCR 10
+-#define TPM_COMMAND_MEASUREMENT_PCR 11
+-#define TPM_LUKS_HEADER_MEASUREMENT_PCR 12
+-#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 13
++#define TPM_LOADER_MEASUREMENT_PCR 9
++#define TPM_COMMAND_MEASUREMENT_PCR 8
++#define TPM_LUKS_HEADER_MEASUREMENT_PCR 11
++#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 12
+ 
+ /************************* macros *************************/
+ 
+ #ifdef TGRUB_DEBUG
+-    #define DEBUG_PRINT( x ) grub_printf x
++//	#define DEBUG_PRINT(_x_)	grub_printf(_x_)
++	#define DEBUG_PRINT(...)
+ #else
+-    #define DEBUG_PRINT( x )
++	#define DEBUG_PRINT(...)
+ #endif
+ 
+ /************************* functions *************************/
+@@ -52,8 +58,8 @@ void EXPORT_FUNC(print_sha1) ( grub_uint8_t* inDigest );
+ void EXPORT_FUNC(grub_TPM_measure_string) ( const char* string );
+ /*  Measure file */
+ void EXPORT_FUNC(grub_TPM_measure_file) ( const char* filename, const grub_uint8_t index );
+-/*  Measure buffer */
+-void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, grub_uint32_t bufferLen, const grub_uint8_t index );
++/* 	Measure buffer */
++void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index );
+ 
+ void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* result );
+ 
+diff --git a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
+index 024bd5c63..aa0010219 100644
+--- a/util/grub.d/10_linux.in
++++ b/util/grub.d/10_linux.in
+@@ -111,6 +111,21 @@ linux_entry ()
+   type="$3"
+   args="$4"
+ 
++  sixteenbit=""
++  linuxefi="linux"
++  initrdefi="initrd"
++  case "$machine" in
++    i?86|x86_64)
++	sixteenbit="16"
++	linuxefi="linuxefi"
++	initrdefi="initrdefi"
++	;;
++    aarch64)
++	linuxefi="linux"
++	initrdefi="initrd"
++	;;
++  esac
++
+   if [ -z "$boot_device_id" ]; then
+       boot_device_id="$(grub_get_device_id "${GRUB_DEVICE}")"
+   fi
+@@ -310,6 +325,14 @@ while [ "x$list" != "x" ] ; do
+     fi
+   done
+ 
++  fdt=
++  for i in "dtb-${version}" "dtb-${alt_version}"; do
++    if test -e "${dirname}/${i}/foundation-v8.dtb" ; then
++      fdt="${i}/foundation-v8.dtb"
++      break
++    fi
++  done
++
+   config=
+   for i in "${dirname}/config-${version}" "${dirname}/config-${alt_version}" "/etc/kernels/kernel-config-${version}" ; do
+     if test -e "${i}" ; then

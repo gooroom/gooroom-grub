@@ -99,3 +99,9 @@ efi-fdt-set-address-size-cells-to-2-for-empty-tree.patch
 linuxefi-update-to-new-interfaces.patch
 gcc-8-packed-not-aligned.patch
 linuxefi-skip-validation-without-secure-boot.patch
+
+# Gooroom
+gooroom-01-Merge-Rohde-Schwarz-Cybersecurity-TrustedGRUB2.patch
+gooroom-02-merge-gitbucket.trustedgrub2.patch
+
+gooroom-03-Imported-Gooorom-Patchset.patch

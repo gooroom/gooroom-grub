@@ -5,7 +5,7 @@
 
 GRUB_DEFAULT=0
 GRUB_TIMEOUT=@DEFAULT_TIMEOUT@
-GRUB_DISTRIBUTOR=`lsb_release -i -s 2> /dev/null || echo Debian`
+GRUB_DISTRIBUTOR=`grep GRUB_TITLE /etc/gooroom/info | awk -F = '{print $2}'`
 GRUB_CMDLINE_LINUX_DEFAULT="@DEFAULT_CMDLINE@"
 GRUB_CMDLINE_LINUX=""
 
@@ -23,10 +23,13 @@ GRUB_CMDLINE_LINUX=""
 #GRUB_GFXMODE=640x480
 
 # Uncomment if you don't want GRUB to pass "root=UUID=xxx" parameter to Linux
-#GRUB_DISABLE_LINUX_UUID=true
+GRUB_DISABLE_LINUX_UUID=true
 
 # Uncomment to disable generation of recovery mode menu entries
 #GRUB_DISABLE_RECOVERY="true"
 
 # Uncomment to get a beep at grub start
 #GRUB_INIT_TUNE="480 440 1"
+
+## Gooroom Background Image
+GRUB_BACKGROUND=/usr/share/plymouth/themes/gooroom/gooroom_bg_17_logo.png
