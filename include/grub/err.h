@@ -71,7 +71,9 @@ typedef enum
     GRUB_ERR_NET_PACKET_TOO_BIG,
     GRUB_ERR_NET_NO_DOMAIN,
     GRUB_ERR_EOF,
-    GRUB_ERR_BAD_SIGNATURE
+    GRUB_ERR_BAD_SIGNATURE,
+    GRUB_ERR_NO_TPM,   /* TPM not available */
+    GRUB_ERR_TPM,   /* Errors from TPM functions */
   }
 grub_err_t;
 

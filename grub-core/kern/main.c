@@ -280,7 +280,7 @@ grub_main (void)
 #else
   /* Hello.  */
   grub_setcolorstate (GRUB_TERM_COLOR_HIGHLIGHT);
-  grub_printf ("Welcome to GRUB!\n\n");
+  grub_printf ("Welcome to TrustedGRUB2!\n\n");
   grub_setcolorstate (GRUB_TERM_COLOR_STANDARD);
 #endif
 
