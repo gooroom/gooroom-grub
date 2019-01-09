@@ -270,6 +270,7 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
    grub_fatal() on error
    Page 112 TCG_PCClientImplementation_1-21_1_00
  */
+
 void
 grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
 

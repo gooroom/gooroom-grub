@@ -42,6 +42,10 @@
 #define GRUB_MODULES_MACHINE_READONLY
 #endif
 
+#ifdef GRUB_MACHINE_EMU
+#include <sys/mman.h>
+#endif
+
 #ifdef GRUB_MACHINE_EFI
 #include <grub/efi/efi.h>
 #endif
@@ -700,6 +704,12 @@ grub_dl_load_file (const char *filename)
     {
       grub_error (GRUB_ERR_ACCESS_DENIED,
 		  "Secure Boot forbids loading module from %s", filename);
+#if 0
+      /* This is an error, but grub2-mkconfig still generates a pile of
+       * insmod commands, so emitting it would be mostly just obnoxious. */
+      grub_error (GRUB_ERR_ACCESS_DENIED,
+		  "Secure Boot forbids loading module from %s", filename);
+#endif
       return 0;
     }
 #endif

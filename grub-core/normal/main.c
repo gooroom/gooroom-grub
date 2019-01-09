@@ -35,7 +35,8 @@
 #include <grub/bufio.h>
 
 /* BEGIN TCG EXTENSION */
-#define TGRUB_VERSION "1.40"
+//#define TGRUB_VERSION "1.40"
+#define GGRUB_VERSION "Beta"
 /* END TCG EXTENSION */
 
 GRUB_MOD_LICENSE ("GPLv3+");
@@ -212,7 +213,8 @@ grub_normal_init_page (struct grub_term_output *term,
  
   grub_term_cls (term);
 
-  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
+//  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
+  msg_formatted = grub_xasprintf (_("GooroomGRUB  version %s"), GGRUB_VERSION);
   if (!msg_formatted)
     return;
  

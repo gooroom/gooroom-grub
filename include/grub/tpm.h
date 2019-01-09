@@ -25,22 +25,28 @@
 
 #include <grub/types.h>
 
+#ifndef TPM_BOOLEAN
+typedef enum { false = 0, true = 1 } BOOLEAN;
+#define TPM_BOOLEAN
+#endif
+
 /************************* constants *************************/
 
 #define SHA1_DIGEST_SIZE 20
 
 /* Measure into following PCRs */
-#define TPM_LOADER_MEASUREMENT_PCR 10
-#define TPM_COMMAND_MEASUREMENT_PCR 11
-#define TPM_LUKS_HEADER_MEASUREMENT_PCR 12
-#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 13
+#define TPM_LOADER_MEASUREMENT_PCR 9
+#define TPM_COMMAND_MEASUREMENT_PCR 8
+#define TPM_LUKS_HEADER_MEASUREMENT_PCR 11
+#define TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR 12
 
 /************************* macros *************************/
 
 #ifdef TGRUB_DEBUG
-    #define DEBUG_PRINT( x ) grub_printf x
+//	#define DEBUG_PRINT(_x_)	grub_printf(_x_)
+	#define DEBUG_PRINT(...)
 #else
-    #define DEBUG_PRINT( x )
+	#define DEBUG_PRINT(...)
 #endif
 
 /************************* functions *************************/
@@ -52,8 +58,8 @@ void EXPORT_FUNC(print_sha1) ( grub_uint8_t* inDigest );
 void EXPORT_FUNC(grub_TPM_measure_string) ( const char* string );
 /*  Measure file */
 void EXPORT_FUNC(grub_TPM_measure_file) ( const char* filename, const grub_uint8_t index );
-/*  Measure buffer */
-void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, grub_uint32_t bufferLen, const grub_uint8_t index );
+/* 	Measure buffer */
+void EXPORT_FUNC(grub_TPM_measure_buffer) ( const void* buffer, const grub_uint32_t bufferLen, const grub_uint8_t index );
 
 void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* result );
 

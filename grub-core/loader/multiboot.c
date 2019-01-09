@@ -432,7 +432,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
     }
 
   /* Begin TCG Extension */
-  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
+//  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
   grub_TPM_measure_buffer( module, size, TPM_LOADER_MEASUREMENT_PCR );
   /* End TCG Extension */
 
