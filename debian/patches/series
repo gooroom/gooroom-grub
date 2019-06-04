@@ -59,3 +59,8 @@ efinet_set_dns_from_uefi_proto.patch
 grub-install-efibootmgr-check.patch
 mknetdir_arm64.patch
 tsc_efi_default_to_pmtimer.patch
+add-grub_relocator64_efi-relocator.patch
+multiboot2-add-ImageHandle-tags.patch
+multiboot2-do-not-pass-mmaps-if-efi-boot-services.patch
+multiboot2-relocatable-images.patch
+xen-multiboot2.patch
