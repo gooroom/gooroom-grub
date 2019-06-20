@@ -17,7 +17,6 @@ HOST_CFLAGS := -Wall -Wno-error=unused-result -Wno-error=format= $(shell dpkg-bu
 HOST_LDFLAGS := $(shell dpkg-buildflags --get LDFLAGS)
 
 export DEB_HOST_ARCH
-unexport CFLAGS
 export HOST_CPPFLAGS
 export HOST_CFLAGS
 export HOST_LDFLAGS
@@ -27,6 +26,12 @@ export TARGET_LDFLAGS := -no-pie
 ifneq (,$(filter sparc sparc64,$(DEB_HOST_ARCH_CPU)))
 export TARGET_CCASFLAGS := -fno-PIE
 endif
+
+# Ensure that debhelper doesn't try to set these; we need to be careful
+# about HOST_* vs. TARGET_*.
+export CPPFLAGS :=
+export CFLAGS :=
+export LDFLAGS :=
 
 ifeq (,$(shell which qemu-system-i386 2>/dev/null))
 with_check := no
@@ -39,6 +44,7 @@ CC := gcc-8
 confflags = \
 	PACKAGE_VERSION="$(deb_version)" PACKAGE_STRING="GRUB $(deb_version)" \
 	CC=$(CC) TARGET_CC=$(CC) \
+	--libdir=\$${prefix}/lib --libexecdir=\$${prefix}/lib \
 	--enable-grub-mkfont \
 	--disable-grub-emu-usb
 substvars =
@@ -130,7 +136,7 @@ endif
 SB_EFI_VENDOR ?= $(shell dpkg-vendor --query vendor | tr '[:upper:]' '[:lower:]')
 
 %:
-	dh $@ --with=bash_completion --parallel
+	dh $@ --with=bash_completion
 
 override_dh_auto_configure: $(patsubst %,configure/%,$(BUILD_PACKAGES))
 
@@ -155,7 +161,7 @@ install/grub-emu: package_bin = grub-emu
 install/grub-emu: package_dbg = grub-emu-dbg
 install/%: export DH_OPTIONS = -p$(package) -Bobj/$(patsubst gooroom-grub-common,gooroom-grub-$(COMMON_PLATFORM),$(package))
 
-debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makefile.core.def
+override_dh_autoreconf:
 	mkdir -p debian/stamps
 	rm -rf debian/grub-extras-enabled
 	mkdir debian/grub-extras-enabled
@@ -164,7 +170,6 @@ debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makef
 	done
 	env -u DH_OPTIONS GRUB_CONTRIB=$(CURDIR)/debian/grub-extras-enabled \
 		dh_autoreconf -- ./autogen.sh
-	touch $@
 
 debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMMON_PLATFORM)
 	touch $@
@@ -217,6 +222,7 @@ install/gooroom-grub-efi-amd64:
 	if [ "$@" = "install/grub-xen" ] ; then \
 		dh_auto_install -Bobj/grub-xen-i386 --destdir=debian/tmp-$(package); \
 		dh_auto_install -Bobj/grub-xen-amd64 --destdir=debian/tmp-$(package); \
+		dh_auto_install -Bobj/grub-xen-pvh-i386 --destdir=debian/tmp-$(package); \
 	else \
 		dh_auto_install --destdir=debian/tmp-$(package); \
 	fi
@@ -425,7 +431,6 @@ override_dh_auto_clean:
 	-rm -f contrib grub-core/contrib
 
 override_dh_clean:
-	dh_autoreconf_clean
 	dh_clean
 
 	chmod +x debian/{bug-script,grub.d/*,legacy/*,kernel/*}

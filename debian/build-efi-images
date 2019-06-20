@@ -99,6 +99,7 @@ CD_MODULES="
 	gfxterm_background
 	gzio
 	halt
+	help
 	hfsplus
 	iso9660
 	jpeg
@@ -106,6 +107,7 @@ CD_MODULES="
 	loadenv
 	loopback
 	linux
+	ls
 	lsefi
 	lsefimmap
 	lsefisystab
@@ -119,6 +121,7 @@ CD_MODULES="
 	password_pbkdf2
 	png
 	reboot
+	regexp
 	search
 	search_fs_uuid
 	search_fs_file
@@ -167,6 +170,7 @@ GRUB_MODULES="$CD_MODULES
 	gcry_tiger
 	gcry_twofish
 	gcry_whirlpool
+	luks
 	lvm
 	mdraid09
 	mdraid1x

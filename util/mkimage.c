@@ -66,14 +66,14 @@
 				    + sizeof (struct grub_pe32_coff_header) \
 				    + sizeof (struct grub_pe32_optional_header) \
 				    + 4 * sizeof (struct grub_pe32_section_table), \
-				    GRUB_PE32_SECTION_ALIGNMENT)
+				    GRUB_PE32_FILE_ALIGNMENT)
 
 #define EFI64_HEADER_SIZE ALIGN_UP (GRUB_PE32_MSDOS_STUB_SIZE		\
 				    + GRUB_PE32_SIGNATURE_SIZE		\
 				    + sizeof (struct grub_pe32_coff_header) \
 				    + sizeof (struct grub_pe64_optional_header) \
 				    + 4 * sizeof (struct grub_pe32_section_table), \
-				    GRUB_PE32_SECTION_ALIGNMENT)
+				    GRUB_PE32_FILE_ALIGNMENT)
 
 static const struct grub_install_image_target_desc image_targets[] =
   {
@@ -131,6 +131,24 @@ static const struct grub_install_image_target_desc image_targets[] =
       .vaddr_offset = 0,
       .link_addr = GRUB_KERNEL_I386_PC_LINK_ADDR,
       .default_compression = GRUB_COMPRESSION_LZMA
+    },
+    {
+      .dirname = "i386-xen_pvh",
+      .names = { "i386-xen_pvh", NULL },
+      .voidp_sizeof = 4,
+      .bigendian = 0,
+      .id = IMAGE_XEN_PVH,
+      .flags = PLATFORM_FLAGS_NONE,
+      .total_module_size = TARGET_NO_FIELD,
+      .decompressor_compressed_size = TARGET_NO_FIELD,
+      .decompressor_uncompressed_size = TARGET_NO_FIELD,
+      .decompressor_uncompressed_addr = TARGET_NO_FIELD,
+      .elf_target = EM_386,
+      .section_align = 1,
+      .vaddr_offset = 0,
+      .link_addr = GRUB_KERNEL_I386_XEN_PVH_LINK_ADDR,
+      .mod_align = GRUB_KERNEL_I386_XEN_PVH_MOD_ALIGN,
+      .link_align = 4
     },
     {
       .dirname = "i386-pc",
@@ -545,12 +563,7 @@ static const struct grub_install_image_target_desc image_targets[] =
       .decompressor_uncompressed_size = TARGET_NO_FIELD,
       .decompressor_uncompressed_addr = TARGET_NO_FIELD,
       .section_align = GRUB_PE32_SECTION_ALIGNMENT,
-      .vaddr_offset = ALIGN_UP (GRUB_PE32_MSDOS_STUB_SIZE
-                                + GRUB_PE32_SIGNATURE_SIZE
-                                + sizeof (struct grub_pe32_coff_header)
-                                + sizeof (struct grub_pe32_optional_header)
-                                + 4 * sizeof (struct grub_pe32_section_table),
-                                GRUB_PE32_SECTION_ALIGNMENT),
+      .vaddr_offset = EFI32_HEADER_SIZE,
       .pe_target = GRUB_PE32_MACHINE_ARMTHUMB_MIXED,
       .elf_target = EM_ARM,
     },
@@ -816,7 +829,8 @@ grub_install_generate_image (const char *dir, const char *prefix,
   else
     kernel_img = grub_mkimage_load_image64 (kernel_path, total_module_size,
 					    &layout, image_target);
-  if (image_target->id == IMAGE_XEN && layout.align < 4096)
+  if ((image_target->id == IMAGE_XEN || image_target->id == IMAGE_XEN_PVH) &&
+      layout.align < 4096)
     layout.align = 4096;
 
   if ((image_target->flags & PLATFORM_FLAGS_DECOMPRESSORS)
@@ -1046,6 +1060,7 @@ grub_install_generate_image (const char *dir, const char *prefix,
     case IMAGE_MIPS_ARC:
     case IMAGE_QEMU_MIPS_FLASH:
     case IMAGE_XEN:
+    case IMAGE_XEN_PVH:
       break;
     case IMAGE_SPARC64_AOUT:
     case IMAGE_SPARC64_RAW:
@@ -1172,10 +1187,10 @@ grub_install_generate_image (const char *dir, const char *prefix,
 	  header_size = EFI64_HEADER_SIZE;
 
 	reloc_addr = ALIGN_UP (header_size + core_size,
-			       image_target->section_align);
+			       GRUB_PE32_FILE_ALIGNMENT);
 
 	pe_size = ALIGN_UP (reloc_addr + layout.reloc_size,
-			    image_target->section_align);
+			    GRUB_PE32_FILE_ALIGNMENT);
 	pe_img = xmalloc (reloc_addr + layout.reloc_size);
 	memset (pe_img, 0, header_size);
 	memcpy ((char *) pe_img + header_size, core_img, core_size);
@@ -1225,7 +1240,7 @@ grub_install_generate_image (const char *dir, const char *prefix,
 
 	    o->image_base = 0;
 	    o->section_alignment = grub_host_to_target32 (image_target->section_align);
-	    o->file_alignment = grub_host_to_target32 (image_target->section_align);
+	    o->file_alignment = grub_host_to_target32 (GRUB_PE32_FILE_ALIGNMENT);
 	    o->image_size = grub_host_to_target32 (pe_size);
 	    o->header_size = grub_host_to_target32 (header_size);
 	    o->subsystem = grub_host_to_target16 (GRUB_PE32_SUBSYSTEM_EFI_APPLICATION);
@@ -1260,7 +1275,7 @@ grub_install_generate_image (const char *dir, const char *prefix,
 	    o->code_base = grub_cpu_to_le32 (header_size);
 	    o->image_base = 0;
 	    o->section_alignment = grub_host_to_target32 (image_target->section_align);
-	    o->file_alignment = grub_host_to_target32 (image_target->section_align);
+	    o->file_alignment = grub_host_to_target32 (GRUB_PE32_FILE_ALIGNMENT);
 	    o->image_size = grub_host_to_target32 (pe_size);
 	    o->header_size = grub_host_to_target32 (header_size);
 	    o->subsystem = grub_host_to_target16 (GRUB_PE32_SUBSYSTEM_EFI_APPLICATION);
@@ -1639,6 +1654,7 @@ grub_install_generate_image (const char *dir, const char *prefix,
     case IMAGE_LOONGSON_ELF:
     case IMAGE_PPC:
     case IMAGE_XEN:
+    case IMAGE_XEN_PVH:
     case IMAGE_COREBOOT:
     case IMAGE_I386_IEEE1275:
       {

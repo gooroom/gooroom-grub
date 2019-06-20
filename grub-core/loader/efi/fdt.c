@@ -66,7 +66,7 @@ grub_fdt_load (grub_size_t additional_size)
 
   if (raw_fdt)
     {
-      grub_memmove (fdt, raw_fdt, size);
+      grub_memmove (fdt, raw_fdt, size - additional_size);
       grub_fdt_set_totalsize (fdt, size);
     }
   else
@@ -122,6 +122,14 @@ grub_cmd_devicetree (grub_command_t cmd __attribute__ ((unused)),
     {
       return GRUB_ERR_NONE;
     }
+
+#ifdef GRUB_MACHINE_EFI
+  if (grub_efi_secure_boot ())
+    {
+      return grub_error (GRUB_ERR_ACCESS_DENIED,
+		  "Secure Boot forbids loading devicetree from %s", argv[0]);
+    }
+#endif
 
   dtb = grub_file_open (argv[0]);
   if (!dtb)

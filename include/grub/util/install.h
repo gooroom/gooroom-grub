@@ -98,6 +98,7 @@ enum grub_install_plat
     GRUB_INSTALL_PLATFORM_MIPS_QEMU_MIPS,
     GRUB_INSTALL_PLATFORM_I386_XEN,
     GRUB_INSTALL_PLATFORM_X86_64_XEN,
+    GRUB_INSTALL_PLATFORM_I386_XEN_PVH,
     GRUB_INSTALL_PLATFORM_ARM64_EFI,
     GRUB_INSTALL_PLATFORM_MAX
   };
@@ -204,10 +205,18 @@ void
 grub_install_create_envblk_file (const char *name);
 
 const char *
+grub_install_get_default_arm_platform (void);
+
+const char *
 grub_install_get_default_x86_platform (void);
 
 const char *
 grub_install_get_default_powerpc_machtype (void);
+
+int
+grub_install_efivar_register_efi (grub_device_t efidir_grub_dev,
+				  const char *efifile_path,
+				  const char *efi_distributor);
 
 int
 grub_install_register_efi (grub_device_t efidir_grub_dev,

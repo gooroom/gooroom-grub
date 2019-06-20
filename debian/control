@@ -3,38 +3,6 @@ Section: admin
 Priority: extra
 Maintainer: gooroom <gooroom@gooroom.kr>
 Build-Depends: debhelper (>= 7.4.2~),
- patchutils,
- dh-autoreconf,
- automake,
- python,
- flex,
- bison,
- po-debconf,
- help2man,
- texinfo,
- gcc-8,
- gcc-8-multilib [i386 kopensolaris-i386 any-amd64 any-ppc64 any-sparc],
- xfonts-unifont,
- libfreetype6-dev,
- gettext,
- libdevmapper-dev [linux-any],
- libgeom-dev (>= 8.2+ds1-1~) [kfreebsd-any] | libgeom-dev (<< 8.2) [kfreebsd-any],
- libsdl1.2-dev [!hurd-any],
- xorriso,
- qemu-system [i386 kfreebsd-i386 kopensolaris-i386 any-amd64],
- cpio [i386 kopensolaris-i386 amd64 x32],
- parted [!hurd-any],
- libfuse-dev (>= 2.8.4-1.4) [linux-any kfreebsd-any],
- ttf-dejavu-core,
- liblzma-dev,
- dosfstools [any-i386 any-amd64 any-arm64],
- mtools [any-i386 any-amd64 any-arm64],
- wamerican,
- libparted-dev [any-powerpc any-ppc64 any-ppc64el],
- pkg-config,
- bash-completion,
-Build-Conflicts: autoconf2.13, libzfs-dev, libnvpair-dev
-Standards-Version: 3.9.6
 Homepage: http://www.gooroom.kr
 Vcs-Git: https://git.gooroom.kr/gooroom-grub
 Vcs-Browser: https://git.gooroom.kr/gooroom-grub

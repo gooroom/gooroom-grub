@@ -348,7 +348,7 @@ get_default_platform (void)
 #elif defined (__ia64__)
    return "ia64-efi";
 #elif defined (__arm__)
-   return "arm-uboot";
+   return grub_install_get_default_arm_platform ();
 #elif defined (__aarch64__)
    return "arm64-efi";
 #elif defined (__amd64__) || defined (__x86_64__) || defined (__i386__)
@@ -524,6 +524,7 @@ have_bootdev (enum grub_install_plat pl)
 
     case GRUB_INSTALL_PLATFORM_I386_XEN:
     case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       return 0;
 
       /* pacify warning.  */
@@ -1026,6 +1027,7 @@ main (int argc, char *argv[])
     case GRUB_INSTALL_PLATFORM_ARM_UBOOT:
     case GRUB_INSTALL_PLATFORM_I386_XEN:
     case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       break;
 
     case GRUB_INSTALL_PLATFORM_I386_QEMU:
@@ -1071,6 +1073,7 @@ main (int argc, char *argv[])
     case GRUB_INSTALL_PLATFORM_MIPS_QEMU_MIPS:
     case GRUB_INSTALL_PLATFORM_I386_XEN:
     case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       free (install_device);
       install_device = NULL;
       break;
@@ -1499,6 +1502,23 @@ main (int argc, char *argv[])
 	  || uefi_secure_boot)
 	{
 	  char *uuid = NULL;
+
+	  if (uefi_secure_boot && config.is_cryptodisk_enabled)
+	    {
+	      if (grub_dev->disk)
+		probe_cryptodisk_uuid (grub_dev->disk);
+
+	      for (curdrive = grub_drives + 1; *curdrive; curdrive++)
+		{
+		  grub_device_t dev = grub_device_open (*curdrive);
+		  if (!dev)
+		    continue;
+		  if (dev->disk)
+		    probe_cryptodisk_uuid (dev->disk);
+		  grub_device_close (dev);
+		}
+	    }
+
 	  /*  generic method (used on coreboot and ata mod).  */
 	  if (!force_file_id && grub_fs->uuid && grub_fs->uuid (grub_dev,
 								&uuid))
@@ -1606,6 +1626,7 @@ main (int argc, char *argv[])
 		  case GRUB_INSTALL_PLATFORM_ARM_UBOOT:
 		  case GRUB_INSTALL_PLATFORM_I386_XEN:
 		  case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+		  case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
 		    grub_util_warn ("%s", _("no hints available for your platform. Expect reduced performance"));
 		    break;
 		    /* pacify warning.  */
@@ -1696,6 +1717,7 @@ main (int argc, char *argv[])
     case GRUB_INSTALL_PLATFORM_POWERPC_IEEE1275:
     case GRUB_INSTALL_PLATFORM_I386_XEN:
     case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       core_name = "core.elf";
       snprintf (mkimage_target, sizeof (mkimage_target),
 		"%s-%s",
@@ -1787,6 +1809,7 @@ main (int argc, char *argv[])
     case GRUB_INSTALL_PLATFORM_SPARC64_IEEE1275:
     case GRUB_INSTALL_PLATFORM_I386_XEN:
     case GRUB_INSTALL_PLATFORM_X86_64_XEN:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       break;
       /* pacify warning.  */
     case GRUB_INSTALL_PLATFORM_MAX:
@@ -2008,7 +2031,7 @@ main (int argc, char *argv[])
 					 "\\System\\Library\\CoreServices",
 					 efi_distributor);
 	      if (error)
-	        grub_util_error (_("efibootmgr failed to register the boot entry: %s"),
+	        grub_util_error (_("failed to register the EFI boot entry: %s"),
 				 strerror (error));
 	    }
 
@@ -2120,7 +2143,7 @@ main (int argc, char *argv[])
 	  error = grub_install_register_efi (efidir_grub_dev,
 					     efifile_path, efi_distributor);
 	  if (error)
-	    grub_util_error (_("efibootmgr failed to register the boot entry: %s"),
+	    grub_util_error (_("failed to register the EFI boot entry: %s"),
 			     strerror (error));
 	}
       break;
@@ -2155,6 +2178,7 @@ main (int argc, char *argv[])
     case GRUB_INSTALL_PLATFORM_MIPSEL_ARC:
     case GRUB_INSTALL_PLATFORM_ARM_UBOOT:
     case GRUB_INSTALL_PLATFORM_I386_QEMU:
+    case GRUB_INSTALL_PLATFORM_I386_XEN_PVH:
       grub_util_warn ("%s",
 		      _("WARNING: no platform-specific install was performed"));
       break;
