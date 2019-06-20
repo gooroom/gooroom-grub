@@ -1,40 +1,45 @@
-From 542ed122f1bce85bbee940723c4f88fe049ea6af
+From 7d5171550405f40f15614a1f74f8d6cf2aef5b34 Mon Sep 17 00:00:00 2001
 From: "jongkyung.woo" <jkwoo@gooroom.kr>
-Date: Wed, Jan 9 11:44:15 2019 +0900
-Subject: [PATCH] Merge remote-tracking branch 'trustedgrub2/master' into gooroom-devel
+Date: Thu, 20 Jun 2019 11:54:25 +0900
+Subject: [PATCH 2/3] gooroom #02
 
-Change-Id: I7fc063ff54e928d61ea045a083503c96445680ca
 ---
- grub-core/Makefile.am                               |   10 
- grub-core/Makefile.core.def                         |   16 
- grub-core/commands/configfile.c                     |   17 
- grub-core/kern/dl.c                                 |   10 
- grub-core/kern/efi/tpm/tpm_kern.c                   |  494 +++++++++
- grub-core/kern/i386/pc/tpm/tpm_kern.c               |    1 
- grub-core/kern/main.c                               |    2 
- grub-core/loader/arm64/linux.c                      |  146 ++
- grub-core/loader/efi/chainloader.c                  |  619 +++++++++++-
- grub-core/loader/efi/linux.c                        |  179 +++
- grub-core/loader/i386/efi/linux.c                   |  104 +-
- grub-core/loader/i386/linux.c                       |    2 
- grub-core/loader/linux.c                            |    8 
- grub-core/loader/multiboot.c                        |    2 
- grub-core/normal/main.c                             |    6 
- grub-core/tpm/efi/tpm.c                             | 1006 ++++++++++++++++++++
- grubconf/embedded.cfg                               |   30 
- include/grub/arm64/linux.h                          |   12 
- include/grub/efi/linux.h                            |   40 
- include/grub/efi/pe32.h                             |   20 
- include/grub/efi/tpm.h                              |  214 ++++
- include/grub/tpm.h                                  |   22 
- util/grub.d/10_linux.in                             |   23 
- 26 files changed, 2859 insertions(+), 124 deletions(-)
+ grub-core/Makefile.am                 |   10 +
+ grub-core/Makefile.core.def           |   16 +-
+ grub-core/commands/configfile.c       |   17 +-
+ grub-core/kern/dl.c                   |   10 +
+ grub-core/kern/efi/tpm/tpm_kern.c     |  494 ++++++++++++++++
+ grub-core/kern/i386/pc/tpm/tpm_kern.c |    1 +
+ grub-core/kern/main.c                 |    2 +-
+ grub-core/loader/arm64/linux.c        |  146 ++++-
+ grub-core/loader/efi/chainloader.c    |  619 ++++++++++++++++++--
+ grub-core/loader/efi/linux.c          |  179 ++++++
+ grub-core/loader/i386/efi/linux.c     |  104 ++--
+ grub-core/loader/i386/linux.c         |    2 +
+ grub-core/loader/linux.c              |    8 +
+ grub-core/loader/multiboot.c          |    2 +-
+ grub-core/normal/main.c               |    6 +-
+ grub-core/tpm/efi/tpm.c               | 1006 +++++++++++++++++++++++++++++++++
+ grubconf/embedded.cfg                 |   30 +
+ include/grub/arm64/linux.h            |   12 +
+ include/grub/efi/linux.h              |   40 ++
+ include/grub/efi/pe32.h               |   20 +-
+ include/grub/efi/tpm.h                |  214 +++++++
+ include/grub/tpm.h                    |   22 +-
+ util/grub.d/10_linux.in               |   23 +
+ 23 files changed, 2859 insertions(+), 124 deletions(-)
+ create mode 100644 grub-core/kern/efi/tpm/tpm_kern.c
+ create mode 100644 grub-core/loader/efi/linux.c
+ create mode 100644 grub-core/tpm/efi/tpm.c
+ create mode 100644 grubconf/embedded.cfg
+ create mode 100644 include/grub/efi/linux.h
+ create mode 100644 include/grub/efi/tpm.h
 
 diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
-index 977600348..c8494ab13 100644
+index e3c9289..2f97c7e 100644
 --- a/grub-core/Makefile.am
 +++ b/grub-core/Makefile.am
-@@ -111,6 +111,9 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
+@@ -124,6 +124,9 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
@@ -44,26 +49,22 @@ index 977600348..c8494ab13 100644
  endif
  
  if COND_i386_coreboot
-@@ -166,7 +169,14 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
+@@ -184,6 +187,10 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
-+<<<<<<< HEAD
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
-+=======
 +
 +KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
 +KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/tpm.h
 +KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
-+>>>>>>> trustedgrub2/master
  endif
  
  if COND_ia64_efi
 diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
-index 18bbd4ba5..4491e3a12 100644
+index 7f60f41..7198e9c 100644
 --- a/grub-core/Makefile.core.def
 +++ b/grub-core/Makefile.core.def
-@@ -223,6 +223,8 @@ kernel = {
+@@ -235,6 +235,8 @@ kernel = {
    i386_pc = term/i386/pc/console.c;
    i386_pc = kern/i386/pc/tpm/tpm_kern.c;
  
@@ -72,7 +73,7 @@ index 18bbd4ba5..4491e3a12 100644
    i386_qemu = bus/pci.c;
    i386_qemu = kern/vga_init.c;
    i386_qemu = kern/i386/qemu/mmap.c;
-@@ -1647,7 +1649,7 @@ module = {
+@@ -1668,7 +1670,7 @@ module = {
  module = {
    name = multiboot2;
    cppflags = "-DGRUB_USE_MULTIBOOT2";
@@ -81,7 +82,7 @@ index 18bbd4ba5..4491e3a12 100644
    common = loader/multiboot.c;
    common = lib/cmdline.c;
    common = loader/multiboot_mbi2.c;
-@@ -1684,6 +1686,8 @@ module = {
+@@ -1710,6 +1712,8 @@ module = {
    arm_efi = loader/arm64/linux.c;
    arm_uboot = loader/arm/linux.c;
    arm64 = loader/arm64/linux.c;
@@ -90,7 +91,7 @@ index 18bbd4ba5..4491e3a12 100644
    common = loader/linux.c;
    common = lib/cmdline.c;
    enable = noemu;
-@@ -1751,6 +1755,7 @@ module = {
+@@ -1777,6 +1781,7 @@ module = {
    name = linuxefi;
    efi = loader/i386/efi/linux.c;
    efi = lib/cmdline.c;
@@ -98,7 +99,7 @@ index 18bbd4ba5..4491e3a12 100644
    enable = i386_efi;
    enable = x86_64_efi;
  };
-@@ -2380,6 +2385,13 @@ module = {
+@@ -2413,6 +2418,13 @@ module = {
  
  module = {
    name = tpm;
@@ -114,7 +115,7 @@ index 18bbd4ba5..4491e3a12 100644
 +  enable = x86_64_efi;
  };
 diff --git a/grub-core/commands/configfile.c b/grub-core/commands/configfile.c
-index f2d2abb5f..aa8d27e07 100644
+index f2d2abb..aa8d27e 100644
 --- a/grub-core/commands/configfile.c
 +++ b/grub-core/commands/configfile.c
 @@ -24,6 +24,8 @@
@@ -159,7 +160,7 @@ index f2d2abb5f..aa8d27e07 100644
  {
    cmd_configfile =
 diff --git a/grub-core/kern/dl.c b/grub-core/kern/dl.c
-index 39addaf7e..d2da3537f 100644
+index 39addaf..d2da353 100644
 --- a/grub-core/kern/dl.c
 +++ b/grub-core/kern/dl.c
 @@ -42,6 +42,10 @@
@@ -188,7 +189,7 @@ index 39addaf7e..d2da3537f 100644
  #endif
 diff --git a/grub-core/kern/efi/tpm/tpm_kern.c b/grub-core/kern/efi/tpm/tpm_kern.c
 new file mode 100644
-index 000000000..8e8f57eb1
+index 0000000..8e8f57e
 --- /dev/null
 +++ b/grub-core/kern/efi/tpm/tpm_kern.c
 @@ -0,0 +1,494 @@
@@ -687,7 +688,7 @@ index 000000000..8e8f57eb1
 +}
 +/* End TCG Extension */
 diff --git a/grub-core/kern/i386/pc/tpm/tpm_kern.c b/grub-core/kern/i386/pc/tpm/tpm_kern.c
-index e293e4274..4e6abb216 100644
+index e293e42..4e6abb2 100644
 --- a/grub-core/kern/i386/pc/tpm/tpm_kern.c
 +++ b/grub-core/kern/i386/pc/tpm/tpm_kern.c
 @@ -270,6 +270,7 @@ grub_TPM_int1A_statusCheck( grub_uint32_t* returnCode, grub_uint8_t* major, grub
@@ -699,7 +700,7 @@ index e293e4274..4e6abb216 100644
  grub_TPM_int1A_passThroughToTPM( const PassThroughToTPM_InputParamBlock* input, PassThroughToTPM_OutputParamBlock* output ) {
  
 diff --git a/grub-core/kern/main.c b/grub-core/kern/main.c
-index 19bab9991..8763718f5 100644
+index 19bab99..8763718 100644
 --- a/grub-core/kern/main.c
 +++ b/grub-core/kern/main.c
 @@ -280,7 +280,7 @@ grub_main (void)
@@ -712,7 +713,7 @@ index 19bab9991..8763718f5 100644
  #endif
  
 diff --git a/grub-core/loader/arm64/linux.c b/grub-core/loader/arm64/linux.c
-index 1f86229f8..281a09636 100644
+index 1f86229..281a096 100644
 --- a/grub-core/loader/arm64/linux.c
 +++ b/grub-core/loader/arm64/linux.c
 @@ -40,6 +40,7 @@ static int loaded;
@@ -912,7 +913,7 @@ index 1f86229f8..281a09636 100644
  GRUB_MOD_INIT (linux)
  {
 diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
-index adc856366..87a91e16f 100644
+index adc8563..87a91e1 100644
 --- a/grub-core/loader/efi/chainloader.c
 +++ b/grub-core/loader/efi/chainloader.c
 @@ -32,6 +32,8 @@
@@ -1660,7 +1661,7 @@ index adc856366..87a91e16f 100644
    return grub_errno;
 diff --git a/grub-core/loader/efi/linux.c b/grub-core/loader/efi/linux.c
 new file mode 100644
-index 000000000..e4c5a7433
+index 0000000..e4c5a74
 --- /dev/null
 +++ b/grub-core/loader/efi/linux.c
 @@ -0,0 +1,179 @@
@@ -1844,7 +1845,7 @@ index 000000000..e4c5a7433
 +}
 +
 diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
-index 0f4b0b4ab..a018f9eee 100644
+index 0f4b0b4..a018f9e 100644
 --- a/grub-core/loader/i386/efi/linux.c
 +++ b/grub-core/loader/i386/efi/linux.c
 @@ -27,7 +27,14 @@
@@ -2061,10 +2062,10 @@ index 0f4b0b4ab..a018f9eee 100644
    return grub_errno;
  }
 diff --git a/grub-core/loader/i386/linux.c b/grub-core/loader/i386/linux.c
-index aba0b3761..ef825777d 100644
+index 41c9da5..68d498c 100644
 --- a/grub-core/loader/i386/linux.c
 +++ b/grub-core/loader/i386/linux.c
-@@ -1084,6 +1084,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -1089,6 +1089,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
        loaded = 1;
  
@@ -2074,7 +2075,7 @@ index aba0b3761..ef825777d 100644
        grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
      }
 diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
-index 947f97b83..5eeb1439b 100644
+index 947f97b..5eeb143 100644
 --- a/grub-core/loader/linux.c
 +++ b/grub-core/loader/linux.c
 @@ -162,6 +162,9 @@ grub_initrd_init (int argc, char *argv[],
@@ -2107,7 +2108,7 @@ index 947f97b83..5eeb1439b 100644
        grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
        /* End TCG Extension */
 diff --git a/grub-core/loader/multiboot.c b/grub-core/loader/multiboot.c
-index 08cec39cd..594a17ffa 100644
+index 08cec39..594a17f 100644
 --- a/grub-core/loader/multiboot.c
 +++ b/grub-core/loader/multiboot.c
 @@ -432,7 +432,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
@@ -2120,7 +2121,7 @@ index 08cec39cd..594a17ffa 100644
    /* End TCG Extension */
  
 diff --git a/grub-core/normal/main.c b/grub-core/normal/main.c
-index 2592a9446..bc43897c1 100644
+index 2592a94..bc43897 100644
 --- a/grub-core/normal/main.c
 +++ b/grub-core/normal/main.c
 @@ -35,7 +35,8 @@
@@ -2145,7 +2146,7 @@ index 2592a9446..bc43897c1 100644
   
 diff --git a/grub-core/tpm/efi/tpm.c b/grub-core/tpm/efi/tpm.c
 new file mode 100644
-index 000000000..f14bca6b6
+index 0000000..f14bca6
 --- /dev/null
 +++ b/grub-core/tpm/efi/tpm.c
 @@ -0,0 +1,1006 @@
@@ -3157,7 +3158,7 @@ index 000000000..f14bca6b6
 +/* End TCG extension */
 diff --git a/grubconf/embedded.cfg b/grubconf/embedded.cfg
 new file mode 100644
-index 000000000..6eff41a34
+index 0000000..6eff41a
 --- /dev/null
 +++ b/grubconf/embedded.cfg
 @@ -0,0 +1,30 @@
@@ -3192,7 +3193,7 @@ index 000000000..6eff41a34
 +#configfile $prefix/grub.test.cfg
 +configfile $prefix/grub.cfg
 diff --git a/include/grub/arm64/linux.h b/include/grub/arm64/linux.h
-index 8655067e0..cdd9c61d8 100644
+index 8655067..cdd9c61 100644
 --- a/include/grub/arm64/linux.h
 +++ b/include/grub/arm64/linux.h
 @@ -19,8 +19,13 @@
@@ -3225,7 +3226,7 @@ index 8655067e0..cdd9c61d8 100644
  # define linux_armxx_kernel_header linux_arm64_kernel_header
 diff --git a/include/grub/efi/linux.h b/include/grub/efi/linux.h
 new file mode 100644
-index 000000000..99b09908e
+index 0000000..99b0990
 --- /dev/null
 +++ b/include/grub/efi/linux.h
 @@ -0,0 +1,40 @@
@@ -3270,10 +3271,10 @@ index 000000000..99b09908e
 +
 +#endif /* ! GRUB_EFI_LINUX_HEADER */
 diff --git a/include/grub/efi/pe32.h b/include/grub/efi/pe32.h
-index 7d44732d2..6e24dae2c 100644
+index 207b038..24075b1 100644
 --- a/include/grub/efi/pe32.h
 +++ b/include/grub/efi/pe32.h
-@@ -214,7 +214,11 @@ struct grub_pe64_optional_header
+@@ -221,7 +221,11 @@ struct grub_pe64_optional_header
  struct grub_pe32_section_table
  {
    char name[8];
@@ -3286,7 +3287,7 @@ index 7d44732d2..6e24dae2c 100644
    grub_uint32_t virtual_address;
    grub_uint32_t raw_data_size;
    grub_uint32_t raw_data_offset;
-@@ -265,6 +269,20 @@ struct grub_pe32_header
+@@ -272,6 +276,20 @@ struct grub_pe32_header
  #endif
  };
  
@@ -3309,7 +3310,7 @@ index 7d44732d2..6e24dae2c 100644
    grub_uint32_t page_rva;
 diff --git a/include/grub/efi/tpm.h b/include/grub/efi/tpm.h
 new file mode 100644
-index 000000000..8c24c27b8
+index 0000000..8c24c27
 --- /dev/null
 +++ b/include/grub/efi/tpm.h
 @@ -0,0 +1,214 @@
@@ -3528,7 +3529,7 @@ index 000000000..8c24c27b8
 +grub_efi_status_t EXPORT_FUNC(grub_TPM_efi_passThroughToTPM) ( const PassThroughToTPM_InputParamBlock* input,
 +		PassThroughToTPM_OutputParamBlock* output );
 diff --git a/include/grub/tpm.h b/include/grub/tpm.h
-index 5d34248ba..d4ebb3cdc 100644
+index 5d34248..d4ebb3c 100644
 --- a/include/grub/tpm.h
 +++ b/include/grub/tpm.h
 @@ -25,22 +25,28 @@
@@ -3578,7 +3579,7 @@ index 5d34248ba..d4ebb3cdc 100644
  void EXPORT_FUNC(grub_TPM_readpcr) ( const grub_uint8_t index, grub_uint8_t* result );
  
 diff --git a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
-index 024bd5c63..aa0010219 100644
+index 024bd5c..aa00102 100644
 --- a/util/grub.d/10_linux.in
 +++ b/util/grub.d/10_linux.in
 @@ -111,6 +111,21 @@ linux_entry ()
@@ -3618,3 +3619,6 @@ index 024bd5c63..aa0010219 100644
    config=
    for i in "${dirname}/config-${version}" "${dirname}/config-${alt_version}" "/etc/kernels/kernel-config-${version}" ; do
      if test -e "${i}" ; then
+-- 
+2.11.0
+

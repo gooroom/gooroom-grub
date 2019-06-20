@@ -136,7 +136,7 @@ endif
 SB_EFI_VENDOR ?= $(shell dpkg-vendor --query vendor | tr '[:upper:]' '[:lower:]')
 
 %:
-	dh $@ --with=bash_completion
+	dh $@ --with=bash_completion --parallel
 
 override_dh_auto_configure: $(patsubst %,configure/%,$(BUILD_PACKAGES))
 
@@ -161,7 +161,7 @@ install/grub-emu: package_bin = grub-emu
 install/grub-emu: package_dbg = grub-emu-dbg
 install/%: export DH_OPTIONS = -p$(package) -Bobj/$(patsubst gooroom-grub-common,gooroom-grub-$(COMMON_PLATFORM),$(package))
 
-override_dh_autoreconf:
+debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makefile.core.def
 	mkdir -p debian/stamps
 	rm -rf debian/grub-extras-enabled
 	mkdir debian/grub-extras-enabled
@@ -170,6 +170,7 @@ override_dh_autoreconf:
 	done
 	env -u DH_OPTIONS GRUB_CONTRIB=$(CURDIR)/debian/grub-extras-enabled \
 		dh_autoreconf -- ./autogen.sh
+	touch $@
 
 debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMMON_PLATFORM)
 	touch $@
@@ -431,6 +432,7 @@ override_dh_auto_clean:
 	-rm -f contrib grub-core/contrib
 
 override_dh_clean:
+	dh_autoreconf_clean
 	dh_clean
 
 	chmod +x debian/{bug-script,grub.d/*,legacy/*,kernel/*}

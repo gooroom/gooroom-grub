@@ -1,46 +1,58 @@
-From d70f6687f1ec89b0ace4fcb751c71fd03d0b3c54
+From f6ec92a32a280acda01c129e077c6978610d33a2 Mon Sep 17 00:00:00 2001
 From: "jongkyung.woo" <jkwoo@gooroom.kr>
-Date: Wed, Jan 9 10:42:26 2019 +0900
-Subject: [PATCH] Merge remote-tracking branch 'TrustedGRUB2/master' into gooroom-devel
+Date: Thu, 20 Jun 2019 12:04:07 +0900
+Subject: [PATCH] gooroom #1
 
 ---
- .travis.yml                            |   53 +
- Changelog.md                           |   54 +
- README.md                              |  294 ++++++++++
- grub-core/Makefile.am                  |    3 
- grub-core/Makefile.core.def            |    9 
- grub-core/boot/i386/pc/boot.S          |  364 +++++++-----
- grub-core/boot/i386/pc/diskboot.S      |   97 +++
- grub-core/disk/cryptodisk.c            |   32 -
- grub-core/disk/luks.c                  |  432 +++++++++-----
- grub-core/kern/dl.c                    |   34 -
- grub-core/kern/i386/pc/tpm/tpm_kern.c  |  433 ++++++++++++++
- grub-core/kern/main.c                  |    2 
- grub-core/kern/sha1.c                  |  446 +++++++++++++++
- grub-core/kern/tpm.c                   |   37 +
- grub-core/loader/i386/linux.c          |   68 +-
- grub-core/loader/i386/pc/chainloader.c |   10 
- grub-core/loader/i386/pc/linux.c       |   69 +-
- grub-core/loader/i386/pc/ntldr.c       |    9 
- grub-core/loader/linux.c               |    8 
- grub-core/loader/multiboot.c           |   13 
- grub-core/normal/main.c                |    6 
- grub-core/script/execute.c             |   51 +
- grub-core/tpm/i386/pc/tpm.c            |  966 +++++++++++++++++++++++++++++++++
- include/grub/err.h                     |    4 
- include/grub/file.h                    |    1 
- include/grub/i386/pc/boot.h            |    4 
- include/grub/i386/pc/tpm.h             |   89 +++
- include/grub/sha1.h                    |   40 +
- include/grub/tpm.h                     |   64 ++
- runSonarQubeAnalysis.sh                |   41 +
- sonar-project.properties               |   16 
- util/mkimage.c                         |   17 
+ .travis.yml                            |  53 ++
+ Changelog.md                           |  54 ++
+ README.md                              | 294 ++++++++++
+ grub-core/Makefile.am                  |   3 +
+ grub-core/Makefile.core.def            |   9 +
+ grub-core/boot/i386/pc/boot.S          | 364 +++++++------
+ grub-core/boot/i386/pc/diskboot.S      |  97 ++++
+ grub-core/disk/cryptodisk.c            |  32 +-
+ grub-core/disk/luks.c                  | 432 ++++++++++-----
+ grub-core/kern/dl.c                    |  34 +-
+ grub-core/kern/i386/pc/tpm/tpm_kern.c  | 433 +++++++++++++++
+ grub-core/kern/main.c                  |   2 +-
+ grub-core/kern/sha1.c                  | 446 +++++++++++++++
+ grub-core/kern/tpm.c                   |  37 ++
+ grub-core/loader/i386/linux.c          |  68 ++-
+ grub-core/loader/i386/pc/chainloader.c |  10 +
+ grub-core/loader/i386/pc/linux.c       |  69 ++-
+ grub-core/loader/i386/pc/ntldr.c       |   9 +
+ grub-core/loader/linux.c               |   8 +
+ grub-core/loader/multiboot.c           |  13 +
+ grub-core/normal/main.c                |   6 +-
+ grub-core/script/execute.c             |  51 ++
+ grub-core/tpm/i386/pc/tpm.c            | 966 +++++++++++++++++++++++++++++++++
+ include/grub/err.h                     |   4 +-
+ include/grub/file.h                    |   1 +
+ include/grub/i386/pc/boot.h            |   4 +
+ include/grub/i386/pc/tpm.h             |  89 +++
+ include/grub/sha1.h                    |  40 ++
+ include/grub/tpm.h                     |  64 +++
+ runSonarQubeAnalysis.sh                |  41 ++
+ sonar-project.properties               |  16 +
+ util/mkimage.c                         |  17 +
  32 files changed, 3407 insertions(+), 359 deletions(-)
+ create mode 100644 .travis.yml
+ create mode 100644 Changelog.md
+ create mode 100644 README.md
+ create mode 100644 grub-core/kern/i386/pc/tpm/tpm_kern.c
+ create mode 100644 grub-core/kern/sha1.c
+ create mode 100644 grub-core/kern/tpm.c
+ create mode 100644 grub-core/tpm/i386/pc/tpm.c
+ create mode 100644 include/grub/i386/pc/tpm.h
+ create mode 100644 include/grub/sha1.h
+ create mode 100644 include/grub/tpm.h
+ create mode 100644 runSonarQubeAnalysis.sh
+ create mode 100644 sonar-project.properties
 
 diff --git a/.travis.yml b/.travis.yml
 new file mode 100644
-index 000000000..115e8f08c
+index 0000000..115e8f0
 --- /dev/null
 +++ b/.travis.yml
 @@ -0,0 +1,53 @@
@@ -99,7 +111,7 @@ index 000000000..115e8f08c
 +    branch_pattern: coverity_scan
 diff --git a/Changelog.md b/Changelog.md
 new file mode 100644
-index 000000000..87ee72615
+index 0000000..87ee726
 --- /dev/null
 +++ b/Changelog.md
 @@ -0,0 +1,54 @@
@@ -159,7 +171,7 @@ index 000000000..87ee72615
 +* initial release
 diff --git a/README.md b/README.md
 new file mode 100644
-index 000000000..f4938863a
+index 0000000..f493886
 --- /dev/null
 +++ b/README.md
 @@ -0,0 +1,294 @@
@@ -458,7 +470,7 @@ index 000000000..f4938863a
 +
 +[TrustedGrub1](https://www.sirrix.com/content/pages/trustedgrub_en.htm) and GRUB-IMA have done a lot of preparatory work in the field and were used for code examples.
 diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
-index 44bb981c2..977600348 100644
+index 95e9817..e3c9289 100644
 --- a/grub-core/Makefile.am
 +++ b/grub-core/Makefile.am
 @@ -99,6 +99,9 @@ KERNEL_HEADER_FILES += $(top_builddir)/include/grub/machine/kernel.h
@@ -470,12 +482,12 @@ index 44bb981c2..977600348 100644
 +KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
  endif
  
- if COND_i386_efi
+ if COND_i386_xen_pvh
 diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
-index b6cb87c94..18bbd4ba5 100644
+index 0f6c5f8..7f60f41 100644
 --- a/grub-core/Makefile.core.def
 +++ b/grub-core/Makefile.core.def
-@@ -126,6 +126,8 @@ kernel = {
+@@ -129,6 +129,8 @@ kernel = {
    common = kern/rescue_parser.c;
    common = kern/rescue_reader.c;
    common = kern/term.c;
@@ -484,7 +496,7 @@ index b6cb87c94..18bbd4ba5 100644
  
    noemu = kern/compiler-rt.c;
    noemu = kern/mm.c;
-@@ -219,6 +221,7 @@ kernel = {
+@@ -231,6 +233,7 @@ kernel = {
    i386_pc = kern/i386/pc/init.c;
    i386_pc = kern/i386/pc/mmap.c;
    i386_pc = term/i386/pc/console.c;
@@ -492,7 +504,7 @@ index b6cb87c94..18bbd4ba5 100644
  
    i386_qemu = bus/pci.c;
    i386_qemu = kern/vga_init.c;
-@@ -2374,3 +2377,9 @@ module = {
+@@ -2407,3 +2410,9 @@ module = {
    common = loader/i386/xen_file64.c;
    extra_dist = loader/i386/xen_fileXX.c;
  };
@@ -503,7 +515,7 @@ index b6cb87c94..18bbd4ba5 100644
 +  enable = i386_pc;
 +};
 diff --git a/grub-core/boot/i386/pc/boot.S b/grub-core/boot/i386/pc/boot.S
-index 451c8bea5..c4d784e76 100644
+index 451c8be..c4d784e 100644
 --- a/grub-core/boot/i386/pc/boot.S
 +++ b/grub-core/boot/i386/pc/boot.S
 @@ -27,90 +27,14 @@
@@ -1016,7 +1028,7 @@ index 451c8bea5..c4d784e76 100644
  /* the last 2 bytes in the sector 0 contain the signature */
  	.word	GRUB_BOOT_MACHINE_SIGNATURE
 diff --git a/grub-core/boot/i386/pc/diskboot.S b/grub-core/boot/i386/pc/diskboot.S
-index 31096ce5a..3f44041d9 100644
+index 31096ce..3f44041 100644
 --- a/grub-core/boot/i386/pc/diskboot.S
 +++ b/grub-core/boot/i386/pc/diskboot.S
 @@ -70,6 +70,37 @@ LOCAL(after_notification_string):
@@ -1138,7 +1150,7 @@ index 31096ce5a..3f44041d9 100644
   * message: write the string pointed to by %si
   *
 diff --git a/grub-core/disk/cryptodisk.c b/grub-core/disk/cryptodisk.c
-index bd60a66b3..642d07d8b 100644
+index bd60a66..642d07d 100644
 --- a/grub-core/disk/cryptodisk.c
 +++ b/grub-core/disk/cryptodisk.c
 @@ -26,6 +26,7 @@
@@ -1228,7 +1240,7 @@ index bd60a66b3..642d07d8b 100644
  }
  
 diff --git a/grub-core/disk/luks.c b/grub-core/disk/luks.c
-index 86c50c612..56ccce5c1 100644
+index 86c50c6..56ccce5 100644
 --- a/grub-core/disk/luks.c
 +++ b/grub-core/disk/luks.c
 @@ -26,6 +26,12 @@
@@ -1703,7 +1715,7 @@ index 86c50c612..56ccce5c1 100644
  struct grub_cryptodisk_dev luks_crypto = {
    .scan = configure_ciphers,
 diff --git a/grub-core/kern/dl.c b/grub-core/kern/dl.c
-index b6535155b..39addaf7e 100644
+index b653515..39addaf 100644
 --- a/grub-core/kern/dl.c
 +++ b/grub-core/kern/dl.c
 @@ -33,6 +33,10 @@
@@ -1778,7 +1790,7 @@ index b6535155b..39addaf7e 100644
  
 diff --git a/grub-core/kern/i386/pc/tpm/tpm_kern.c b/grub-core/kern/i386/pc/tpm/tpm_kern.c
 new file mode 100644
-index 000000000..e293e4274
+index 0000000..e293e42
 --- /dev/null
 +++ b/grub-core/kern/i386/pc/tpm/tpm_kern.c
 @@ -0,0 +1,433 @@
@@ -2216,7 +2228,7 @@ index 000000000..e293e4274
 +}
 +/* End TCG Extension */
 diff --git a/grub-core/kern/main.c b/grub-core/kern/main.c
-index 5613cd553..19bab9991 100644
+index 5613cd5..19bab99 100644
 --- a/grub-core/kern/main.c
 +++ b/grub-core/kern/main.c
 @@ -280,7 +280,7 @@ grub_main (void)
@@ -2230,7 +2242,7 @@ index 5613cd553..19bab9991 100644
  
 diff --git a/grub-core/kern/sha1.c b/grub-core/kern/sha1.c
 new file mode 100644
-index 000000000..bf1647cc9
+index 0000000..bf1647c
 --- /dev/null
 +++ b/grub-core/kern/sha1.c
 @@ -0,0 +1,446 @@
@@ -2682,7 +2694,7 @@ index 000000000..bf1647cc9
 +/* End TCG Extension */
 diff --git a/grub-core/kern/tpm.c b/grub-core/kern/tpm.c
 new file mode 100644
-index 000000000..dfa0fe0cf
+index 0000000..dfa0fe0
 --- /dev/null
 +++ b/grub-core/kern/tpm.c
 @@ -0,0 +1,37 @@
@@ -2724,12 +2736,12 @@ index 000000000..dfa0fe0cf
 +
 +/* End TCG Extension */
 diff --git a/grub-core/loader/i386/linux.c b/grub-core/loader/i386/linux.c
-index 0052b5965..aba0b3761 100644
+index 161a6b7..41c9da5 100644
 --- a/grub-core/loader/i386/linux.c
 +++ b/grub-core/loader/i386/linux.c
-@@ -36,6 +36,10 @@
- #include <grub/lib/cmdline.h>
+@@ -37,6 +37,10 @@
  #include <grub/linux.h>
+ #include <grub/machine/kernel.h>
  
 +/* Begin TCG Extension */
 +#include <grub/tpm.h>
@@ -2738,7 +2750,7 @@ index 0052b5965..aba0b3761 100644
  GRUB_MOD_LICENSE ("GPLv3+");
  
  #ifdef GRUB_MACHINE_PCBIOS
-@@ -688,12 +692,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -693,12 +697,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    grub_file_t file = 0;
    struct linux_i386_kernel_header lh;
    grub_uint8_t setup_sects;
@@ -2753,7 +2765,7 @@ index 0052b5965..aba0b3761 100644
  
    grub_dl_ref (my_mod);
  
-@@ -740,13 +745,24 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -745,13 +750,24 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    if (! file)
      goto fail;
  
@@ -2785,7 +2797,7 @@ index 0052b5965..aba0b3761 100644
  
    if (lh.boot_flag != grub_cpu_to_le16_compile_time (0xaa55))
      {
-@@ -847,13 +863,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -852,13 +868,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    linux_params.ps_mouse = linux_params.padding10 =  0;
  
    len = sizeof (linux_params) - sizeof (lh);
@@ -2802,7 +2814,7 @@ index 0052b5965..aba0b3761 100644
  
    linux_params.type_of_loader = GRUB_LINUX_BOOT_LOADER_TYPE;
  
-@@ -885,9 +897,12 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -890,9 +902,12 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  #ifdef GRUB_MACHINE_EFI
  #ifdef __x86_64__
    if (grub_le_to_cpu16 (linux_params.version) < 0x0208 &&
@@ -2818,7 +2830,7 @@ index 0052b5965..aba0b3761 100644
  #endif
  
    if (grub_le_to_cpu16 (linux_params.version) >= 0x0208)
-@@ -911,8 +926,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -916,8 +931,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  #endif
  
    /* The other parameters are filled when booting.  */
@@ -2828,7 +2840,7 @@ index 0052b5965..aba0b3761 100644
  
    grub_dprintf ("linux", "bzImage, setup=0x%x, size=0x%x\n",
  		(unsigned) real_size, (unsigned) prot_size);
-@@ -1060,15 +1074,18 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -1065,15 +1079,18 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  			      - (sizeof (LINUX_IMAGE) - 1));
  
    len = prot_file_size;
@@ -2850,7 +2862,7 @@ index 0052b5965..aba0b3761 100644
      }
  
   fail:
-@@ -1076,6 +1093,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -1081,6 +1098,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    if (file)
      grub_file_close (file);
  
@@ -2863,7 +2875,7 @@ index 0052b5965..aba0b3761 100644
      {
        grub_dl_unref (my_mod);
 diff --git a/grub-core/loader/i386/pc/chainloader.c b/grub-core/loader/i386/pc/chainloader.c
-index c79c4fe0f..b4126e8fd 100644
+index c79c4fe..b4126e8 100644
 --- a/grub-core/loader/i386/pc/chainloader.c
 +++ b/grub-core/loader/i386/pc/chainloader.c
 @@ -40,6 +40,11 @@
@@ -2898,7 +2910,7 @@ index c79c4fe0f..b4126e8fd 100644
  
   fail:
 diff --git a/grub-core/loader/i386/pc/linux.c b/grub-core/loader/i386/pc/linux.c
-index b69cb7a3a..26dfe6ab0 100644
+index b69cb7a..26dfe6a 100644
 --- a/grub-core/loader/i386/pc/linux.c
 +++ b/grub-core/loader/i386/pc/linux.c
 @@ -36,6 +36,10 @@
@@ -3035,7 +3047,7 @@ index b69cb7a3a..26dfe6ab0 100644
      {
        grub_dl_unref (my_mod);
 diff --git a/grub-core/loader/i386/pc/ntldr.c b/grub-core/loader/i386/pc/ntldr.c
-index 1b88f40d8..df7b23447 100644
+index 1b88f40..df7b234 100644
 --- a/grub-core/loader/i386/pc/ntldr.c
 +++ b/grub-core/loader/i386/pc/ntldr.c
 @@ -34,6 +34,10 @@
@@ -3062,7 +3074,7 @@ index 1b88f40d8..df7b23447 100644
  
   fail:
 diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
-index be6fa0f4d..947f97b83 100644
+index be6fa0f..947f97b 100644
 --- a/grub-core/loader/linux.c
 +++ b/grub-core/loader/linux.c
 @@ -5,6 +5,10 @@
@@ -3088,7 +3100,7 @@ index be6fa0f4d..947f97b83 100644
      }
    if (newc)
 diff --git a/grub-core/loader/multiboot.c b/grub-core/loader/multiboot.c
-index bd9d5b3e6..08cec39cd 100644
+index bd9d5b3..08cec39 100644
 --- a/grub-core/loader/multiboot.c
 +++ b/grub-core/loader/multiboot.c
 @@ -43,6 +43,10 @@
@@ -3126,7 +3138,7 @@ index bd9d5b3e6..08cec39cd 100644
    return GRUB_ERR_NONE;
  }
 diff --git a/grub-core/normal/main.c b/grub-core/normal/main.c
-index e924f6448..2592a9446 100644
+index e924f64..2592a94 100644
 --- a/grub-core/normal/main.c
 +++ b/grub-core/normal/main.c
 @@ -34,6 +34,10 @@
@@ -3150,7 +3162,7 @@ index e924f6448..2592a9446 100644
      return;
   
 diff --git a/grub-core/script/execute.c b/grub-core/script/execute.c
-index a8502d907..01ea47831 100644
+index a8502d9..01ea478 100644
 --- a/grub-core/script/execute.c
 +++ b/grub-core/script/execute.c
 @@ -28,6 +28,10 @@
@@ -3220,7 +3232,7 @@ index a8502d907..01ea47831 100644
  
 diff --git a/grub-core/tpm/i386/pc/tpm.c b/grub-core/tpm/i386/pc/tpm.c
 new file mode 100644
-index 000000000..85f85333c
+index 0000000..85f8533
 --- /dev/null
 +++ b/grub-core/tpm/i386/pc/tpm.c
 @@ -0,0 +1,966 @@
@@ -4191,7 +4203,7 @@ index 000000000..85f85333c
 +
 +/* End TCG extension */
 diff --git a/include/grub/err.h b/include/grub/err.h
-index 1590c688e..4658adb6a 100644
+index 1590c68..4658adb 100644
 --- a/include/grub/err.h
 +++ b/include/grub/err.h
 @@ -71,7 +71,9 @@ typedef enum
@@ -4206,7 +4218,7 @@ index 1590c688e..4658adb6a 100644
  grub_err_t;
  
 diff --git a/include/grub/file.h b/include/grub/file.h
-index 739488cbe..25f395eeb 100644
+index 739488c..25f395e 100644
 --- a/include/grub/file.h
 +++ b/include/grub/file.h
 @@ -132,6 +132,7 @@ grub_file_filter_disable_pubkey (void)
@@ -4218,7 +4230,7 @@ index 739488cbe..25f395eeb 100644
  					  grub_size_t len);
  grub_off_t EXPORT_FUNC(grub_file_seek) (grub_file_t file, grub_off_t offset);
 diff --git a/include/grub/i386/pc/boot.h b/include/grub/i386/pc/boot.h
-index a4d42ff3c..424a23e87 100644
+index a4d42ff..424a23e 100644
 --- a/include/grub/i386/pc/boot.h
 +++ b/include/grub/i386/pc/boot.h
 @@ -21,6 +21,10 @@
@@ -4234,7 +4246,7 @@ index a4d42ff3c..424a23e87 100644
  
 diff --git a/include/grub/i386/pc/tpm.h b/include/grub/i386/pc/tpm.h
 new file mode 100644
-index 000000000..1e3202444
+index 0000000..1e32024
 --- /dev/null
 +++ b/include/grub/i386/pc/tpm.h
 @@ -0,0 +1,89 @@
@@ -4329,7 +4341,7 @@ index 000000000..1e3202444
 +/* End TCG Extension */
 diff --git a/include/grub/sha1.h b/include/grub/sha1.h
 new file mode 100644
-index 000000000..88b00b6fb
+index 0000000..88b00b6
 --- /dev/null
 +++ b/include/grub/sha1.h
 @@ -0,0 +1,40 @@
@@ -4375,7 +4387,7 @@ index 000000000..88b00b6fb
 +/* End TCG Extension */
 diff --git a/include/grub/tpm.h b/include/grub/tpm.h
 new file mode 100644
-index 000000000..5d34248ba
+index 0000000..5d34248
 --- /dev/null
 +++ b/include/grub/tpm.h
 @@ -0,0 +1,64 @@
@@ -4445,7 +4457,7 @@ index 000000000..5d34248ba
 +/* End TCG Extension */
 diff --git a/runSonarQubeAnalysis.sh b/runSonarQubeAnalysis.sh
 new file mode 100644
-index 000000000..5e530d3f1
+index 0000000..5e530d3
 --- /dev/null
 +++ b/runSonarQubeAnalysis.sh
 @@ -0,0 +1,41 @@
@@ -4492,7 +4504,7 @@ index 000000000..5e530d3f1
 +# When neither on master branch nor on a non-external pull request => nothing to do
 diff --git a/sonar-project.properties b/sonar-project.properties
 new file mode 100644
-index 000000000..9d8d1e990
+index 0000000..9d8d1e9
 --- /dev/null
 +++ b/sonar-project.properties
 @@ -0,0 +1,16 @@
@@ -4513,10 +4525,10 @@ index 000000000..9d8d1e990
 +# Encoding of the source files
 +sonar.sourceEncoding=UTF-8
 diff --git a/util/mkimage.c b/util/mkimage.c
-index 9ad4cfe42..d3a7d420d 100644
+index 7f366c3..af4f4b3 100644
 --- a/util/mkimage.c
 +++ b/util/mkimage.c
-@@ -1134,6 +1134,23 @@ grub_install_generate_image (const char *dir, const char *prefix,
+@@ -1149,6 +1149,23 @@ grub_install_generate_image (const char *dir, const char *prefix,
  	grub_util_write_image (boot_img, boot_size, out, outname);
  	free (boot_img);
  	free (boot_path);
@@ -4540,3 +4552,6 @@ index 9ad4cfe42..d3a7d420d 100644
        }
        break;
      case IMAGE_EFI:
+-- 
+2.11.0
+

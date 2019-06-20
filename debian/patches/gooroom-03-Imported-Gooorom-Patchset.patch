@@ -1,38 +1,17 @@
-From 8bc7122159ab14f23aa607b38540a568b1027e68 Mon Sep 17 00:00:00 2001
+From 665ead9f137d5527b14013e0bfbdb9b4d77dbe27 Mon Sep 17 00:00:00 2001
 From: "jongkyung.woo" <jkwoo@gooroom.kr>
-Date: Wed, 9 Jan 2019 12:42:26 +0900
-Subject: [PATCH] Imported Gooorom Patchset
+Date: Thu, 20 Jun 2019 11:55:53 +0900
+Subject: [PATCH 3/3] gooroom #03
 
-Change-Id: I192972fa21f7ca9918a8287870e33547d3d95c32
 ---
- grub-core/Makefile.am              |  3 --
  grub-core/loader/efi/chainloader.c | 15 ---------
  grub-core/loader/i386/efi/linux.c  | 64 +++++++++-----------------------------
  util/grub-mkconfig_lib.in          | 16 ++--------
  util/grub.d/10_linux.in            | 63 ++++++++++++++++++-------------------
- 5 files changed, 48 insertions(+), 113 deletions(-)
+ 4 files changed, 48 insertions(+), 110 deletions(-)
 
-diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
-index c8494ab13..25bc4f40f 100644
---- a/grub-core/Makefile.am
-+++ b/grub-core/Makefile.am
-@@ -169,14 +169,11 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
--<<<<<<< HEAD
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
--=======
- 
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/sha1.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/tpm.h
- KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/tpm.h
-->>>>>>> trustedgrub2/master
- endif
- 
- if COND_ia64_efi
 diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
-index 87a91e16f..0ad580d08 100644
+index 87a91e1..0ad580d 100644
 --- a/grub-core/loader/efi/chainloader.c
 +++ b/grub-core/loader/efi/chainloader.c
 @@ -300,21 +300,6 @@ image_is_64_bit (grub_pe_header_t *pe_hdr)
@@ -58,7 +37,7 @@ index 87a91e16f..0ad580d08 100644
  relocate_coff (pe_coff_loader_image_context_t *context,
  	       struct grub_pe32_section_table *section,
 diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
-index a018f9eee..9c23566aa 100644
+index a018f9e..9c23566 100644
 --- a/grub-core/loader/i386/efi/linux.c
 +++ b/grub-core/loader/i386/efi/linux.c
 @@ -49,52 +49,6 @@ static char *linux_cmdline;
@@ -154,7 +133,7 @@ index a018f9eee..9c23566aa 100644
    params->type_of_loader = 0x21;
  
 diff --git a/util/grub-mkconfig_lib.in b/util/grub-mkconfig_lib.in
-index 2c9743052..5f7d4fb97 100644
+index 2c97430..5f7d4fb 100644
 --- a/util/grub-mkconfig_lib.in
 +++ b/util/grub-mkconfig_lib.in
 @@ -166,19 +166,9 @@ prepare_grub_to_access_device ()
@@ -181,7 +160,7 @@ index 2c9743052..5f7d4fb97 100644
    IFS="$old_ifs"
  
 diff --git a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
-index aa0010219..a1a3d5cb2 100644
+index aa00102..a1a3d5c 100644
 --- a/util/grub.d/10_linux.in
 +++ b/util/grub.d/10_linux.in
 @@ -42,7 +42,7 @@ else
