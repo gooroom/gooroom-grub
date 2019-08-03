@@ -1,4 +1,4 @@
-grub2 (2.02~beta3-5+deb9u2) stable; urgency=medium
+grub2 (2.02~beta3-5+deb9u2) stretch; urgency=medium
 
   * Cherry-pick upstream patches for Xen UEFI support (closes: #930028):
     - i386/relocator: Add grub_relocator64_efi relocator
