@@ -1,3 +1,34 @@
+grub2 (2.02+dfsg1-20+grm2u1) unstable; urgency=medium
+
+  * Merge tag 'debian/2.02+dfsg1-20' into gooroom-devel 
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Tue, 27 Aug 2019 18:26:52 +0900
+
+grub2 (2.02+dfsg1-20) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * Make all the signed EFI arches have a Recommends: from
+    grub-efi-ARCH-signed to shim-signed, not just amd64.
+    Closes: #931038
+  * Add myself to Uploaders
+
+ -- Steve McIntyre <93sam@debian.org>  Tue, 25 Jun 2019 10:11:12 +0100
+
+grub2 (2.02+dfsg1-19) unstable; urgency=medium
+
+  [ Colin Watson ]
+  * Fix format of debian/copyright.
+
+  [ Steve McIntyre ]
+  * Add the ntfs module to signed UEFI images. Closes: #923855
+  * Add the cpuid module to signed UEFI images. Closes: #928628
+  * Add the play module to signed UEFI images. Closes: #930290
+  * Add an extra di-specific version of the UEFI netboot image with a
+    different baked-in prefix value. Helps to fix #928750.
+  * Deal with --force-extra-removable with signed shim too. Closes: #930531
+
+ -- Colin Watson <cjwatson@debian.org>  Fri, 14 Jun 2019 19:04:01 +0100
+
 gooroom-grub (2.02+dfsg1-18+grm2u1) unstable; urgency=medium
 
   * Merge tag 'debian/2.02+dfsg1-18' into gooroom-devel 
