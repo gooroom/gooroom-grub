@@ -1,4 +1,10 @@
-grub2 (2.02+dfsg1-20+grm2u1) unstable; urgency=medium
+gooroom-grub (2.02+dfsg1-20+grm2u2) unstable; urgency=medium
+
+  * Rebuild on Gooroom-2.0
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Wed, 28 Aug 2019 10:31:23 +0900
+
+gooroom-grub (2.02+dfsg1-20+grm2u1) unstable; urgency=medium
 
   * Merge tag 'debian/2.02+dfsg1-20' into gooroom-devel 
 

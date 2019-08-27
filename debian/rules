@@ -136,7 +136,7 @@ endif
 SB_EFI_VENDOR ?= $(shell dpkg-vendor --query vendor | tr '[:upper:]' '[:lower:]')
 
 %:
-	dh $@ --with=bash_completion --parallel
+	dh $@ --with=bash_completion
 
 override_dh_auto_configure: $(patsubst %,configure/%,$(BUILD_PACKAGES))
 
@@ -161,7 +161,7 @@ install/grub-emu: package_bin = grub-emu
 install/grub-emu: package_dbg = grub-emu-dbg
 install/%: export DH_OPTIONS = -p$(package) -Bobj/$(patsubst gooroom-grub-common,gooroom-grub-$(COMMON_PLATFORM),$(package))
 
-debian/stamps/autogen: autogen.sh configure.ac Makefile.util.def grub-core/Makefile.core.def
+override_dh_autoreconf:
 	mkdir -p debian/stamps
 	rm -rf debian/grub-extras-enabled
 	mkdir debian/grub-extras-enabled
@@ -178,8 +178,7 @@ debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMM
 debian/stamps/build-gooroom-grub-common: debian/stamps/build-grub-$(COMMON_PLATFORM)
 	touch $@
 
-#debian/stamps/configure-grub-none debian/stamps/configure-grub-pc debian/stamps/configure-grub-ieee1275 debian/stamps/configure-grub-coreboot debian/stamps/configure-grub-emu debian/stamps/configure-grub-uboot debian/stamps/configure-grub-yeeloong: debian/stamps/autogen
-debian/stamps/configure-grub-pc: debian/stamps/autogen
+debian/stamps/configure-grub-pc: debian/stamps/configure-grub-pc
 	mkdir -p debian/stamps obj/$(package)
 	#dh_auto_configure -- $(confflags) --with-platform=$(subst grub-,,$(package))
 	dh_auto_configure -- $(confflags) --with-platform=efi
@@ -192,13 +191,8 @@ ifeq ($(with_check), yes)
 endif
 	touch $@
 
-debian/stamps/configure-grub-emu: debian/stamps/autogen
-	mkdir -p debian/stamps obj/$(package)
-	dh_auto_configure -- $(confflags) --with-platform=efi
-	touch $@
-
 # This name scheme leaves room for things like amd32 someday
-debian/stamps/configure-gooroom-grub-efi-amd64: debian/stamps/autogen
+debian/stamps/configure-gooroom-grub-efi-amd64:
 	mkdir -p debian/stamps $(subst debian/stamps/configure-,obj/,$@)
 	dh_auto_configure -- $(confflags) --with-platform=efi --target=amd64-pe --program-prefix=""
 	touch $@

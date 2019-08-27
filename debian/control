@@ -4,8 +4,6 @@ Priority: optional
 Maintainer: gooroom <gooroom@gooroom.kr>
 Build-Depends: debhelper (>= 10~),
  patchutils,
- dh-autoreconf,
- automake,
  python,
  flex,
  bison,
@@ -33,11 +31,14 @@ Build-Depends: debhelper (>= 10~),
  libparted-dev [any-powerpc any-ppc64 any-ppc64el],
  pkg-config,
  bash-completion,
+ libefiboot-dev [any-i386 any-amd64 any-ia64 any-arm any-arm64],
+ libefivar-dev [any-i386 any-amd64 any-ia64 any-arm any-arm64],
 Build-Conflicts: autoconf2.13, libzfs-dev, libnvpair-dev
 Standards-Version: 3.9.6
 Homepage: http://www.gooroom.kr
 Vcs-Git: https://git.gooroom.kr/gooroom-grub
 Vcs-Browser: https://git.gooroom.kr/gooroom-grub
+Rules-Requires-Root: no
 
 Package: gooroom-grub-common
 Priority: optional
