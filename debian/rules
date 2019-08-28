@@ -363,16 +363,16 @@ ifneq (,$(filter grub-emu,$(BUILD_PACKAGES)))
 	dh_install -pgrub-emu --sourcedir=debian/tmp-grub-emu
 	dh_install -pgrub-emu-dbg --sourcedir=debian/tmp-grub-emu
 endif
-#ifneq (,$(filter gooroom-grub2-common,$(BUILD_PACKAGES)))
-#	sed -i \
-#		-e "s/@DEFAULT_CMDLINE@/$(DEFAULT_CMDLINE)/g" \
-#		-e "s/@DEFAULT_TIMEOUT@/$(DEFAULT_TIMEOUT)/g" \
-#		debian/gooroom-grub2-common/usr/share/grub/default/grub
-#ifneq (,$(DEFAULT_HIDDEN_TIMEOUT))
-#	perl -pi -e 's/^GRUB_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0\nGRUB_HIDDEN_TIMEOUT_QUIET=true\n$$&/' \
-#		debian/gooroom-grub2-common/usr/share/grub/default/grub
-#endif
-#endif
+ifneq (,$(filter gooroom-grub2-common,$(BUILD_PACKAGES)))
+	sed -i \
+		-e "s/@DEFAULT_CMDLINE@/$(DEFAULT_CMDLINE)/g" \
+		-e "s/@DEFAULT_TIMEOUT@/$(DEFAULT_TIMEOUT)/g" \
+		debian/gooroom-grub2-common/usr/share/grub/default/grub
+ifneq (,$(DEFAULT_HIDDEN_TIMEOUT))
+	perl -pi -e 's/^GRUB_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0\nGRUB_HIDDEN_TIMEOUT_QUIET=true\n$$&/' \
+		debian/gooroom-grub2-common/usr/share/grub/default/grub
+endif
+endif
 #ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
 #ifneq (,$(filter grub-pc,$(BUILD_PACKAGES)))
 #	patch debian/grub-pc/usr/lib/grub-legacy/update-grub \
