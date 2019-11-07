@@ -2,6 +2,7 @@ Source: gooroom-grub
 Section: admin
 Priority: optional
 Maintainer: gooroom <gooroom@gooroom.kr>
+XSBC-Original-Maintainer: GRUB Maintainers <pkg-grub-devel@alioth-lists.debian.net>
 Build-Depends: debhelper (>= 10~),
  patchutils,
  python,
@@ -36,8 +37,8 @@ Build-Depends: debhelper (>= 10~),
 Build-Conflicts: autoconf2.13, libzfs-dev, libnvpair-dev
 Standards-Version: 3.9.6
 Homepage: http://www.gooroom.kr
-Vcs-Git: https://git.gooroom.kr/gooroom-grub
-Vcs-Browser: https://git.gooroom.kr/gooroom-grub
+Vcs-Git: https://github.com/gooroom/gooroom-grub.git
+Vcs-Browser: https://github.com/gooroom/gooroom-grub
 Rules-Requires-Root: no
 
 Package: gooroom-grub-common

@@ -32,4 +32,4 @@ GRUB_DISABLE_LINUX_UUID=true
 #GRUB_INIT_TUNE="480 440 1"
 
 ## Gooroom Background Image
-GRUB_BACKGROUND=/usr/share/plymouth/themes/gooroom/gooroom_bg_17_logo.png
+GRUB_BACKGROUND=/usr/share/plymouth/themes/gooroom/gooroom_grub_background_logo.png
