@@ -1,3 +1,9 @@
+gooroom-grub (2.02+dfsg1-20+grm2u4) unstable; urgency=medium
+
+  * Clean up Gooroom specific files in debian
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Fri, 08 Nov 2019 17:20:48 +0900
+
 gooroom-grub (2.02+dfsg1-20+grm2u3) unstable; urgency=medium
 
   * Enabled gooroom-grub2-common and update gooroom_bg_17_logo.png
