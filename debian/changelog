@@ -1,3 +1,13 @@
+grub2 (2.04-7) UNRELEASED; urgency=medium
+
+  [ Steve McIntyre ]
+  * In the signed packages, change the version dependency on
+    grub-common to be >= and not =. This will allow for installation
+    in unstable to still work in the window while we wait for the
+    template package to do its second trip through the archive.
+
+ -- Steve McIntyre <93sam@debian.org>  Tue, 21 Apr 2020 18:54:51 +0100
+
 grub2 (2.04-6) unstable; urgency=medium
 
   [ Romain Perier ]
