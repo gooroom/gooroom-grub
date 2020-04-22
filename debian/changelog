@@ -5,6 +5,10 @@ grub2 (2.04-7) UNRELEASED; urgency=medium
     grub-common to be >= and not =. This will allow for installation
     in unstable to still work in the window while we wait for the
     template package to do its second trip through the archive.
+  * Tweak the build-dep architecture listing for libefiboot-dev and
+    libefivar-dev. The linux-* wildcards don't work in the way
+    expected, and were missing out (at least) armhf and armel.
+    Closes: #958461
 
  -- Steve McIntyre <93sam@debian.org>  Tue, 21 Apr 2020 18:54:51 +0100
 
