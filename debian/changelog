@@ -1,5 +1,8 @@
 grub2 (2.04-7) UNRELEASED; urgency=medium
 
+  [ Christian Göttsche ]
+  * Create grub default configuration with default SELinux context.
+
   [ Steve McIntyre ]
   * In the signed packages, change the version dependency on
     grub-common to be >= and not =. This will allow for installation
