@@ -6,6 +6,11 @@ grub2 (2.04-8) UNRELEASEDx; urgency=medium
   [ Fabian Greffrath ]
   * Change font dependency to fonts-dejavu-core. Closes: #912846
 
+  [ Colin Watson ]
+  * Cherry-pick from upstream:
+    - templates/20_linux_xen: Ignore xenpolicy and config files too.
+    - templates/20_linux_xen: Support Xen Security Modules (XSM/FLASK).
+
  -- Colin Watson <cjwatson@debian.org>  Wed, 22 Apr 2020 14:52:13 +0100
 
 grub2 (2.04-7) unstable; urgency=medium
