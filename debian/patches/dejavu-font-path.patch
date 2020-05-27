@@ -1,9 +1,9 @@
-From 478150ffee14791cf5bd66db70b5f20449b0244d Mon Sep 17 00:00:00 2001
+From c9434fab26adda59da5d80997ae337e9211a4a39 Mon Sep 17 00:00:00 2001
 From: Fabian Greffrath <fabian@greffrath.com>
 Date: Tue, 19 May 2020 12:19:26 +0200
-Subject: add /u/s/fonts/truetype/dejavu to the DejaVu fonts search
+Subject: add /u/s/fonts/truetype/dejavu to the DejaVu fonts search paths
 
- paths
+Patch-Name: dejavu-font-path.patch
 ---
  configure.ac | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
