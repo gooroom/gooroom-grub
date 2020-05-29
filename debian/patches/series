@@ -62,3 +62,4 @@ btrfs-raid1c34.patch
 dejavu-font-path.patch
 xen-ignore-xenpolicy-and-config.patch
 xen-support-xsm.patch
+xen-no-xsm-policy-in-non-xsm-options.patch
