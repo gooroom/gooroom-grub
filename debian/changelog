@@ -1,4 +1,4 @@
-grub2 (2.04-8) UNRELEASEDx; urgency=medium
+grub2 (2.04-8) unstable; urgency=medium
 
   [ Vincent Lefevre ]
   * Fix typos in /etc/grub.d/05_debian_theme. Closes: #959484
@@ -15,7 +15,7 @@ grub2 (2.04-8) UNRELEASEDx; urgency=medium
   * 20_linux_xen: Do not load XSM policy in non-XSM options (closes:
     #961673).
 
- -- Colin Watson <cjwatson@debian.org>  Wed, 22 Apr 2020 14:52:13 +0100
+ -- Colin Watson <cjwatson@debian.org>  Sun, 07 Jun 2020 10:06:37 +0100
 
 grub2 (2.04-7) unstable; urgency=medium
 
