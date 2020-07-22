@@ -36,6 +36,7 @@
 #include <grub/lib/cmdline.h>
 #include <grub/linux.h>
 #include <grub/machine/kernel.h>
+#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -231,9 +232,8 @@ allocate_pages (grub_size_t prot_size, grub_size_t *align,
 	for (; err && *align + 1 > min_align; (*align)--)
 	  {
 	    grub_errno = GRUB_ERR_NONE;
-	    err = grub_relocator_alloc_chunk_align (relocator, &ch,
-						    0x1000000,
-						    0xffffffff & ~prot_size,
+	    err = grub_relocator_alloc_chunk_align (relocator, &ch, 0x1000000,
+						    UP_TO_TOP32 (prot_size),
 						    prot_size, 1 << *align,
 						    GRUB_RELOCATOR_PREFERENCE_LOW,
 						    1);
@@ -598,9 +598,13 @@ grub_linux_boot (void)
 
   {
     grub_relocator_chunk_t ch;
+    grub_size_t sz;
+
+    if (grub_add (ctx.real_size, efi_mmap_size, &sz))
+      return GRUB_ERR_OUT_OF_RANGE;
+
     err = grub_relocator_alloc_chunk_addr (relocator, &ch,
-					   ctx.real_mode_target,
-					   (ctx.real_size + efi_mmap_size));
+					   ctx.real_mode_target, sz);
     if (err)
      return err;
     real_mode_mem = get_virtual_current_address (ch);
