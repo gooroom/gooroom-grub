@@ -36,6 +36,10 @@ grub2 (2.04-9) UNRELEASED; urgency=medium
     - efi: Fix use-after-free in halt/reboot path
     - linux loader: avoid overflow on initrd size calculation
   * CVE-2020-15707: linux: Fix integer overflows in initrd size handling
+  * Apply overflow checking to allocations in Debian patches:
+    - bootp: Fix integer overflow in parse_dhcp6_option
+    - unix/config: Fix integer overflow in grub_util_load_config
+    - deviceiter: Fix integer overflow in grub_util_iterate_devices
 
  -- Colin Watson <cjwatson@debian.org>  Fri, 24 Jul 2020 22:33:58 +0100
 

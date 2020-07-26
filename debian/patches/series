@@ -91,3 +91,6 @@ safe-alloc-5.patch
 efi-halt-reboot-use-after-free.patch
 linux-loader-overflow.patch
 linux-initrd-overflow.patch
+bootp-alloc.patch
+unix-config-overflow.patch
+deviceiter-overflow.patch
