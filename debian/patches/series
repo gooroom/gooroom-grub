@@ -163,3 +163,7 @@ efi-malformed-device-path.patch
 safe-alloc-5.patch
 linux-loader-overflow.patch
 linux-initrd-overflow.patch
+efilinux-overflow.patch
+bootp-alloc.patch
+unix-config-overflow.patch
+deviceiter-overflow.patch
