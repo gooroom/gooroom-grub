@@ -90,3 +90,4 @@ efi-malformed-device-path-2.patch
 safe-alloc-5.patch
 efi-halt-reboot-use-after-free.patch
 linux-loader-overflow.patch
+linux-initrd-overflow.patch

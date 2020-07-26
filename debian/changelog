@@ -35,6 +35,7 @@ grub2 (2.04-9) UNRELEASED; urgency=medium
     - update safemath with fallback code for gcc older than 5.1
     - efi: Fix use-after-free in halt/reboot path
     - linux loader: avoid overflow on initrd size calculation
+  * CVE-2020-15707: linux: Fix integer overflows in initrd size handling
 
  -- Colin Watson <cjwatson@debian.org>  Fri, 24 Jul 2020 22:33:58 +0100
 
