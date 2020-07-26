@@ -162,3 +162,4 @@ emu-free-null.patch
 efi-malformed-device-path.patch
 safe-alloc-5.patch
 linux-loader-overflow.patch
+linux-initrd-overflow.patch
