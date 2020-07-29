@@ -1,4 +1,4 @@
-grub2 (2.04-9) UNRELEASED; urgency=medium
+grub2 (2.04-9) unstable; urgency=high
 
   * Backport security patch series from upstream:
     - CVE-2020-10713: yylex: Make lexer fatal errors actually be fatal
@@ -41,7 +41,7 @@ grub2 (2.04-9) UNRELEASED; urgency=medium
     - unix/config: Fix integer overflow in grub_util_load_config
     - deviceiter: Fix integer overflow in grub_util_iterate_devices
 
- -- Colin Watson <cjwatson@debian.org>  Fri, 24 Jul 2020 22:33:58 +0100
+ -- Colin Watson <cjwatson@debian.org>  Wed, 29 Jul 2020 17:58:37 +0100
 
 grub2 (2.04-8) unstable; urgency=medium
 
