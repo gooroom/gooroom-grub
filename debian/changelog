@@ -1,3 +1,10 @@
+grub2 (2.04-10) UNRELEASED; urgency=medium
+
+  [ Ian Campbell ]
+  * Remove myself from uploaders.
+
+ -- Ian Campbell <ijc@debian.org>  Sat, 27 Jun 2020 10:32:02 +0100
+
 grub2 (2.04-9) unstable; urgency=high
 
   * Backport security patch series from upstream:
