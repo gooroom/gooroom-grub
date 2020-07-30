@@ -167,3 +167,4 @@ efilinux-overflow.patch
 bootp-alloc.patch
 unix-config-overflow.patch
 deviceiter-overflow.patch
+efi-malformed-device-path-2.patch
