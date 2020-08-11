@@ -1,4 +1,4 @@
-gooroom-grub (2.02+dfsg1-20+deb10u2+dev) unstable; urgency=medium
+gooroom-grub (2.02+dfsg1-20+nDeb10u2+grm2u1) unstable; urgency=medium
 
   * merge debian/2.02+dfsg1-20+deb10u2 to gooroom-2.0
 

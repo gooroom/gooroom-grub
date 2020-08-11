@@ -1,20 +1,20 @@
-From 665ead9f137d5527b14013e0bfbdb9b4d77dbe27 Mon Sep 17 00:00:00 2001
+From b06c231a1861f00251f20ee6fb08e702e44e621a Mon Sep 17 00:00:00 2001
 From: "jongkyung.woo" <jkwoo@gooroom.kr>
-Date: Thu, 20 Jun 2019 11:55:53 +0900
-Subject: [PATCH 3/3] gooroom #03
+Date: Tue, 11 Aug 2020 21:56:00 +0900
+Subject: [PATCH 3/3] Imported Gooorom Patchset
 
 ---
- grub-core/loader/efi/chainloader.c | 15 ---------
- grub-core/loader/i386/efi/linux.c  | 64 +++++++++-----------------------------
- util/grub-mkconfig_lib.in          | 16 ++--------
- util/grub.d/10_linux.in            | 63 ++++++++++++++++++-------------------
+ grub-core/loader/efi/chainloader.c | 15 -------
+ grub-core/loader/i386/efi/linux.c  | 64 +++++++-----------------------
+ util/grub-mkconfig_lib.in          | 16 ++------
+ util/grub.d/10_linux.in            | 63 +++++++++++++++--------------
  4 files changed, 48 insertions(+), 110 deletions(-)
 
 diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
-index 87a91e1..0ad580d 100644
+index d9c0db4..373d17c 100644
 --- a/grub-core/loader/efi/chainloader.c
 +++ b/grub-core/loader/efi/chainloader.c
-@@ -300,21 +300,6 @@ image_is_64_bit (grub_pe_header_t *pe_hdr)
+@@ -316,21 +316,6 @@ image_is_64_bit (grub_pe_header_t *pe_hdr)
    return 0;
  }
  
@@ -37,10 +37,10 @@ index 87a91e1..0ad580d 100644
  relocate_coff (pe_coff_loader_image_context_t *context,
  	       struct grub_pe32_section_table *section,
 diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
-index a018f9e..9c23566 100644
+index 2b62b77..a0b0864 100644
 --- a/grub-core/loader/i386/efi/linux.c
 +++ b/grub-core/loader/i386/efi/linux.c
-@@ -49,52 +49,6 @@ static char *linux_cmdline;
+@@ -50,52 +50,6 @@ static char *linux_cmdline;
  
  #define BYTES_TO_PAGES(bytes)   (((bytes) + 0xfff) >> 12)
  
@@ -93,7 +93,7 @@ index a018f9e..9c23566 100644
  static grub_err_t
  grub_linuxefi_boot (void)
  {
-@@ -222,7 +176,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -227,7 +181,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    grub_file_t file = 0;
    struct linux_i386_kernel_header lh;
    grub_ssize_t len, start, filelen;
@@ -104,7 +104,7 @@ index a018f9e..9c23566 100644
  
    grub_dl_ref (my_mod);
  
-@@ -257,6 +213,15 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -262,6 +218,15 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
        grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
        goto fail;
      }
@@ -120,7 +120,7 @@ index a018f9e..9c23566 100644
  /*
    if (! grub_linuxefi_check_shim_lock ())
      {
-@@ -354,9 +319,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -359,9 +324,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    grub_loader_set (grub_linuxefi_boot, grub_linuxefi_unload, 0);
    loaded=1;
  
@@ -274,5 +274,5 @@ index aa00102..a1a3d5c 100644
        list=`echo $list | tr ' ' '\n' | grep -vx $linux | tr '\n' ' '`
        continue
 -- 
-2.11.0
+2.20.1
 

@@ -1,33 +1,33 @@
-From 7d5171550405f40f15614a1f74f8d6cf2aef5b34 Mon Sep 17 00:00:00 2001
+From 7a26ea0750b84f94f7b3ba356ab2b23f1f1c99e2 Mon Sep 17 00:00:00 2001
 From: "jongkyung.woo" <jkwoo@gooroom.kr>
-Date: Thu, 20 Jun 2019 11:54:25 +0900
-Subject: [PATCH 2/3] gooroom #02
+Date: Tue, 11 Aug 2020 21:53:56 +0900
+Subject: [PATCH 2/3] merge gitbucket trustedgrub2
 
 ---
- grub-core/Makefile.am                 |   10 +
+ grub-core/Makefile.am                 |    7 +
  grub-core/Makefile.core.def           |   16 +-
  grub-core/commands/configfile.c       |   17 +-
  grub-core/kern/dl.c                   |   10 +
- grub-core/kern/efi/tpm/tpm_kern.c     |  494 ++++++++++++++++
+ grub-core/kern/efi/tpm/tpm_kern.c     |  494 ++++++++++++
  grub-core/kern/i386/pc/tpm/tpm_kern.c |    1 +
  grub-core/kern/main.c                 |    2 +-
- grub-core/loader/arm64/linux.c        |  146 ++++-
- grub-core/loader/efi/chainloader.c    |  619 ++++++++++++++++++--
- grub-core/loader/efi/linux.c          |  179 ++++++
- grub-core/loader/i386/efi/linux.c     |  104 ++--
+ grub-core/loader/arm64/linux.c        |  146 +++-
+ grub-core/loader/efi/chainloader.c    |  619 ++++++++++++++-
+ grub-core/loader/efi/linux.c          |  179 +++++
+ grub-core/loader/i386/efi/linux.c     |  104 +--
  grub-core/loader/i386/linux.c         |    2 +
  grub-core/loader/linux.c              |    8 +
  grub-core/loader/multiboot.c          |    2 +-
  grub-core/normal/main.c               |    6 +-
- grub-core/tpm/efi/tpm.c               | 1006 +++++++++++++++++++++++++++++++++
+ grub-core/tpm/efi/tpm.c               | 1006 +++++++++++++++++++++++++
  grubconf/embedded.cfg                 |   30 +
  include/grub/arm64/linux.h            |   12 +
- include/grub/efi/linux.h              |   40 ++
+ include/grub/efi/linux.h              |   40 +
  include/grub/efi/pe32.h               |   20 +-
- include/grub/efi/tpm.h                |  214 +++++++
+ include/grub/efi/tpm.h                |  214 ++++++
  include/grub/tpm.h                    |   22 +-
  util/grub.d/10_linux.in               |   23 +
- 23 files changed, 2859 insertions(+), 124 deletions(-)
+ 23 files changed, 2856 insertions(+), 124 deletions(-)
  create mode 100644 grub-core/kern/efi/tpm/tpm_kern.c
  create mode 100644 grub-core/loader/efi/linux.c
  create mode 100644 grub-core/tpm/efi/tpm.c
@@ -36,7 +36,7 @@ Subject: [PATCH 2/3] gooroom #02
  create mode 100644 include/grub/efi/tpm.h
 
 diff --git a/grub-core/Makefile.am b/grub-core/Makefile.am
-index e3c9289..2f97c7e 100644
+index e3c9289..8fde4f3 100644
 --- a/grub-core/Makefile.am
 +++ b/grub-core/Makefile.am
 @@ -124,6 +124,9 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
@@ -49,7 +49,7 @@ index e3c9289..2f97c7e 100644
  endif
  
  if COND_i386_coreboot
-@@ -184,6 +187,10 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/efi/disk.h
+@@ -185,6 +188,10 @@ KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/tsc.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/pci.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/acpi.h
  KERNEL_HEADER_FILES += $(top_srcdir)/include/grub/i386/pmtimer.h
@@ -913,7 +913,7 @@ index 1f86229..281a096 100644
  GRUB_MOD_INIT (linux)
  {
 diff --git a/grub-core/loader/efi/chainloader.c b/grub-core/loader/efi/chainloader.c
-index adc8563..87a91e1 100644
+index 25f2164..d9c0db4 100644
 --- a/grub-core/loader/efi/chainloader.c
 +++ b/grub-core/loader/efi/chainloader.c
 @@ -32,6 +32,8 @@
@@ -948,7 +948,7 @@ index adc8563..87a91e1 100644
  
    grub_dl_unref (my_mod);
    return GRUB_ERR_NONE;
-@@ -191,12 +199,523 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
+@@ -207,12 +215,523 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
    return file_path;
  }
  
@@ -1473,7 +1473,7 @@ index adc8563..87a91e1 100644
    grub_efi_status_t status;
    grub_efi_boot_services_t *b;
    grub_device_t dev = 0;
-@@ -204,7 +723,6 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -220,7 +739,6 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
    grub_efi_loaded_image_t *loaded_image;
    char *filename;
    void *boot_image = 0;
@@ -1481,7 +1481,7 @@ index adc8563..87a91e1 100644
  
    if (argc == 0)
      return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
-@@ -216,15 +734,45 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -232,15 +750,45 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
    address = 0;
    image_handle = 0;
    file_path = 0;
@@ -1529,7 +1529,7 @@ index adc8563..87a91e1 100644
    if (! dev)
      goto fail;
  
-@@ -264,14 +812,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -280,14 +828,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
    grub_printf ("file path: ");
    grub_efi_print_device_path (file_path);
  
@@ -1547,7 +1547,7 @@ index adc8563..87a91e1 100644
  
    status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
  			      GRUB_EFI_LOADER_CODE,
-@@ -285,7 +833,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -301,7 +849,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
      }
  
    boot_image = (void *) ((grub_addr_t) address);
@@ -1556,7 +1556,7 @@ index adc8563..87a91e1 100644
      {
        if (grub_errno == GRUB_ERR_NONE)
  	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
-@@ -295,7 +843,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -311,7 +859,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
      }
  
  #if defined (__i386__) || defined (__x86_64__)
@@ -1565,7 +1565,7 @@ index adc8563..87a91e1 100644
      {
        struct grub_macho_fat_header *head = boot_image;
        if (head->magic
-@@ -304,6 +852,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -320,6 +868,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
  	  grub_uint32_t i;
  	  struct grub_macho_fat_arch *archs
  	    = (struct grub_macho_fat_arch *) (head + 1);
@@ -1580,7 +1580,7 @@ index adc8563..87a91e1 100644
  	  for (i = 0; i < grub_cpu_to_le32 (head->nfat_arch); i++)
  	    {
  	      if (GRUB_MACHO_CPUTYPE_IS_HOST_CURRENT (archs[i].cputype))
-@@ -318,21 +874,28 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -334,21 +890,28 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
  	      > ~grub_cpu_to_le32 (archs[i].size)
  	      || grub_cpu_to_le32 (archs[i].offset)
  	      + grub_cpu_to_le32 (archs[i].size)
@@ -1613,7 +1613,7 @@ index adc8563..87a91e1 100644
    if (status != GRUB_EFI_SUCCESS)
      {
        if (status == GRUB_EFI_OUT_OF_RESOURCES)
-@@ -354,33 +917,10 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -370,33 +933,10 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
      }
    loaded_image->device_handle = dev_handle;
  
@@ -1649,7 +1649,7 @@ index adc8563..87a91e1 100644
      }
  
    grub_file_close (file);
-@@ -402,6 +942,9 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
+@@ -418,6 +958,9 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
    if (address)
      efi_call_2 (b->free_pages, address, pages);
  
@@ -1845,13 +1845,13 @@ index 0000000..e4c5a74
 +}
 +
 diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
-index 0f4b0b4..a018f9e 100644
+index 300737f..2b62b77 100644
 --- a/grub-core/loader/i386/efi/linux.c
 +++ b/grub-core/loader/i386/efi/linux.c
-@@ -27,7 +27,14 @@
- #include <grub/i18n.h>
+@@ -28,7 +28,14 @@
  #include <grub/lib/cmdline.h>
  #include <grub/efi/efi.h>
+ #include <grub/safemath.h>
 -#include <stddef.h>
 +#include <grub/efi/linux.h>
 +/* Begin TCG Extension */
@@ -1864,7 +1864,7 @@ index 0f4b0b4..a018f9e 100644
  
  GRUB_MOD_LICENSE ("GPLv3+");
  
-@@ -91,21 +98,15 @@ typedef void(*handover_func)(void *, grub_efi_system_table_t *, struct linux_ker
+@@ -92,21 +99,15 @@ typedef void(*handover_func)(void *, grub_efi_system_table_t *, struct linux_ker
  static grub_err_t
  grub_linuxefi_boot (void)
  {
@@ -1888,7 +1888,7 @@ index 0f4b0b4..a018f9e 100644
  }
  
  static grub_err_t
-@@ -153,8 +154,13 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+@@ -154,8 +155,13 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
      {
        grub_file_filter_disable_compression ();
        files[i] = grub_file_open (argv[i]);
@@ -1900,9 +1900,9 @@ index 0f4b0b4..a018f9e 100644
          goto fail;
 +      }
        nfiles++;
-       size += ALIGN_UP (grub_file_size (files[i]), 4);
-     }
-@@ -170,7 +176,7 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+       if (grub_add (size, ALIGN_UP (grub_file_size (files[i]), 4), &size))
+ 	{
+@@ -175,7 +181,7 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
    grub_dprintf ("linuxefi", "initrd_mem = %lx\n", (unsigned long) initrd_mem);
  
    params->ramdisk_size = size;
@@ -1911,7 +1911,7 @@ index 0f4b0b4..a018f9e 100644
  
    ptr = initrd_mem;
  
-@@ -191,13 +197,20 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
+@@ -196,13 +202,20 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
  
    params->ramdisk_size = size;
  
@@ -1933,7 +1933,7 @@ index 0f4b0b4..a018f9e 100644
  
    return grub_errno;
  }
-@@ -220,8 +233,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -225,8 +238,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
      }
  
    file = grub_file_open (argv[0]);
@@ -1948,7 +1948,7 @@ index 0f4b0b4..a018f9e 100644
  
    filelen = grub_file_size (file);
  
-@@ -238,17 +257,19 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -243,17 +262,19 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
        grub_error (GRUB_ERR_FILE_READ_ERROR, N_("Can't read kernel %s"), argv[0]);
        goto fail;
      }
@@ -1975,7 +1975,7 @@ index 0f4b0b4..a018f9e 100644
  
    params = grub_efi_allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(16384));
  
-@@ -262,13 +283,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -267,13 +288,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  
    grub_memset (params, 0, 16384);
  
@@ -1990,7 +1990,7 @@ index 0f4b0b4..a018f9e 100644
  
    if (lh.boot_flag != grub_cpu_to_le16 (0xaa55))
      {
-@@ -311,7 +326,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -316,7 +331,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
                                linux_cmdline + sizeof (LINUX_IMAGE) - 1,
  			      lh.cmdline_size - (sizeof (LINUX_IMAGE) - 1));
  
@@ -1999,7 +1999,7 @@ index 0f4b0b4..a018f9e 100644
  
    handover_offset = lh.handover_offset;
  
-@@ -331,27 +346,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -336,27 +351,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
        goto fail;
      }
  
@@ -2034,7 +2034,7 @@ index 0f4b0b4..a018f9e 100644
  
    /* do not overwrite below boot_params->hdr to avoid setting the sentinel byte */
    start = offsetof (struct linux_kernel_params, setup_sects);
-@@ -364,6 +365,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -369,6 +370,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
    if (file)
      grub_file_close (file);
  
@@ -2044,7 +2044,7 @@ index 0f4b0b4..a018f9e 100644
    if (grub_errno != GRUB_ERR_NONE)
      {
        grub_dl_unref (my_mod);
-@@ -371,13 +375,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -376,13 +380,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
      }
  
    if (linux_cmdline && !loaded)
@@ -2062,10 +2062,10 @@ index 0f4b0b4..a018f9e 100644
    return grub_errno;
  }
 diff --git a/grub-core/loader/i386/linux.c b/grub-core/loader/i386/linux.c
-index 41c9da5..68d498c 100644
+index 254589b..3041a17 100644
 --- a/grub-core/loader/i386/linux.c
 +++ b/grub-core/loader/i386/linux.c
-@@ -1089,6 +1089,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+@@ -1093,6 +1093,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
  		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
        loaded = 1;
  
@@ -2075,10 +2075,10 @@ index 41c9da5..68d498c 100644
        grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
      }
 diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
-index 947f97b..5eeb143 100644
+index 9e128c9..103bb8e 100644
 --- a/grub-core/loader/linux.c
 +++ b/grub-core/loader/linux.c
-@@ -162,6 +162,9 @@ grub_initrd_init (int argc, char *argv[],
+@@ -171,6 +171,9 @@ grub_initrd_init (int argc, char *argv[],
  
    initrd_ctx->size = 0;
  
@@ -2088,7 +2088,7 @@ index 947f97b..5eeb143 100644
    for (i = 0; i < argc; i++)
      {
        const char *fname = argv[i];
-@@ -252,6 +255,7 @@ grub_err_t
+@@ -278,6 +281,7 @@ grub_err_t
  grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
  		  char *argv[], void *target)
  {
@@ -2096,7 +2096,7 @@ index 947f97b..5eeb143 100644
    grub_uint8_t *ptr = target;
    int i;
    int newc = 0;
-@@ -292,6 +296,10 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+@@ -326,6 +330,10 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
  	  grub_initrd_close (initrd_ctx);
  	  return grub_errno;
  	}
@@ -2108,7 +2108,7 @@ index 947f97b..5eeb143 100644
        grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
        /* End TCG Extension */
 diff --git a/grub-core/loader/multiboot.c b/grub-core/loader/multiboot.c
-index 08cec39..594a17f 100644
+index 7034eef..e5f0844 100644
 --- a/grub-core/loader/multiboot.c
 +++ b/grub-core/loader/multiboot.c
 @@ -432,7 +432,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
@@ -3620,5 +3620,5 @@ index 024bd5c..aa00102 100644
    for i in "${dirname}/config-${version}" "${dirname}/config-${alt_version}" "/etc/kernels/kernel-config-${version}" ; do
      if test -e "${i}" ; then
 -- 
-2.11.0
+2.20.1
 

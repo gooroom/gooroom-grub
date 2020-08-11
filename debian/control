@@ -39,7 +39,6 @@ Standards-Version: 3.9.6
 Homepage: http://www.gooroom.kr
 Vcs-Git: https://github.com/gooroom/gooroom-grub.git
 Vcs-Browser: https://github.com/gooroom/gooroom-grub
-Rules-Requires-Root: no
 
 Package: gooroom-grub-common
 Priority: optional

@@ -27,6 +27,7 @@
 #include <grub/i18n.h>
 #include <grub/lib/cmdline.h>
 #include <grub/efi/efi.h>
+#include <grub/safemath.h>
 #include <grub/efi/linux.h>
 /* Begin TCG Extension */
 #include <grub/tpm.h>
@@ -35,8 +36,6 @@
 #include <grub/term.h>
 #include <grub/normal.h>
 #include <grub/time.h>
-#include <grub/safemath.h>
-#include <stddef.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 

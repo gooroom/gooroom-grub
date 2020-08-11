@@ -173,3 +173,4 @@ efi-malformed-device-path-2.patch
 gooroom-01-Merge-Rohde-Schwarz-Cybersecurity-TrustedGRUB2.patch
 gooroom-02-merge-gitbucket.trustedgrub2.patch
 gooroom-03-Imported-Gooorom-Patchset.patch
+#gooroom-04-Revert-build-error.patch
