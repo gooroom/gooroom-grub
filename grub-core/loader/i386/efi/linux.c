@@ -35,6 +35,8 @@
 #include <grub/term.h>
 #include <grub/normal.h>
 #include <grub/time.h>
+#include <grub/safemath.h>
+#include <stddef.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -100,7 +102,7 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
       goto fail;
     }
 
-  files = grub_zalloc (argc * sizeof (files[0]));
+  files = grub_calloc (argc, sizeof (files[0]));
   if (!files)
     goto fail;
 
@@ -116,7 +118,11 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
         goto fail;
       }
       nfiles++;
-      size += ALIGN_UP (grub_file_size (files[i]), 4);
+      if (grub_add (size, ALIGN_UP (grub_file_size (files[i]), 4), &size))
+	{
+	  grub_error (GRUB_ERR_OUT_OF_RANGE, N_("overflow is detected"));
+	  goto fail;
+	}
     }
 
   initrd_mem = grub_efi_allocate_pages_max (0x3fffffff, BYTES_TO_PAGES(size));

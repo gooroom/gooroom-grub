@@ -569,7 +569,7 @@ parse_dhcp6_option (const struct grub_net_dhcp6_option *opt, void *data)
 	      break;
 	    }
 	  dhcp6->num_dns_server = ln = len >> 4;
-	  dhcp6->dns_server_addrs = la = grub_zalloc (ln * sizeof (*la));
+	  dhcp6->dns_server_addrs = la = grub_calloc (ln, sizeof (*la));
 
 	  for (po = opt->data; ln > 0; po += 0x10, la++, ln--)
 	    {
@@ -1252,7 +1252,7 @@ grub_cmd_bootp (struct grub_command *cmd __attribute__ ((unused)),
   if (ncards == 0)
     return grub_error (GRUB_ERR_NET_NO_CARD, N_("no network card found"));
 
-  ifaces = grub_zalloc (ncards * sizeof (ifaces[0]));
+  ifaces = grub_calloc (ncards, sizeof (ifaces[0]));
   if (!ifaces)
     return grub_errno;
 

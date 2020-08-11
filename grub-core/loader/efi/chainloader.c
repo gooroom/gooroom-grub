@@ -114,7 +114,7 @@ grub_chainloader_boot (void)
   return grub_errno;
 }
 
-static void
+static grub_err_t
 copy_file_path (grub_efi_file_path_device_path_t *fp,
 		const char *str, grub_efi_uint16_t len)
 {
@@ -133,6 +133,7 @@ copy_file_path (grub_efi_file_path_device_path_t *fp,
   /* File Path is NULL terminated */
   fp->path_name[size++] = '\0';
   fp->header.length = size * sizeof (grub_efi_char16_t) + sizeof (*fp);
+  return GRUB_ERR_NONE;
 }
 
 static grub_efi_device_path_t *
@@ -158,9 +159,18 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
 
   size = 0;
   d = dp;
-  while (1)
+  while (d)
     {
-      size += GRUB_EFI_DEVICE_PATH_LENGTH (d);
+      grub_size_t len = GRUB_EFI_DEVICE_PATH_LENGTH (d);
+
+      if (len < 4)
+	{
+	  grub_error (GRUB_ERR_OUT_OF_RANGE,
+		      "malformed EFI Device Path node has length=%d", len);
+	  return NULL;
+	}
+
+      size += len;
       if ((GRUB_EFI_END_ENTIRE_DEVICE_PATH (d)))
 	break;
       d = GRUB_EFI_NEXT_DEVICE_PATH (d);
@@ -182,13 +192,19 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
   d = (grub_efi_device_path_t *) ((char *) file_path
 				  + ((char *) d - (char *) dp));
   grub_efi_print_device_path (d);
-  copy_file_path ((grub_efi_file_path_device_path_t *) d,
-		  dir_start, dir_end - dir_start);
+  if (copy_file_path ((grub_efi_file_path_device_path_t *) d,
+		      dir_start, dir_end - dir_start) != GRUB_ERR_NONE)
+    {
+    fail:
+      grub_free (file_path);
+      return 0;
+    }
 
   /* Fill the file path for the file.  */
   d = GRUB_EFI_NEXT_DEVICE_PATH (d);
-  copy_file_path ((grub_efi_file_path_device_path_t *) d,
-		  dir_end + 1, grub_strlen (dir_end + 1));
+  if (copy_file_path ((grub_efi_file_path_device_path_t *) d,
+		      dir_end + 1, grub_strlen (dir_end + 1)) != GRUB_ERR_NONE)
+    goto fail;
 
   /* Fill the end of device path nodes.  */
   d = GRUB_EFI_NEXT_DEVICE_PATH (d);

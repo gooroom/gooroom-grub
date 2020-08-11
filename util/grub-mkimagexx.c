@@ -1823,7 +1823,7 @@ SUFFIX (locate_sections) (Elf_Ehdr *e, const char *kernel_path,
   if (image_target->elf_target == EM_AARCH64)
     layout->align = 4096;
 
-  section_addresses = xmalloc (sizeof (*section_addresses) * num_sections);
+  section_addresses = xcalloc (num_sections, sizeof (*section_addresses));
   memset (section_addresses, 0, sizeof (*section_addresses) * num_sections);
 
   layout->kernel_size = 0;
@@ -1970,7 +1970,7 @@ SUFFIX (grub_mkimage_load_image) (const char *kernel_path,
 						layout,
 						image_target);
 
-  section_vaddresses = xmalloc (sizeof (*section_addresses) * num_sections);
+  section_vaddresses = xcalloc (num_sections, sizeof (*section_addresses));
 
   for (i = 0; i < num_sections; i++)
     section_vaddresses[i] = section_addresses[i] + image_target->vaddr_offset;

@@ -313,24 +313,79 @@ configure_ciphers (grub_disk_t disk, const char *check_uuid,
   return newdev;
 }
 
-/* Begin TCG extension */
-static grub_err_t luks_recover_key(grub_disk_t source, grub_cryptodisk_t dev) {
-	struct grub_luks_phdr header;
-	grub_size_t keysize;
-	grub_uint8_t *split_key = NULL;
-	char passphrase[MAX_PASSPHRASE] = "";
-	grub_uint8_t candidate_digest[sizeof(header.mkDigest)];
-	unsigned i;
-	grub_size_t length;
-	grub_err_t err;
-	grub_size_t max_stripes = 1;
-	char *tmp;
+static grub_err_t
+luks_recover_key (grub_disk_t source,
+		  grub_cryptodisk_t dev)
+{
+  struct grub_luks_phdr header;
+  grub_size_t keysize;
+  grub_uint8_t *split_key = NULL;
+  char passphrase[MAX_PASSPHRASE] = "";
+  grub_uint8_t candidate_digest[sizeof (header.mkDigest)];
+  unsigned i;
+  grub_size_t length;
+  grub_err_t err;
+  grub_size_t max_stripes = 1;
+  char *tmp;
 
-	err = grub_disk_read(source, 0, 0, sizeof(header), &header);
+  err = grub_disk_read (source, 0, 0, sizeof (header), &header);
+  if (err)
+    return err;
 
-	if (err) {
-		grub_print_error();
-		grub_fatal("luks_recover_key failed.");
+  grub_puts_ (N_("Attempting to decrypt master key..."));
+  keysize = grub_be_to_cpu32 (header.keyBytes);
+  if (keysize > GRUB_CRYPTODISK_MAX_KEYLEN)
+    return grub_error (GRUB_ERR_BAD_FS, "key is too long");
+
+  for (i = 0; i < ARRAY_SIZE (header.keyblock); i++)
+    if (grub_be_to_cpu32 (header.keyblock[i].active) == LUKS_KEY_ENABLED
+	&& grub_be_to_cpu32 (header.keyblock[i].stripes) > max_stripes)
+      max_stripes = grub_be_to_cpu32 (header.keyblock[i].stripes);
+
+  split_key = grub_calloc (keysize, max_stripes);
+  if (!split_key)
+    return grub_errno;
+
+  /* Get the passphrase from the user.  */
+  tmp = NULL;
+  if (source->partition)
+    tmp = grub_partition_get_name (source->partition);
+  grub_printf_ (N_("Enter passphrase for %s%s%s (%s): "), source->name,
+	       source->partition ? "," : "", tmp ? : "",
+	       dev->uuid);
+  grub_free (tmp);
+  if (!grub_password_get (passphrase, MAX_PASSPHRASE))
+    {
+      grub_free (split_key);
+      return grub_error (GRUB_ERR_BAD_ARGUMENT, "Passphrase not supplied");
+    }
+
+  /* Try to recover master key from each active keyslot.  */
+  for (i = 0; i < ARRAY_SIZE (header.keyblock); i++)
+    {
+      gcry_err_code_t gcry_err;
+      grub_uint8_t candidate_key[GRUB_CRYPTODISK_MAX_KEYLEN];
+      grub_uint8_t digest[GRUB_CRYPTODISK_MAX_KEYLEN];
+
+      /* Check if keyslot is enabled.  */
+      if (grub_be_to_cpu32 (header.keyblock[i].active) != LUKS_KEY_ENABLED)
+	continue;
+
+      grub_dprintf ("luks", "Trying keyslot %d\n", i);
+
+      /* Calculate the PBKDF2 of the user supplied passphrase.  */
+      gcry_err = grub_crypto_pbkdf2 (dev->hash, (grub_uint8_t *) passphrase,
+				     grub_strlen (passphrase),
+				     header.keyblock[i].passwordSalt,
+				     sizeof (header.keyblock[i].passwordSalt),
+				     grub_be_to_cpu32 (header.keyblock[i].
+						       passwordIterations),
+				     digest, keysize);
+
+      if (gcry_err)
+	{
+	  grub_free (split_key);
+	  return grub_crypto_gcry_error (gcry_err);
 	}
 
 	/* tpm functions not available in GRUB_UTIL */
