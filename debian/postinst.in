@@ -570,7 +570,10 @@ case "$1" in
             failed_devices=
             for i in `echo $RET | sed -e 's/, / /g'` ; do
               real_device="$(readlink -f "$i")"
-              if grub-install --target=i386-pc --force --no-floppy $real_device ; then
+              if [ ! -e "$real_device" ]; then
+                echo "$real_device does not exist, so cannot grub-install to it!" >&2
+                failed_devices="$failed_devices $real_device"
+              elif grub-install --target=i386-pc --force --no-floppy $real_device ; then
                 # We just installed GRUB 2; then also generate grub.cfg.
                 touch /boot/grub/grub.cfg
               else
