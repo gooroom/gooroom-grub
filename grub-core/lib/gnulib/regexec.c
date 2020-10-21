@@ -828,7 +828,11 @@ re_search_internal (const regex_t *preg, const char *string, Idx length,
 		    break;
 		  if (__glibc_unlikely (err != REG_NOMATCH))
 		    goto free_return;
+#ifdef DEBUG
+		  /* Only used for assertion below when DEBUG is set, otherwise
+		     it will be over-written when we loop around.  */
 		  match_last = -1;
+#endif
 		}
 	      else
 		break; /* We found a match.  */
