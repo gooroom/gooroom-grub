@@ -14,6 +14,8 @@ grub2 (2.04-10) UNRELEASED; urgency=medium
 
   [ Dimitri John Ledkov ]
   * grub-install: Add backup and restore.
+  * Don't call grub-install on fresh install of grub-pc.  It's the job of
+    installers to do that after a fresh install.
 
  -- Ian Campbell <ijc@debian.org>  Sat, 27 Jun 2020 10:32:02 +0100
 
