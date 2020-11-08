@@ -1,4 +1,4 @@
-grub2 (2.04-10) UNRELEASED; urgency=medium
+grub2 (2.04-10) unstable; urgency=medium
 
   [ Ian Campbell ]
   * Remove myself from uploaders.
@@ -20,7 +20,7 @@ grub2 (2.04-10) UNRELEASED; urgency=medium
   * Don't call grub-install on fresh install of grub-pc.  It's the job of
     installers to do that after a fresh install.
 
- -- Ian Campbell <ijc@debian.org>  Sat, 27 Jun 2020 10:32:02 +0100
+ -- Colin Watson <cjwatson@debian.org>  Sun, 08 Nov 2020 16:26:08 +0000
 
 grub2 (2.04-9) unstable; urgency=high
 
