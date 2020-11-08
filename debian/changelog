@@ -11,6 +11,9 @@ grub2 (2.04-10) UNRELEASED; urgency=medium
     grub-install, since grub-install copies modules to /boot/grub/ before
     installing the core image, and the new modules might be incompatible
     with the old core image (closes: #966575).
+  * Cherry-pick from upstream:
+    - tftp: Roll-over block counter to prevent data packets timeouts
+      (LP: #1892290).
 
   [ Dimitri John Ledkov ]
   * grub-install: Add backup and restore.
