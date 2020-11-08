@@ -12,6 +12,9 @@ grub2 (2.04-10) UNRELEASED; urgency=medium
     installing the core image, and the new modules might be incompatible
     with the old core image (closes: #966575).
 
+  [ Dimitri John Ledkov ]
+  * grub-install: Add backup and restore.
+
  -- Ian Campbell <ijc@debian.org>  Sat, 27 Jun 2020 10:32:02 +0100
 
 grub2 (2.04-9) unstable; urgency=high
