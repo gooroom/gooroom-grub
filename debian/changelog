@@ -13,6 +13,8 @@ grub2 (2.02+dfsg1-20+deb10u3) UNRELEASED; urgency=high
 
   [ Dimitri John Ledkov ]
   * grub-install: Add backup and restore.
+  * Don't call grub-install on fresh install of grub-pc.  It's the job of
+    installers to do that after a fresh install.
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 16 Aug 2020 12:55:51 +0100
 

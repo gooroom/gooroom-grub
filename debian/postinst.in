@@ -501,7 +501,7 @@ case "$1" in
         elif running_in_container; then
           # Skip grub-install in containers.
           :
-        elif test -z "$2" || test -e /boot/grub/core.img || \
+        elif test -e /boot/grub/core.img || \
              test -e /boot/grub/@FIRST_CPU_PLATFORM@/core.img || \
              test "$UPGRADE_FROM_GRUB_LEGACY" || test "$wubi_device"; then
           question=grub-pc/install_devices
