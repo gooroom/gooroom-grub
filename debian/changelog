@@ -7,6 +7,8 @@ grub2 (2.02+dfsg1-20+deb10u3) UNRELEASED; urgency=high
     grub-install, since grub-install copies modules to /boot/grub/ before
     installing the core image, and the new modules might be incompatible
     with the old core image (closes: #966575).
+  * Backport from upstream:
+    - unix exec: avoid atexit handlers when child exits
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 16 Aug 2020 12:55:51 +0100
 
