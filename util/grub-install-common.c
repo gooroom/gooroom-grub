@@ -247,7 +247,7 @@ clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
 	    }
 	  else if (mode == RESTORE_BACKUP)
 	    {
-	      char *dstf = grub_util_path_concat_ext (2, di, de->d_name);
+	      char *dstf = grub_util_path_concat (2, di, de->d_name);
 	      dstf[strlen (dstf) - 1] = 0;
 	      if (grub_util_rename (srcf, dstf) < 0)
 		grub_util_error (_("cannot restore `%s': %s"), dstf,

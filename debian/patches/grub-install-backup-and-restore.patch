@@ -1,4 +1,4 @@
-From e5a3c225df2f7982e20f00d157e41ec16e433967 Mon Sep 17 00:00:00 2001
+From b7fc63d1e961a65bcf548594579f014caa122841 Mon Sep 17 00:00:00 2001
 From: Dimitri John Ledkov <xnox@ubuntu.com>
 Date: Wed, 19 Aug 2020 01:49:09 +0100
 Subject: grub-install: Add backup and restore
@@ -41,7 +41,7 @@ index 851f61546..fcebe364f 100644
  
  # glibc 2.25 still includes sys/sysmacros.h in sys/types.h but emits deprecation
 diff --git a/util/grub-install-common.c b/util/grub-install-common.c
-index 447504d3f..a883b6dae 100644
+index 447504d3f..61f9075bc 100644
 --- a/util/grub-install-common.c
 +++ b/util/grub-install-common.c
 @@ -185,38 +185,113 @@ grub_install_mkdir_p (const char *dst)
@@ -125,7 +125,7 @@ index 447504d3f..a883b6dae 100644
 +	    }
 +	  else if (mode == RESTORE_BACKUP)
 +	    {
-+	      char *dstf = grub_util_path_concat_ext (2, di, de->d_name);
++	      char *dstf = grub_util_path_concat (2, di, de->d_name);
 +	      dstf[strlen (dstf) - 1] = 0;
 +	      if (grub_util_rename (srcf, dstf) < 0)
 +		grub_util_error (_("cannot restore `%s': %s"), dstf,

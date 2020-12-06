@@ -1,4 +1,4 @@
-From 31e8ac42e89fbdbbdd13f92702383b52d0c8b042 Mon Sep 17 00:00:00 2001
+From 50f471964d9b954be2c1fb9bb82e608d657d6fc9 Mon Sep 17 00:00:00 2001
 From: Javier Martinez Canillas <javierm@redhat.com>
 Date: Thu, 10 Sep 2020 17:17:57 +0200
 Subject: tftp: Roll-over block counter to prevent data packets timeouts
