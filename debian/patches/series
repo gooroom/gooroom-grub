@@ -169,3 +169,4 @@ unix-config-overflow.patch
 deviceiter-overflow.patch
 efi-malformed-device-path-2.patch
 exec-avoid-atexit-when-child-exits.patch
+grub-install-backup-and-restore.patch
