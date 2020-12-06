@@ -1,6 +1,6 @@
 grub2 (2.04-11) unstable; urgency=medium
 
-  * grub-install: Fix backup restoration on i386.
+  * grub-install: Fix backup restoration on i386 (closes: #976671).
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 06 Dec 2020 18:29:51 +0000
 
