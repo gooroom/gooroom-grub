@@ -1,3 +1,10 @@
+grub2 (2.04-14) UNRELEASED; urgency=medium
+
+  [ Raphaël Hertzog ]
+  * Extend grub-efi to also cover arm64/ia64/arm (closes: #981819).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 14:40:26 +0000
+
 grub2 (2.04-13) unstable; urgency=medium
 
   [ Steve McIntyre ]

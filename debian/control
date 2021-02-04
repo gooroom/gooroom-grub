@@ -61,15 +61,13 @@ Description: GRand Unified Bootloader, version 2 (dummy package)
  This is a dummy transitional package that depends on grub-coreboot.
 
 Package: grub-efi
-Section: oldlibs
-Architecture: any-i386 any-amd64
+Architecture: any-i386 any-amd64 any-arm64 any-ia64 any-arm
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, grub-efi-ia32 (= ${binary:Version}) [any-i386], grub-efi-amd64 (= ${binary:Version}) [any-amd64]
+Depends: ${misc:Depends}, grub-efi-ia32 (= ${binary:Version}) [any-i386], grub-efi-amd64 (= ${binary:Version}) [any-amd64], grub-efi-arm64 (= ${binary:Version}) [any-arm64], grub-efi-ia64 (= ${binary:Version}) [any-ia64], grub-efi-arm (= ${binary:Version}) [any-arm]
 Multi-Arch: foreign
 Description: GRand Unified Bootloader, version 2 (dummy package)
- This is a dummy transitional package that depends on either grub-efi-ia32 or
- grub-efi-amd64, depending on the architecture.
-
+ This is a dummy package that depends on the grub-efi-$ARCH package most likely
+ to be appropriate for each architecture.
 
 Package: grub-common
 Architecture: any
