@@ -1,10 +1,12 @@
-From 5478c9d0919b3e070b24a8485096152a1551b31f Mon Sep 17 00:00:00 2001
+From c65654e97ea4037c257267f3470d8ad296edd69b Mon Sep 17 00:00:00 2001
 From: Steve McIntyre <93sam@debian.org>
 Date: Tue, 5 Jan 2021 00:00:02 +0000
 Subject: Switch to using the efivarfs interface for detecting "system setup"
 
 The old efivarfs interface is deprecated and has been disabled in
 newer Debian kernels.
+
+Patch-Name: uefi-firmware-efivarfs.patch
 ---
  util/grub.d/30_uefi-firmware.in | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
