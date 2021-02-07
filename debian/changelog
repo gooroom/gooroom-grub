@@ -11,6 +11,8 @@ grub2 (2.04-14) UNRELEASED; urgency=medium
     #913928).
   * Make grub-firmware-qemu Recommend/Enhance qemu-system-x86, not qemu
     (closes: #966243).
+  * Make grub-common depend on mtools on EFI platforms, for grub-mkrescue
+    (closes: #774910).
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 14:40:26 +0000
 
