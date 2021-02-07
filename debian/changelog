@@ -9,6 +9,8 @@ grub2 (2.04-14) UNRELEASED; urgency=medium
       (closes: #979754).
   * Fix handling of trailing commas in grub-pc/install_devices (closes:
     #913928).
+  * Make grub-firmware-qemu Recommend/Enhance qemu-system-x86, not qemu
+    (closes: #966243).
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 14:40:26 +0000
 

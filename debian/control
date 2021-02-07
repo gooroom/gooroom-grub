@@ -575,8 +575,8 @@ Description: GRand Unified Bootloader, version 2 (Open Firmware version)
 Package: grub-firmware-qemu
 Architecture: any-i386 any-amd64
 Depends: ${misc:Depends}
-Recommends: qemu
-Enhances: qemu
+Recommends: qemu-system-x86
+Enhances: qemu-system-x86
 Multi-Arch: foreign
 Description: GRUB firmware image for QEMU
  This package contains a binary of GRUB that has been built for use as
