@@ -1,4 +1,4 @@
-grub2 (2.04-14) UNRELEASED; urgency=medium
+grub2 (2.04-14) unstable; urgency=medium
 
   [ Raphaël Hertzog ]
   * Extend grub-efi to also cover arm64/ia64/arm (closes: #981819).
@@ -14,7 +14,7 @@ grub2 (2.04-14) UNRELEASED; urgency=medium
   * Make grub-common depend on mtools on EFI platforms, for grub-mkrescue
     (closes: #774910).
 
- -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 14:40:26 +0000
+ -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 15:23:51 +0000
 
 grub2 (2.04-13) unstable; urgency=medium
 
