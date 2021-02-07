@@ -7,6 +7,8 @@ grub2 (2.04-14) UNRELEASED; urgency=medium
   * Cherry-pick from upstream:
     - grub-install: Fix inverted test for NLS enabled when copying locales
       (closes: #979754).
+  * Fix handling of trailing commas in grub-pc/install_devices (closes:
+    #913928).
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 14:40:26 +0000
 
