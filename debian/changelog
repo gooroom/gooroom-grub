@@ -1,9 +1,9 @@
-grub2 (2.04-15) UNRELEASED; urgency=medium
+grub2 (2.04-15) unstable; urgency=medium
 
   * Demote grub-common → mtools dependency to Suggests, to go with xorriso;
     explain the situation in the package description (closes: #982313).
 
- -- Colin Watson <cjwatson@debian.org>  Mon, 08 Feb 2021 18:12:00 +0000
+ -- Colin Watson <cjwatson@debian.org>  Mon, 08 Feb 2021 21:39:24 +0000
 
 grub2 (2.04-14) unstable; urgency=medium
 
