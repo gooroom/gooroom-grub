@@ -1,3 +1,10 @@
+grub2 (2.04-16) UNRELEASED; urgency=medium
+
+  * Fix broken advice in message when the postinst has to bail out (thanks
+    to Daniel Leidert for pointing out the problem).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 21 Feb 2021 00:01:18 +0000
+
 grub2 (2.04-15) unstable; urgency=medium
 
   * Demote grub-common → mtools dependency to Suggests, to go with xorriso;
