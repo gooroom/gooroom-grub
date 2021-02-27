@@ -134,6 +134,7 @@ grub2 (2.04-16) UNRELEASED; urgency=medium
     - gfxmenu/gui: Check printf() format in the gui_progress_bar and
       gui_label
     - kern/mm: Fix grub_debug_calloc() compilation error
+  * Add SBAT section (thanks, Chris Coulson).
 
  -- Colin Watson <cjwatson@debian.org>  Sun, 21 Feb 2021 00:01:18 +0000
 
