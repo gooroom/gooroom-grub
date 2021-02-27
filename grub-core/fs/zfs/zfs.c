@@ -567,7 +567,7 @@ find_bestub (uberblock_phys_t * ub_array,
       ubptr = (uberblock_phys_t *) ((grub_properly_aligned_t *) ub_array
 				    + ((i << ub_shift)
 				       / sizeof (grub_properly_aligned_t)));
-      err = uberblock_verify (ubptr, offset, 1 << ub_shift);
+      err = uberblock_verify (ubptr, offset, (grub_size_t) 1 << ub_shift);
       if (err)
 	{
 	  grub_errno = GRUB_ERR_NONE;
@@ -1546,7 +1546,7 @@ read_device (grub_uint64_t offset, struct grub_zfs_device_desc *desc,
 
 	    high = grub_divmod64 ((offset >> desc->ashift) + c,
 				  desc->n_children, &devn);
-	    csize = bsize << desc->ashift;
+	    csize = (grub_size_t) bsize << desc->ashift;
 	    if (csize > len)
 	      csize = len;
 
@@ -1638,8 +1638,8 @@ read_device (grub_uint64_t offset, struct grub_zfs_device_desc *desc,
 
 	    while (len > 0)
 	      {
-		grub_size_t csize;
-		csize = ((s / (desc->n_children - desc->nparity))
+		grub_size_t csize = s;
+		csize = ((csize / (desc->n_children - desc->nparity))
 			 << desc->ashift);
 		if (csize > len)
 		  csize = len;
@@ -2670,6 +2670,11 @@ dnode_get (dnode_end_t * mdn, grub_uint64_t objnum, grub_uint8_t type,
   blksz = grub_zfs_to_cpu16 (mdn->dn.dn_datablkszsec, 
 			     mdn->endian) << SPA_MINBLOCKSHIFT;
   epbs = zfs_log2 (blksz) - DNODE_SHIFT;
+
+  /* While this should never happen, we should check that epbs is not negative. */
+  if (epbs < 0)
+    epbs = 0;
+
   blkid = objnum >> epbs;
   idx = objnum & ((1 << epbs) - 1);
 
@@ -2834,8 +2839,8 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 
       if (dnode_path->dn.dn.dn_type != DMU_OT_DIRECTORY_CONTENTS)
 	{
-	  grub_free (path_buf);
-	  return grub_error (GRUB_ERR_BAD_FILE_TYPE, N_("not a directory"));
+	  err = grub_error (GRUB_ERR_BAD_FILE_TYPE, N_("not a directory"));
+	  break;
 	}
       err = zap_lookup (&(dnode_path->dn), cname, &objnum,
 			data, subvol->case_insensitive);
@@ -2877,11 +2882,18 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 		       << SPA_MINBLOCKSHIFT);
 
 	      if (blksz == 0)
-		return grub_error(GRUB_ERR_BAD_FS, "0-sized block");
+                {
+                  err = grub_error (GRUB_ERR_BAD_FS, "0-sized block");
+                  break;
+                }
 
 	      sym_value = grub_malloc (sym_sz);
 	      if (!sym_value)
-		return grub_errno;
+		{
+		  err = grub_errno;
+		  break;
+		}
+
 	      for (block = 0; block < (sym_sz + blksz - 1) / blksz; block++)
 		{
 		  void *t;
@@ -2891,7 +2903,7 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 		  if (err)
 		    {
 		      grub_free (sym_value);
-		      return err;
+		      break;
 		    }
 
 		  movesize = sym_sz - block * blksz;
@@ -2901,6 +2913,8 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 		  grub_memcpy (sym_value + block * blksz, t, movesize);
 		  grub_free (t);
 		}
+		if (err)
+		  break;
 	      free_symval = 1;
 	    }	    
 	  path = path_buf = grub_malloc (sym_sz + grub_strlen (oldpath) + 1);
@@ -2909,7 +2923,8 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 	      grub_free (oldpathbuf);
 	      if (free_symval)
 		grub_free (sym_value);
-	      return grub_errno;
+	      err = grub_errno;
+	      break;
 	    }
 	  grub_memcpy (path, sym_value, sym_sz);
 	  if (free_symval)
@@ -2947,11 +2962,12 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 	      
 	      err = zio_read (bp, dnode_path->dn.endian, &sahdrp, NULL, data);
 	      if (err)
-		return err;
+	        break;
 	    }
 	  else
 	    {
-	      return grub_error (GRUB_ERR_BAD_FS, "filesystem is corrupt");
+	      err = grub_error (GRUB_ERR_BAD_FS, "filesystem is corrupt");
+	      break;
 	    }
 
 	  hdrsize = SA_HDR_SIZE (((sa_hdr_phys_t *) sahdrp));
@@ -2972,7 +2988,8 @@ dnode_get_path (struct subvolume *subvol, const char *path_in, dnode_end_t *dn,
 	      if (!path_buf)
 		{
 		  grub_free (oldpathbuf);
-		  return grub_errno;
+		  err = grub_errno;
+		  break;
 		}
 	      grub_memcpy (path, sym_value, sym_sz);
 	      path [sym_sz] = 0;

@@ -63,6 +63,8 @@
     /* TRANSLATORS: "embed" is a verb (command description).  "*/	\
   { "pubkey",   'k', N_("FILE"), 0,					\
       N_("embed FILE as public key for signature checking"), 0},	\
+  { "sbat", GRUB_INSTALL_OPTIONS_SBAT, N_("FILE"), 0,			\
+      N_("SBAT metadata"), 0 },						\
   { "verbose", 'v', 0, 0,						\
     N_("print verbose messages."), 1 }
 
@@ -122,7 +124,8 @@ enum grub_install_options {
   GRUB_INSTALL_OPTIONS_THEMES_DIRECTORY,
   GRUB_INSTALL_OPTIONS_GRUB_MKIMAGE,
   GRUB_INSTALL_OPTIONS_INSTALL_CORE_COMPRESS,
-  GRUB_INSTALL_OPTIONS_DTB
+  GRUB_INSTALL_OPTIONS_DTB,
+  GRUB_INSTALL_OPTIONS_SBAT
 };
 
 extern char *grub_install_source_directory;
@@ -183,7 +186,8 @@ grub_install_generate_image (const char *dir, const char *prefix,
 			     char *config_path,
 			     const struct grub_install_image_target_desc *image_target,
 			     int note,
-			     grub_compression_t comp, const char *dtb_file);
+			     grub_compression_t comp, const char *dtb_file,
+			     const char *sbat_path);
 
 const struct grub_install_image_target_desc *
 grub_install_get_image_target (const char *arg);

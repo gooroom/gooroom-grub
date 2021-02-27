@@ -123,6 +123,7 @@ kernel = {
   riscv32_efi_startup = kern/riscv/efi/startup.S;
   riscv64_efi_startup = kern/riscv/efi/startup.S;
 
+  common = kern/buffer.c;
   common = kern/command.c;
   common = kern/corecmd.c;
   common = kern/device.c;
@@ -140,6 +141,7 @@ kernel = {
   common = kern/rescue_parser.c;
   common = kern/rescue_reader.c;
   common = kern/term.c;
+  common = kern/verifiers.c;
 
   noemu = kern/compiler-rt.c;
   noemu = kern/mm.c;
@@ -203,6 +205,7 @@ kernel = {
   efi = term/efi/console.c;
   efi = kern/acpi.c;
   efi = kern/efi/acpi.c;
+  efi = kern/lockdown.c;
   i386_coreboot = kern/i386/pc/acpi.c;
   i386_multiboot = kern/i386/pc/acpi.c;
   i386_coreboot = kern/acpi.c;
@@ -940,11 +943,6 @@ module = {
   common = commands/pgp.c;
   cflags = '$(CFLAGS_POSIX)';
   cppflags = '-I$(srcdir)/lib/posix_wrap';
-};
-
-module = {
-  name = verifiers;
-  common = commands/verifiers.c;
 };
 
 module = {

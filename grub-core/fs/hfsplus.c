@@ -177,6 +177,17 @@ grub_hfsplus_read_block (grub_fshelp_node_t node, grub_disk_addr_t fileblock)
 	  break;
 	}
 
+      /*
+       * If the extent overflow tree isn't ready yet, we can't look
+       * in it. This can happen where the catalog file is corrupted.
+       */
+      if (!node->data->extoverflow_tree_ready)
+	{
+	  grub_error (GRUB_ERR_BAD_FS,
+		      "attempted to read extent overflow tree before loading");
+	  break;
+	}
+
       /* Set up the key to look for in the extent overflow file.  */
       extoverflow.extkey.fileid = node->fileid;
       extoverflow.extkey.type = 0;
@@ -241,6 +252,7 @@ grub_hfsplus_mount (grub_disk_t disk)
     return 0;
 
   data->disk = disk;
+  data->extoverflow_tree_ready = 0;
 
   /* Read the bootblock.  */
   grub_disk_read (disk, GRUB_HFSPLUS_SBLOCK, 0, sizeof (volheader),
@@ -356,6 +368,8 @@ grub_hfsplus_mount (grub_disk_t disk)
 
   if (data->extoverflow_tree.nodesize < 2)
     goto fail;
+
+  data->extoverflow_tree_ready = 1;
 
   if (grub_hfsplus_read_file (&data->attr_tree.file, 0, 0,
 			      sizeof (struct grub_hfsplus_btnode),
@@ -635,6 +649,10 @@ grub_hfsplus_btree_search (struct grub_hfsplus_btree *btree,
 	      pointer = ((char *) currkey
 			 + grub_be_to_cpu16 (currkey->keylen)
 			 + 2);
+
+	      if ((char *) pointer > node + btree->nodesize - 2)
+		return grub_error (GRUB_ERR_BAD_FS, "HFS+ key beyond end of node");
+
 	      currnode = grub_be_to_cpu32 (grub_get_unaligned32 (pointer));
 	      match = 1;
 	    }
@@ -1012,6 +1030,15 @@ grub_hfsplus_label (grub_device_t device, char **label)
     grub_hfsplus_btree_recptr (&data->catalog_tree, node, ptr);
 
   label_len = grub_be_to_cpu16 (catkey->namelen);
+
+  /* Ensure that the length is >= 0. */
+  if (label_len < 0)
+    label_len = 0;
+
+  /* Ensure label length is at most 255 Unicode characters. */
+  if (label_len > 255)
+    label_len = 255;
+
   label_name = grub_calloc (label_len, sizeof (*label_name));
   if (!label_name)
     {

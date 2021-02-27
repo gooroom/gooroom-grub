@@ -3911,6 +3911,7 @@ you forget a command, you can run the command @command{help}
 * cpuid::                       Check for CPU features
 * crc::                         Compute or check CRC32 checksums
 * cryptomount::                 Mount a crypto device
+* cutmem::                      Remove memory regions
 * date::                        Display or set current date and time
 * devicetree::                  Load a device tree blob
 * distrust::                    Remove a pubkey from trusted keys
@@ -4005,6 +4006,11 @@ Normally, this command will replace the Root System Description Pointer
 (RSDP) in the Extended BIOS Data Area to point to the new tables. If the
 @option{--no-ebda} option is used, the new tables will be known only to
 GRUB, but may be used by GRUB's EFI emulation.
+
+Note: The command is not allowed when lockdown is enforced (@pxref{Lockdown}).
+      Otherwise an attacker can instruct the GRUB to load an SSDT table to
+      overwrite the kernel lockdown configuration and later load and execute
+      unsigned code.
 @end deffn
 
 
@@ -4064,6 +4070,12 @@ address that are enabled by the mask match with the base address, it means
 this page is to be filtered.  This syntax makes it easy to represent patterns
 that are often result of memory damage, due to physical distribution of memory
 cells.
+
+The command is similar to @command{cutmem} command.
+
+Note: The command is not allowed when lockdown is enforced (@pxref{Lockdown}).
+      This prevents removing EFI memory regions to potentially subvert the
+      security mechanisms provided by the UEFI secure boot.
 
 @node blocklist
 @subsection blocklist
@@ -4224,6 +4236,24 @@ GRUB suports devices encrypted using LUKS and geli. Note that necessary modules 
 be used.
 @end deffn
 
+@node cutmem
+@subsection cutmem
+
+@deffn Command cutmem from[K|M|G] to[K|M|G]
+Remove any memory regions in specified range.
+@end deffn
+
+This command notifies the memory manager that specified regions of RAM ought to
+be filtered out. This remains in effect after a payload kernel has been loaded
+by GRUB, as long as the loaded kernel obtains its memory map from GRUB. Kernels
+that support this include Linux, GNU Mach, the kernel of FreeBSD and Multiboot
+kernels in general.
+
+The command is similar to @command{badram} command.
+
+Note: The command is not allowed when lockdown is enforced (@pxref{Lockdown}).
+      This prevents removing EFI memory regions to potentially subvert the
+      security mechanisms provided by the UEFI secure boot.
 
 @node date
 @subsection date
@@ -4246,6 +4276,9 @@ Load a device tree blob (.dtb) from a filesystem, for later use by a Linux
 kernel. Does not perform merging with any device tree supplied by firmware,
 but rather replaces it completely.
 @ref{GNU/Linux}.
+
+Note: The command is not allowed when lockdown is enforced (@pxref{Lockdown}).
+      This is done to prevent subverting various security mechanisms.
 @end deffn
 
 @node distrust
@@ -5275,6 +5308,9 @@ only applies to the particular cpu/core/thread that runs the command.
 Also, if you specify a reserved or unimplemented MSR address, it will
 cause a general protection exception (which is not currently being handled)
 and the system will reboot.
+
+Note: The command is not allowed when lockdown is enforced (@pxref{Lockdown}).
+      This is done to prevent subverting various security mechanisms.
 @end deffn
 
 @node xen_hypervisor
@@ -5599,7 +5635,9 @@ environment variables and commands are listed in the same order.
 * Authentication and authorisation:: Users and access control
 * Using digital signatures::         Booting digitally signed code
 * UEFI secure boot and shim::        Booting digitally signed PE files
+* Secure Boot Advanced Targeting::   Embedded information for generation number based revocation
 * Measured Boot::                    Measuring boot components
+* Lockdown::                         Lockdown when booting on a secure setup
 @end menu
 
 @node Authentication and authorisation
@@ -5768,13 +5806,31 @@ secure boot chain.
 The GRUB, except the @command{chainloader} command, works with the UEFI secure
 boot and the shim. This functionality is provided by the shim_lock module. It
 is recommend to build in this and other required modules into the @file{core.img}.
-All modules not stored in the @file{core.img} and the ACPI tables for the
-@command{acpi} command have to be signed, e.g. using PGP. Additionally, the
-@command{iorw}, the @command{memrw} and the @command{wrmsr} commands are
-prohibited if the UEFI secure boot is enabled. This is done due to
-security reasons. All above mentioned requirements are enforced by the
-shim_lock module. And itself it is a persistent module which means that
-it cannot be unloaded if it was loaded into the memory.
+
+All GRUB modules not stored in the @file{core.img}, OS kernels, ACPI tables,
+Device Trees, etc. have to be signed, e.g, using PGP. Additionally, the commands
+that can be used to subvert the UEFI secure boot mechanism, such as @command{iorw}
+and @command{memrw} will not be available when the UEFI secure boot is enabled.
+This is done for security reasons and are enforced by the GRUB Lockdown mechanism
+(@pxref{Lockdown}).
+
+@node Secure Boot Advanced Targeting
+@section Embedded information for generation number based revocation
+
+The Secure Boot Advanced Targeting (SBAT) is a mechanism to allow the revocation
+of components in the boot path by using generation numbers embedded into the EFI
+binaries. The SBAT metadata is located in an .sbat data section that has set of
+UTF-8 strings as comma-separated values (CSV). See
+@uref{https://github.com/rhboot/shim/blob/main/SBAT.md} for more details.
+
+To add a data section containing the SBAT information into the binary, the
+@option{--sbat} option of @command{grub-mkimage} command should be used. The content
+of a CSV file, encoded with UTF-8, is copied as is to the .sbat data section into
+the generated EFI binary. The CSV file can be stored anywhere on the file system.
+
+@example
+grub-mkimage -O x86_64-efi -o grubx64.efi -p '(tftp)/grub' --sbat sbat.csv efinet tftp
+@end example
 
 @node Measured Boot
 @section Measuring boot components
@@ -5812,6 +5868,16 @@ into @file{core.img} in order to avoid a potential gap in measurement between
 @file{core.img} being loaded and the tpm module being loaded.
 
 Measured boot is currently only supported on EFI platforms.
+
+@node Lockdown
+@section Lockdown when booting on a secure setup
+
+The GRUB can be locked down when booted on a secure boot environment, for example
+if the UEFI secure boot is enabled. On a locked down configuration, the GRUB will
+be restricted and some operations/commands cannot be executed.
+
+The @samp{lockdown} variable is set to @samp{y} when the GRUB is locked down.
+Otherwise it does not exit.
 
 @node Platform limitations
 @chapter Platform limitations

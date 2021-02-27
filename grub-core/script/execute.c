@@ -485,7 +485,7 @@ gettext_putvar (const char *str, grub_size_t len,
     return 0;
 
   /* Enough for any number.  */
-  if (len == 1 && str[0] == '#')
+  if (len == 1 && str[0] == '#' && scope != NULL)
     {
       grub_snprintf (*ptr, 30, "%u", scope->argv.argc);
       *ptr += grub_strlen (*ptr);
@@ -623,6 +623,9 @@ grub_script_arglist_to_argv (struct grub_script_arglist *arglist,
   char **values = 0;
   struct grub_script_arg *arg = 0;
   struct grub_script_argv result = { 0, 0, 0 };
+
+  if (arglist == NULL)
+    return 1;
 
   for (; arglist && arglist->arg; arglist = arglist->next)
     {
@@ -940,7 +943,7 @@ grub_script_execute_cmdline (struct grub_script_cmd *cmd)
   struct grub_script_argv argv = { 0, 0, 0 };
 
   /* Lookup the command.  */
-  if (grub_script_arglist_to_argv (cmdline->arglist, &argv) || ! argv.args[0])
+  if (grub_script_arglist_to_argv (cmdline->arglist, &argv) || ! argv.args || ! argv.args[0])
     return grub_errno;
 
   for (i = 0; i < argv.argc; i++)

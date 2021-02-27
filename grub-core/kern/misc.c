@@ -33,7 +33,8 @@ union printf_arg
   enum
     {
       INT, LONG, LONGLONG,
-      UNSIGNED_INT = 3, UNSIGNED_LONG, UNSIGNED_LONGLONG
+      UNSIGNED_INT = 3, UNSIGNED_LONG, UNSIGNED_LONGLONG,
+      STRING
     } type;
   long long ll;
 };
@@ -406,6 +407,10 @@ grub_strtoull (const char *str, char **end, int base)
 	{
 	  grub_error (GRUB_ERR_OUT_OF_RANGE,
 		      N_("overflow is detected"));
+
+          if (end)
+            *end = (char *) str;
+
 	  return ~0ULL;
 	}
 
@@ -417,6 +422,10 @@ grub_strtoull (const char *str, char **end, int base)
     {
       grub_error (GRUB_ERR_BAD_NUMBER,
 		  N_("unrecognized number"));
+
+      if (end)
+        *end = (char *) str;
+
       return 0;
     }
 
@@ -623,9 +632,26 @@ grub_lltoa (char *str, int c, unsigned long long n)
   return p;
 }
 
-static void
-parse_printf_args (const char *fmt0, struct printf_args *args,
-		   va_list args_in)
+/*
+ * Parse printf() fmt0 string into args arguments.
+ *
+ * The parsed arguments are either used by a printf() function to format the fmt0
+ * string or they are used to compare a format string from an untrusted source
+ * against a format string with expected arguments.
+ *
+ * When the fmt_check is set to !0, e.g. 1, then this function is executed in
+ * printf() format check mode. This enforces stricter rules for parsing the
+ * fmt0 to limit exposure to possible errors in printf() handling. It also
+ * disables positional parameters, "$", because some formats, e.g "%s%1$d",
+ * cannot be validated with the current implementation.
+ *
+ * The max_args allows to set a maximum number of accepted arguments. If the fmt0
+ * string defines more arguments than the max_args then the parse_printf_arg_fmt()
+ * function returns an error. This is currently used for format check only.
+ */
+static grub_err_t
+parse_printf_arg_fmt (const char *fmt0, struct printf_args *args,
+		      int fmt_check, grub_size_t max_args)
 {
   const char *fmt;
   char c;
@@ -652,7 +678,12 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
 	fmt++;
 
       if (*fmt == '$')
-	fmt++;
+	{
+	  if (fmt_check)
+	    return grub_error (GRUB_ERR_BAD_ARGUMENT,
+			       "positional arguments are not supported");
+	  fmt++;
+	}
 
       if (*fmt =='-')
 	fmt++;
@@ -684,8 +715,18 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
 	case 's':
 	  args->count++;
 	  break;
+	case '%':
+	  /* "%%" is the escape sequence to output "%". */
+	  break;
+	default:
+	  if (fmt_check)
+	    return grub_error (GRUB_ERR_BAD_ARGUMENT, "unexpected format");
+	  break;
 	}
     }
+
+  if (fmt_check && args->count > max_args)
+    return grub_error (GRUB_ERR_BAD_ARGUMENT, "too many arguments");
 
   if (args->count <= ARRAY_SIZE (args->prealloc))
     args->ptr = args->prealloc;
@@ -694,6 +735,9 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
       args->ptr = grub_calloc (args->count, sizeof (args->ptr[0]));
       if (!args->ptr)
 	{
+	  if (fmt_check)
+	    return grub_errno;
+
 	  grub_errno = GRUB_ERR_NONE;
 	  args->ptr = args->prealloc;
 	  args->count = ARRAY_SIZE (args->prealloc);
@@ -771,11 +815,13 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
 	  args->ptr[curn].type = INT + longfmt;
 	  break;
 	case 'p':
-	case 's':
 	  if (sizeof (void *) == sizeof (long long))
 	    args->ptr[curn].type = UNSIGNED_LONGLONG;
 	  else
 	    args->ptr[curn].type = UNSIGNED_INT;
+	  break;
+	case 's':
+	  args->ptr[curn].type = STRING;
 	  break;
 	case 'C':
 	case 'c':
@@ -783,6 +829,16 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
 	  break;
 	}
     }
+
+  return GRUB_ERR_NONE;
+}
+
+static void
+parse_printf_args (const char *fmt0, struct printf_args *args, va_list args_in)
+{
+  grub_size_t n;
+
+  parse_printf_arg_fmt (fmt0, args, 0, 0);
 
   for (n = 0; n < args->count; n++)
     switch (args->ptr[n].type)
@@ -802,6 +858,12 @@ parse_printf_args (const char *fmt0, struct printf_args *args,
       case LONGLONG:
       case UNSIGNED_LONGLONG:
 	args->ptr[n].ll = va_arg (args_in, long long);
+	break;
+      case STRING:
+	if (sizeof (void *) == sizeof (long long))
+	  args->ptr[n].ll = va_arg (args_in, long long);
+	else
+	  args->ptr[n].ll = va_arg (args_in, unsigned int);
 	break;
       }
 }
@@ -1083,6 +1145,42 @@ grub_xasprintf (const char *fmt, ...)
 
   return ret;
 }
+
+grub_err_t
+grub_printf_fmt_check (const char *fmt, const char *fmt_expected)
+{
+  struct printf_args args_expected, args_fmt;
+  grub_err_t ret;
+  grub_size_t n;
+
+  if (fmt == NULL || fmt_expected == NULL)
+    return grub_error (GRUB_ERR_BAD_ARGUMENT, "invalid format");
+
+  ret = parse_printf_arg_fmt (fmt_expected, &args_expected, 1, GRUB_SIZE_MAX);
+  if (ret != GRUB_ERR_NONE)
+    return ret;
+
+  /* Limit parsing to the number of expected arguments. */
+  ret = parse_printf_arg_fmt (fmt, &args_fmt, 1, args_expected.count);
+  if (ret != GRUB_ERR_NONE)
+    {
+      free_printf_args (&args_expected);
+      return ret;
+    }
+
+  for (n = 0; n < args_fmt.count; n++)
+    if (args_fmt.ptr[n].type != args_expected.ptr[n].type)
+     {
+	ret = grub_error (GRUB_ERR_BAD_ARGUMENT, "arguments types do not match");
+	break;
+     }
+
+  free_printf_args (&args_expected);
+  free_printf_args (&args_fmt);
+
+  return ret;
+}
+
 
 /* Abort GRUB. This function does not return.  */
 static void __attribute__ ((noreturn))

@@ -141,6 +141,20 @@ grub_lvm_detect (grub_disk_t disk,
       goto fail;
     }
 
+  /*
+   * We read a grub_lvm_pv_header and then 2 grub_lvm_disk_locns that
+   * immediately follow the PV header. Make sure we have space for both.
+   */
+  if (grub_le_to_cpu32 (lh->offset_xl) >=
+      GRUB_LVM_LABEL_SIZE - sizeof (struct grub_lvm_pv_header) -
+      2 * sizeof (struct grub_lvm_disk_locn))
+    {
+#ifdef GRUB_UTIL
+      grub_util_info ("LVM PV header/disk locations are beyond the end of the block");
+#endif
+      goto fail;
+    }
+
   pvh = (struct grub_lvm_pv_header *) (buf + grub_le_to_cpu32(lh->offset_xl));
 
   for (i = 0, j = 0; i < GRUB_LVM_ID_LEN; i++)
@@ -197,9 +211,27 @@ grub_lvm_detect (grub_disk_t disk,
     }
 
   rlocn = mdah->raw_locns;
+  if (grub_le_to_cpu64 (rlocn->offset) >= grub_le_to_cpu64 (mda_size))
+    {
+#ifdef GRUB_UTIL
+      grub_util_info ("metadata offset is beyond end of metadata area");
+#endif
+      goto fail2;
+    }
+
   if (grub_le_to_cpu64 (rlocn->offset) + grub_le_to_cpu64 (rlocn->size) >
       grub_le_to_cpu64 (mdah->size))
     {
+      if (2 * mda_size < GRUB_LVM_MDA_HEADER_SIZE ||
+          (grub_le_to_cpu64 (rlocn->offset) + grub_le_to_cpu64 (rlocn->size) -
+	   grub_le_to_cpu64 (mdah->size) > mda_size - GRUB_LVM_MDA_HEADER_SIZE))
+	{
+#ifdef GRUB_UTIL
+	  grub_util_info ("cannot copy metadata wrap in circular buffer");
+#endif
+	  goto fail2;
+	}
+
       /* Metadata is circular. Copy the wrap in place. */
       grub_memcpy (metadatabuf + mda_size,
 		   metadatabuf + GRUB_LVM_MDA_HEADER_SIZE,
@@ -289,16 +321,22 @@ error_parsing_metadata:
 	  while (1)
 	    {
 	      grub_ssize_t s;
-	      while (grub_isspace (*p))
+	      while (grub_isspace (*p) && p < mda_end)
 		p++;
+
+	      if (p == mda_end)
+		goto fail4;
 
 	      if (*p == '}')
 		break;
 
 	      pv = grub_zalloc (sizeof (*pv));
 	      q = p;
-	      while (*q != ' ')
+	      while (*q != ' ' && q < mda_end)
 		q++;
+
+	      if (q == mda_end)
+		goto pvs_fail_noname;
 
 	      s = q - p;
 	      pv->name = grub_malloc (s + 1);
@@ -342,10 +380,13 @@ error_parsing_metadata:
 	      continue;
 	    pvs_fail:
 	      grub_free (pv->name);
+	    pvs_fail_noname:
 	      grub_free (pv);
 	      goto fail4;
 	    }
 	}
+      else
+        goto fail4;
 
       p = grub_strstr (p, "logical_volumes {");
       if (p)
@@ -361,8 +402,11 @@ error_parsing_metadata:
 	      struct grub_diskfilter_segment *seg;
 	      int is_pvmove;
 
-	      while (grub_isspace (*p))
+	      while (grub_isspace (*p) && p < mda_end)
 		p++;
+
+	      if (p == mda_end)
+		goto fail4;
 
 	      if (*p == '}')
 		break;
@@ -370,8 +414,11 @@ error_parsing_metadata:
 	      lv = grub_zalloc (sizeof (*lv));
 
 	      q = p;
-	      while (*q != ' ')
+	      while (*q != ' ' && q < mda_end)
 		q++;
+
+	      if (q == mda_end)
+		goto lvs_fail;
 
 	      s = q - p;
 	      lv->name = grub_strndup (p, s);
@@ -512,7 +559,16 @@ error_parsing_metadata:
 			}
 
 		      if (seg->node_count != 1)
-			seg->stripe_size = grub_lvm_getvalue (&p, "stripe_size = ");
+			{
+			  seg->stripe_size = grub_lvm_getvalue (&p, "stripe_size = ");
+			  if (p == NULL)
+			    {
+#ifdef GRUB_UTIL
+			      grub_util_info ("unknown stripe_size");
+#endif
+			      goto lvs_segment_fail;
+			    }
+			}
 
 		      seg->nodes = grub_calloc (seg->node_count,
 						sizeof (*stripe));
@@ -532,10 +588,13 @@ error_parsing_metadata:
 			{
 			  p = grub_strchr (p, '"');
 			  if (p == NULL)
-			    continue;
+			    goto lvs_segment_fail2;
 			  q = ++p;
-			  while (*q != '"')
+			  while (q < mda_end && *q != '"')
 			    q++;
+
+			  if (q == mda_end)
+			    goto lvs_segment_fail2;
 
 			  s = q - p;
 
@@ -551,7 +610,10 @@ error_parsing_metadata:
 			  stripe->start = grub_lvm_getvalue (&p, ",")
 			    * vg->extent_size;
 			  if (p == NULL)
-			    continue;
+			    {
+			      grub_free (stripe->name);
+			      goto lvs_segment_fail2;
+			    }
 
 			  stripe++;
 			}
@@ -588,10 +650,13 @@ error_parsing_metadata:
 
 			  p = grub_strchr (p, '"');
 			  if (p == NULL)
-			    continue;
+			    goto lvs_segment_fail2;
 			  q = ++p;
-			  while (*q != '"')
+			  while (q < mda_end && *q != '"')
 			    q++;
+
+			  if (q == mda_end)
+			    goto lvs_segment_fail2;
 
 			  s = q - p;
 
@@ -676,7 +741,7 @@ error_parsing_metadata:
 			  p = p ? grub_strchr (p + 1, '"') : 0;
 			  p = p ? grub_strchr (p + 1, '"') : 0;
 			  if (p == NULL)
-			    continue;
+			    goto lvs_segment_fail2;
 			  q = ++p;
 			  while (*q != '"')
 			    q++;
@@ -772,9 +837,13 @@ error_parsing_metadata:
 		    }
 		if (lv1->segments[i].nodes[j].pv == NULL)
 		  for (lv2 = vg->lvs; lv2; lv2 = lv2->next)
-		    if (grub_strcmp (lv2->name,
-				     lv1->segments[i].nodes[j].name) == 0)
-		      lv1->segments[i].nodes[j].lv = lv2;
+		    {
+		      if (lv1 == lv2)
+		        continue;
+		      if (grub_strcmp (lv2->name,
+				       lv1->segments[i].nodes[j].name) == 0)
+			lv1->segments[i].nodes[j].lv = lv2;
+		    }
 	      }
 	
       }

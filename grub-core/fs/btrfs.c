@@ -383,9 +383,9 @@ next (struct grub_btrfs_data *data,
 
       err = grub_btrfs_read_logical (data, grub_le_to_cpu64 (node.addr),
 				     &head, sizeof (head), 0);
-      check_btrfs_header (data, &head, grub_le_to_cpu64 (node.addr));
       if (err)
 	return -err;
+      check_btrfs_header (data, &head, grub_le_to_cpu64 (node.addr));
 
       save_ref (desc, grub_le_to_cpu64 (node.addr), 0,
 		grub_le_to_cpu32 (head.nitems), !head.level);
@@ -445,9 +445,9 @@ lower_bound (struct grub_btrfs_data *data,
       /* FIXME: preread few nodes into buffer. */
       err = grub_btrfs_read_logical (data, addr, &head, sizeof (head),
 				     recursion_depth + 1);
-      check_btrfs_header (data, &head, addr);
       if (err)
 	return err;
+      check_btrfs_header (data, &head, addr);
       addr += sizeof (head);
       if (head.level)
 	{
@@ -1083,6 +1083,9 @@ grub_btrfs_read_logical (struct grub_btrfs_data *data, grub_disk_addr_t addr,
 	       * stripen is computed without the parities
 	       * (0 for A0, A1, A2, 1 for B0, B1, B2, etc.).
 	       */
+	      if (nparities >= nstripes)
+		return grub_error (GRUB_ERR_BAD_FS,
+				   "invalid RAID5/6: nparities >= nstripes");
 	      high = grub_divmod64 (stripe_nr, nstripes - nparities, &stripen);
 
 	      /*
