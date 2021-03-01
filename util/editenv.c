@@ -55,8 +55,7 @@ grub_util_create_envblk_file (const char *name)
 		     strerror (errno));
 
 
-  if (grub_util_file_sync (fp) < 0)
-    grub_util_error (_("cannot sync `%s': %s"), namenew, strerror (errno));
+  grub_util_file_sync (fp);
   free (buf);
   fclose (fp);
 

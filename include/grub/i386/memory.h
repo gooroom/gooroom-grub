@@ -44,13 +44,6 @@
 
 #include <grub/types.h>
 
-struct grub_e820_mmap_entry
-{
-  grub_uint64_t addr;
-  grub_uint64_t len;
-  grub_uint32_t type;
-} GRUB_PACKED;
-
 grub_uint64_t grub_mmap_get_upper (void);
 grub_uint64_t grub_mmap_get_lower (void);
 grub_uint64_t grub_mmap_get_post64 (void);

@@ -1,0 +1,41 @@
+From c999fdf72484ca9eb6c71310ff839c63b0a98361 Mon Sep 17 00:00:00 2001
+From: Paulo Flabiano Smorigo <pfsmorigo@canonical.com>
+Date: Mon, 30 Nov 2020 10:36:00 -0300
+Subject: loader/xnu: Check if pointer is NULL before using it
+
+Fixes: CID 73654
+
+Signed-off-by: Paulo Flabiano Smorigo <pfsmorigo@canonical.com>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+
+Patch-Name: 2021-02-security/052-loader-xnu-Check-if-pointer-is-NULL-before-using-it.patch
+---
+ grub-core/loader/xnu.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/grub-core/loader/xnu.c b/grub-core/loader/xnu.c
+index 4f7e1cb6e..693b6d3d6 100644
+--- a/grub-core/loader/xnu.c
++++ b/grub-core/loader/xnu.c
+@@ -661,6 +661,9 @@ grub_xnu_load_driver (char *infoplistname, grub_file_t binaryfile,
+   char *name, *nameend;
+   int namelen;
+ 
++  if (infoplistname == NULL)
++    return grub_error (GRUB_ERR_BAD_FILENAME, N_("missing p-list filename"));
++
+   name = get_name_ptr (infoplistname);
+   nameend = grub_strchr (name, '/');
+ 
+@@ -692,10 +695,7 @@ grub_xnu_load_driver (char *infoplistname, grub_file_t binaryfile,
+   else
+     macho = 0;
+ 
+-  if (infoplistname)
+-    infoplist = grub_file_open (infoplistname);
+-  else
+-    infoplist = 0;
++  infoplist = grub_file_open (infoplistname);
+   grub_errno = GRUB_ERR_NONE;
+   if (infoplist)
+     {

@@ -25,7 +25,6 @@
 #include <grub/dl.h>
 #include <grub/types.h>
 #include <grub/fshelp.h>
-#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -80,18 +79,9 @@ GRUB_MOD_LICENSE ("GPLv3+");
 #define XFS_SB_FEAT_INCOMPAT_SPINODES   (1 << 1)        /* sparse inode chunks */
 #define XFS_SB_FEAT_INCOMPAT_META_UUID  (1 << 2)        /* metadata UUID */
 
-/*
- * Directory entries with ftype are explicitly handled by GRUB code.
- *
- * We do not currently read the inode btrees, so it is safe to read filesystems
- * with the XFS_SB_FEAT_INCOMPAT_SPINODES feature.
- *
- * We do not currently verify metadata UUID, so it is safe to read filesystems
- * with the XFS_SB_FEAT_INCOMPAT_META_UUID feature.
- */
+/* We do not currently verify metadata UUID so it is safe to read such filesystem */
 #define XFS_SB_FEAT_INCOMPAT_SUPPORTED \
 	(XFS_SB_FEAT_INCOMPAT_FTYPE | \
-	 XFS_SB_FEAT_INCOMPAT_SPINODES | \
 	 XFS_SB_FEAT_INCOMPAT_META_UUID)
 
 struct grub_xfs_sblock
@@ -897,7 +887,6 @@ static struct grub_xfs_data *
 grub_xfs_mount (grub_disk_t disk)
 {
   struct grub_xfs_data *data = 0;
-  grub_size_t sz;
 
   data = grub_zalloc (sizeof (struct grub_xfs_data));
   if (!data)
@@ -912,11 +901,10 @@ grub_xfs_mount (grub_disk_t disk)
   if (!grub_xfs_sb_valid(data))
     goto fail;
 
-  if (grub_add (grub_xfs_inode_size (data),
-      sizeof (struct grub_xfs_data) - sizeof (struct grub_xfs_inode) + 1, &sz))
-    goto fail;
-
-  data = grub_realloc (data, sz);
+  data = grub_realloc (data,
+		       sizeof (struct grub_xfs_data)
+		       - sizeof (struct grub_xfs_inode)
+		       + grub_xfs_inode_size(data) + 1);
 
   if (! data)
     goto fail;

@@ -43,10 +43,6 @@
 #include <grub/memory.h>
 #include <grub/i18n.h>
 
-/* Begin TCG Extension */
-#include <grub/tpm.h>
-/* End TCG Extension */
-
 GRUB_MOD_LICENSE ("GPLv3+");
 
 #ifdef GRUB_MACHINE_EFI
@@ -342,10 +338,6 @@ grub_cmd_multiboot (grub_command_t cmd __attribute__ ((unused)),
       grub_relocator_unload (grub_multiboot_relocator);
       grub_multiboot_relocator = NULL;
       grub_dl_unref (my_mod);
-    } else {
-    	/* Begin TCG Extension */
-    	grub_TPM_measure_file( argv[0], TPM_LOADER_MEASUREMENT_PCR );
-    	/* End TCG Extension */
     }
 
   return grub_errno;
@@ -398,7 +390,7 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
   {
     grub_relocator_chunk_t ch;
     err = grub_relocator_alloc_chunk_align (grub_multiboot_relocator, &ch,
-					    lowest_addr, UP_TO_TOP32 (size),
+					    lowest_addr, (0xffffffff - size) + 1,
 					    size, MULTIBOOT_MOD_ALIGN,
 					    GRUB_RELOCATOR_PREFERENCE_NONE, 1);
     if (err)
@@ -430,11 +422,6 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
 		    argv[0]);
       return grub_errno;
     }
-
-  /* Begin TCG Extension */
-//  DEBUG_PRINT( ("measured multiboot module: %s \n", argv[0]) );
-  grub_TPM_measure_buffer( module, size, TPM_LOADER_MEASUREMENT_PCR );
-  /* End TCG Extension */
 
   grub_file_close (file);
   return GRUB_ERR_NONE;

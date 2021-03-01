@@ -66,7 +66,6 @@ get_uuid (const char *name, char **uuid, int getnative)
       /* Firmware disks.  */
     case GRUB_DISK_DEVICE_BIOSDISK_ID:
     case GRUB_DISK_DEVICE_OFDISK_ID:
-    case GRUB_DISK_DEVICE_OBDISK_ID:
     case GRUB_DISK_DEVICE_EFIDISK_ID:
     case GRUB_DISK_DEVICE_NAND_ID:
     case GRUB_DISK_DEVICE_ARCDISK_ID:
@@ -195,7 +194,7 @@ grub_cmd_nativedisk (grub_command_t cmd __attribute__ ((unused)),
   else
     path_prefix = prefix;
 
-  mods = grub_calloc (argc, sizeof (mods[0]));
+  mods = grub_malloc (argc * sizeof (mods[0]));
   if (!mods)
     return grub_errno;
 

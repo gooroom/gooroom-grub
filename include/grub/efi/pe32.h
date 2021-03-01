@@ -20,7 +20,6 @@
 #define GRUB_EFI_PE32_HEADER	1
 
 #include <grub/types.h>
-#include <grub/efi/memory.h>
 
 /* The MSDOS compatibility stub. This was copied from the output of
    objcopy, and it is not necessary to care about what this means.  */
@@ -46,19 +45,11 @@
 
 #define GRUB_PE32_MSDOS_STUB_SIZE	0x80
 
-#define GRUB_PE32_MAGIC			0x5a4d
-
 /* According to the spec, the minimal alignment is 512 bytes...
    But some examples (such as EFI drivers in the Intel
    Sample Implementation) use 32 bytes (0x20) instead, and it seems
-   to be working.
-
-   However, there is firmware showing up in the field now with
-   page alignment constraints to guarantee that page protection
-   bits take effect. Because currently existing GRUB code can not
-   properly distinguish between in-memory and in-file layout, let's
-   bump all alignment to GRUB_EFI_PAGE_SIZE. */
-#define GRUB_PE32_SECTION_ALIGNMENT	GRUB_EFI_PAGE_SIZE
+   to be working. For now, GRUB uses 512 bytes for safety.  */
+#define GRUB_PE32_SECTION_ALIGNMENT	0x200
 #define GRUB_PE32_FILE_ALIGNMENT	GRUB_PE32_SECTION_ALIGNMENT
 
 struct grub_pe32_coff_header
@@ -221,11 +212,7 @@ struct grub_pe64_optional_header
 struct grub_pe32_section_table
 {
   char name[8];
-  union
-    {
-      grub_uint32_t physical_address;
-      grub_uint32_t virtual_size;
-    };
+  grub_uint32_t virtual_size;
   grub_uint32_t virtual_address;
   grub_uint32_t raw_data_size;
   grub_uint32_t raw_data_offset;
@@ -274,20 +261,6 @@ struct grub_pe32_header
   /* The Optional header.  */
   struct grub_pe32_optional_header optional_header;
 #endif
-};
-
-struct grub_pe32_header_32
-{
-  char signature[GRUB_PE32_SIGNATURE_SIZE];
-  struct grub_pe32_coff_header coff_header;
-  struct grub_pe32_optional_header optional_header;
-};
-
-struct grub_pe32_header_64
-{
-  char signature[GRUB_PE32_SIGNATURE_SIZE];
-  struct grub_pe32_coff_header coff_header;
-  struct grub_pe64_optional_header optional_header;
 };
 
 struct grub_pe32_fixup_block

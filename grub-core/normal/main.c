@@ -34,11 +34,6 @@
 #include <grub/script_sh.h>
 #include <grub/bufio.h>
 
-/* BEGIN TCG EXTENSION */
-//#define TGRUB_VERSION "1.40"
-#define GGRUB_VERSION "Beta"
-/* END TCG EXTENSION */
-
 GRUB_MOD_LICENSE ("GPLv3+");
 
 #define GRUB_DEFAULT_HISTORY_SIZE	50
@@ -213,8 +208,7 @@ grub_normal_init_page (struct grub_term_output *term,
  
   grub_term_cls (term);
 
-//  msg_formatted = grub_xasprintf (_("TrustedGRUB2  version %s"), TGRUB_VERSION);
-  msg_formatted = grub_xasprintf (_("GooroomGRUB  version %s"), GGRUB_VERSION);
+  msg_formatted = grub_xasprintf (_("GNU GRUB  version %s"), PACKAGE_VERSION);
   if (!msg_formatted)
     return;
  
@@ -395,15 +389,6 @@ static grub_err_t
 grub_normal_read_line_real (char **line, int cont, int nested)
 {
   const char *prompt;
-#ifdef QUIET_BOOT
-  static int displayed_intro;
-
-  if (! displayed_intro)
-    {
-      grub_normal_reader_init (nested);
-      displayed_intro = 1;
-    }
-#endif
 
   if (cont)
     /* TRANSLATORS: it's command line prompt.  */
@@ -456,9 +441,7 @@ grub_cmdline_run (int nested, int force_auth)
       return;
     }
 
-#ifndef QUIET_BOOT
   grub_normal_reader_init (nested);
-#endif
 
   while (1)
     {

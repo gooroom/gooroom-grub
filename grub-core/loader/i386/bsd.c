@@ -35,7 +35,6 @@
 #include <grub/ns8250.h>
 #include <grub/bsdlabel.h>
 #include <grub/crypto.h>
-#include <grub/safemath.h>
 #ifdef GRUB_MACHINE_PCBIOS
 #include <grub/machine/int.h>
 #endif
@@ -1007,16 +1006,11 @@ grub_netbsd_add_modules (void)
   struct grub_netbsd_btinfo_modules *mods;
   unsigned i;
   grub_err_t err;
-  grub_size_t sz;
 
   for (mod = netbsd_mods; mod; mod = mod->next)
     modcnt++;
 
-  if (grub_mul (modcnt, sizeof (mods->mods[0]), &sz) ||
-      grub_add (sz, sizeof (*mods), &sz))
-    return GRUB_ERR_OUT_OF_RANGE;
-
-  mods = grub_malloc (sz);
+  mods = grub_malloc (sizeof (*mods) + sizeof (mods->mods[0]) * modcnt);
   if (!mods)
     return grub_errno;
 

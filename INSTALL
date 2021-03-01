@@ -11,22 +11,34 @@ GRUB depends on some software packages installed into your system. If
 you don't have any of them, please obtain and install them before
 configuring the GRUB.
 
-* GCC 5.1.0 or later
-  Experimental support for clang 3.8.0 or later (results in much bigger binaries)
+* GCC 4.1.3 or later
+  Note: older versions may work but support is limited
+
+  Experimental support for clang 3.3 or later (results in much bigger binaries)
   for i386, x86_64, arm (including thumb), arm64, mips(el), powerpc, sparc64
+  Note: clang 3.2 or later works for i386 and x86_64 targets but results in
+        much bigger binaries.
+	earlier versions not tested
+  Note: clang 3.2 or later works for arm
+	earlier versions not tested
+  Note: clang on arm64 is not supported due to
+	https://llvm.org/bugs/show_bug.cgi?id=26030
+  Note: clang 3.3 or later works for mips(el)
+	earlier versions fail to generate .reginfo and hence gprel relocations
+	fail.
+  Note: clang 3.2 or later works for powerpc
+	earlier versions not tested
+  Note: clang 3.5 or later works for sparc64
+        earlier versions return "error: unable to interface with target machine"
+  Note: clang has no support for ia64 and hence you can't compile GRUB
+	for ia64 with clang
 * GNU Make
 * GNU Bison 2.3 or later
 * GNU gettext 0.17 or later
 * GNU binutils 2.9.1.0.23 or later
 * Flex 2.5.35 or later
-* pkg-config
 * Other standard GNU/Unix tools
 * a libc with large file support (e.g. glibc 2.1 or later)
-
-On Unix-based systems, you also need:
-
-* libefivar (recommended)
-* libefiboot (recommended; your OS may ship this together with libefivar)
 
 On GNU/Linux, you also need:
 
@@ -40,7 +52,7 @@ For optional grub-emu features, you need:
 
 To build GRUB's graphical terminal (gfxterm), you need:
 
-* FreeType 2.1.5 or later
+* FreeType 2 or later
 * GNU Unifont
 
 If you use a development snapshot or want to hack on GRUB you may
@@ -146,8 +158,8 @@ For this example the configure line might look like (more details below)
 (some options are optional and included here for completeness but some rarely
 used options are omitted):
 
-./configure BUILD_CC=gcc BUILD_PKG_CONFIG=pkg-config --host=amd64-linux-gnu
-CC=amd64-linux-gnu-gcc CFLAGS="-g -O2" PKG_CONFIG=amd64-linux-gnu-pkg-config
+./configure BUILD_CC=gcc BUILD_FREETYPE=freetype-config --host=amd64-linux-gnu
+CC=amd64-linux-gnu-gcc CFLAGS="-g -O2" FREETYPE=amd64-linux-gnu-freetype-config
 --target=arm --with-platform=uboot TARGET_CC=arm-elf-gcc
 TARGET_CFLAGS="-Os -march=armv6" TARGET_CCASFLAGS="-march=armv6"
 TARGET_OBJCOPY="arm-elf-objcopy" TARGET_STRIP="arm-elf-strip"
@@ -164,7 +176,7 @@ corresponding platform are not needed for the platform in question.
     2. BUILD_CFLAGS= for C options for build.
     3. BUILD_CPPFLAGS= for C preprocessor options for build.
     4. BUILD_LDFLAGS= for linker options for build.
-    5. BUILD_PKG_CONFIG= for pkg-config for build (optional).
+    5. BUILD_FREETYPE= for freetype-config for build (optional).
 
   - For host
     1. --host= to autoconf name of host.
@@ -172,7 +184,7 @@ corresponding platform are not needed for the platform in question.
     3. HOST_CFLAGS= for C options for host.
     4. HOST_CPPFLAGS= for C preprocessor options for host.
     5. HOST_LDFLAGS= for linker options for host.
-    6. PKG_CONFIG= for pkg-config for host (optional).
+    6. FREETYPE= for freetype-config for host (optional).
     7. Libdevmapper if any must be in standard linker folders (-ldevmapper) (optional).
     8. Libfuse if any must be in standard linker folders (-lfuse) (optional).
     9. Libzfs if any must be in standard linker folders (-lzfs) (optional).

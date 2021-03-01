@@ -1,0 +1,40 @@
+From 644c824a5a1dfb3f78678941cca68a0648fdf48c Mon Sep 17 00:00:00 2001
+From: Daniel Axtens <dja@axtens.net>
+Date: Thu, 21 Jan 2021 12:22:28 +1100
+Subject: io/gzio: Zero gzio->tl/td in init_dynamic_block() if huft_build()
+ fails
+
+If huft_build() fails, gzio->tl or gzio->td could contain pointers that
+are no longer valid. Zero them out.
+
+This prevents a double free when grub_gzio_close() comes through and
+attempts to free them again.
+
+Signed-off-by: Daniel Axtens <dja@axtens.net>
+Reviewed-by: Daniel Kiper <daniel.kiper@oracle.com>
+
+Patch-Name: 2021-02-security/081-io-gzio-Zero-gzio-tl-td-in-init_dynamic_block-if-huft_build-fails.patch
+---
+ grub-core/io/gzio.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/grub-core/io/gzio.c b/grub-core/io/gzio.c
+index 7554b6bfd..61f868f38 100644
+--- a/grub-core/io/gzio.c
++++ b/grub-core/io/gzio.c
+@@ -998,6 +998,7 @@ init_dynamic_block (grub_gzio_t gzio)
+   gzio->bl = lbits;
+   if (huft_build (ll, nl, 257, cplens, cplext, &gzio->tl, &gzio->bl) != 0)
+     {
++      gzio->tl = 0;
+       grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
+ 		  "failed in building a Huffman code table");
+       return;
+@@ -1007,6 +1008,7 @@ init_dynamic_block (grub_gzio_t gzio)
+     {
+       huft_free (gzio->tl);
+       gzio->tl = 0;
++      gzio->td = 0;
+       grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
+ 		  "failed in building a Huffman code table");
+       return;

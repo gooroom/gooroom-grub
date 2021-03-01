@@ -111,16 +111,11 @@ grub_install_copy_file (const char *src,
       r = grub_util_fd_read (in, grub_install_copy_buffer, GRUB_INSTALL_COPY_BUFFER_SIZE);
       if (r <= 0)
 	break;
-      r = grub_util_fd_write (out, grub_install_copy_buffer, r);
-      if (r <= 0)
-	break;
+      grub_util_fd_write (out, grub_install_copy_buffer, r);
     }
-  if (grub_util_fd_sync (out) < 0)
-    r = -1;
-  if (grub_util_fd_close (in) < 0)
-    r = -1;
-  if (grub_util_fd_close (out) < 0)
-    r = -1;
+  grub_util_fd_sync (out);
+  grub_util_fd_close (in);
+  grub_util_fd_close (out);
 
   if (r < 0)
     grub_util_error (_("cannot copy `%s' to `%s': %s"),
@@ -285,7 +280,7 @@ handle_install_list (struct install_list *il, const char *val,
       il->n_entries++;
     }
   il->n_alloc = il->n_entries + 1;
-  il->entries = xcalloc (il->n_alloc, sizeof (il->entries[0]));
+  il->entries = xmalloc (il->n_alloc * sizeof (il->entries[0]));
   ptr = val;
   for (ce = il->entries; ; ce++)
     {
@@ -524,8 +519,7 @@ grub_install_make_image_wrap (const char *dir, const char *prefix,
   grub_install_make_image_wrap_file (dir, prefix, fp, outname,
 				     memdisk_path, config_path,
 				     mkimage_target, note);
-  if (grub_util_file_sync (fp) < 0)
-    grub_util_error (_("cannot sync `%s': %s"), outname, strerror (errno));
+  grub_util_file_sync (fp);
   fclose (fp);
 }
 
@@ -601,25 +595,17 @@ get_localedir (void)
 }
 
 static void
-copy_locales (const char *dstd, int langpack)
+copy_locales (const char *dstd)
 {
   grub_util_fd_dir_t d;
   grub_util_fd_dirent_t de;
   const char *locale_dir = get_localedir ();
-  char *dir;
 
-  if (langpack)
-    dir = xasprintf ("%s-langpack", locale_dir);
-  else
-    dir = xstrdup (locale_dir);
-
-  d = grub_util_fd_opendir (dir);
+  d = grub_util_fd_opendir (locale_dir);
   if (!d)
     {
-      if (!langpack)
-	grub_util_warn (_("cannot open directory `%s': %s"),
-			dir, grub_util_fd_strerror ());
-      free (dir);
+      grub_util_warn (_("cannot open directory `%s': %s"),
+		      locale_dir, grub_util_fd_strerror ());
       return;
     }
 
@@ -636,14 +622,14 @@ copy_locales (const char *dstd, int langpack)
       if (ext && (grub_strcmp (ext, ".mo") == 0
 		  || grub_strcmp (ext, ".gmo") == 0))
 	{
-	  srcf = grub_util_path_concat (2, dir, de->d_name);
+	  srcf = grub_util_path_concat (2, locale_dir, de->d_name);
 	  dstf = grub_util_path_concat (2, dstd, de->d_name);
 	  ext = grub_strrchr (dstf, '.');
 	  grub_strcpy (ext, ".mo");
 	}
       else
 	{
-	  srcf = grub_util_path_concat_ext (4, dir, de->d_name,
+	  srcf = grub_util_path_concat_ext (4, locale_dir, de->d_name,
 					    "LC_MESSAGES", PACKAGE, ".mo");
 	  dstf = grub_util_path_concat_ext (2, dstd, de->d_name, ".mo");
 	}
@@ -652,7 +638,6 @@ copy_locales (const char *dstd, int langpack)
       free (dstf);
     }
   grub_util_fd_closedir (d);
-  free (dir);
 }
 
 static struct
@@ -670,7 +655,6 @@ static struct
     [GRUB_INSTALL_PLATFORM_X86_64_EFI] =       { "x86_64",  "efi"       },
     [GRUB_INSTALL_PLATFORM_I386_XEN] =         { "i386",    "xen"       },
     [GRUB_INSTALL_PLATFORM_X86_64_XEN] =       { "x86_64",  "xen"       },
-    [GRUB_INSTALL_PLATFORM_I386_XEN_PVH] =     { "i386",    "xen_pvh"   },
     [GRUB_INSTALL_PLATFORM_MIPSEL_LOONGSON] =  { "mipsel",  "loongson"  },
     [GRUB_INSTALL_PLATFORM_MIPSEL_QEMU_MIPS] = { "mipsel",  "qemu_mips" },
     [GRUB_INSTALL_PLATFORM_MIPS_QEMU_MIPS] =   { "mips",    "qemu_mips" },
@@ -809,14 +793,12 @@ grub_install_copy_files (const char *src,
     {
       char *srcd = grub_util_path_concat (2, src, "po");
       copy_by_ext (srcd, dst_locale, ".mo", 0);
-      copy_locales (dst_locale, 0);
-      copy_locales (dst_locale, 1);
+      copy_locales (dst_locale);
       free (srcd);
     }
   else
     {
       const char *locale_dir = get_localedir ();
-      char *locale_langpack_dir = xasprintf ("%s-langpack", locale_dir);
 
       for (i = 0; i < install_locales.n_entries; i++)
 	{
@@ -827,19 +809,6 @@ grub_install_copy_files (const char *src,
 	  char *dstf = grub_util_path_concat_ext (2, dst_locale,
 						install_locales.entries[i],
 						".mo");
-	  if (grub_install_compress_file (srcf, dstf, 0))
-	    {
-	      free (srcf);
-	      free (dstf);
-	      continue;
-	    }
-	  free (srcf);
-	  srcf = grub_util_path_concat_ext (4,
-						 locale_langpack_dir,
-						 install_locales.entries[i],
-						 "LC_MESSAGES",
-						 PACKAGE,
-						 ".mo");
 	  if (grub_install_compress_file (srcf, dstf, 0))
 	    {
 	      free (srcf);
@@ -862,8 +831,6 @@ grub_install_copy_files (const char *src,
 	  grub_util_error (_("cannot find locale `%s'"),
 			   install_locales.entries[i]);
 	}
-
-      free (locale_langpack_dir);
     }
 
   if (install_themes.is_default)

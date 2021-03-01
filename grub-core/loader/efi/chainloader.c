@@ -32,8 +32,6 @@
 #include <grub/efi/api.h>
 #include <grub/efi/efi.h>
 #include <grub/efi/disk.h>
-#include <grub/efi/pe32.h>
-#include <grub/efi/linux.h>
 #include <grub/command.h>
 #include <grub/i18n.h>
 #include <grub/net.h>
@@ -48,14 +46,9 @@ static grub_dl_t my_mod;
 
 static grub_efi_physical_address_t address;
 static grub_efi_uintn_t pages;
-static grub_ssize_t fsize;
 static grub_efi_device_path_t *file_path;
 static grub_efi_handle_t image_handle;
 static grub_efi_char16_t *cmdline;
-static grub_ssize_t cmdline_len;
-static grub_efi_handle_t dev_handle;
-
-static grub_efi_status_t (*entry_point) (grub_efi_handle_t image_handle, grub_efi_system_table_t *system_table);
 
 static grub_err_t
 grub_chainloader_unload (void)
@@ -70,7 +63,6 @@ grub_chainloader_unload (void)
   grub_free (cmdline);
   cmdline = 0;
   file_path = 0;
-  dev_handle = 0;
 
   grub_dl_unref (my_mod);
   return GRUB_ERR_NONE;
@@ -114,7 +106,7 @@ grub_chainloader_boot (void)
   return grub_errno;
 }
 
-static grub_err_t
+static void
 copy_file_path (grub_efi_file_path_device_path_t *fp,
 		const char *str, grub_efi_uint16_t len)
 {
@@ -133,7 +125,6 @@ copy_file_path (grub_efi_file_path_device_path_t *fp,
   /* File Path is NULL terminated */
   fp->path_name[size++] = '\0';
   fp->header.length = size * sizeof (grub_efi_char16_t) + sizeof (*fp);
-  return GRUB_ERR_NONE;
 }
 
 static grub_efi_device_path_t *
@@ -159,18 +150,9 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
 
   size = 0;
   d = dp;
-  while (d)
+  while (1)
     {
-      grub_size_t len = GRUB_EFI_DEVICE_PATH_LENGTH (d);
-
-      if (len < 4)
-	{
-	  grub_error (GRUB_ERR_OUT_OF_RANGE,
-		      "malformed EFI Device Path node has length=%d", len);
-	  return NULL;
-	}
-
-      size += len;
+      size += GRUB_EFI_DEVICE_PATH_LENGTH (d);
       if ((GRUB_EFI_END_ENTIRE_DEVICE_PATH (d)))
 	break;
       d = GRUB_EFI_NEXT_DEVICE_PATH (d);
@@ -192,19 +174,13 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
   d = (grub_efi_device_path_t *) ((char *) file_path
 				  + ((char *) d - (char *) dp));
   grub_efi_print_device_path (d);
-  if (copy_file_path ((grub_efi_file_path_device_path_t *) d,
-		      dir_start, dir_end - dir_start) != GRUB_ERR_NONE)
-    {
-    fail:
-      grub_free (file_path);
-      return 0;
-    }
+  copy_file_path ((grub_efi_file_path_device_path_t *) d,
+		  dir_start, dir_end - dir_start);
 
   /* Fill the file path for the file.  */
   d = GRUB_EFI_NEXT_DEVICE_PATH (d);
-  if (copy_file_path ((grub_efi_file_path_device_path_t *) d,
-		      dir_end + 1, grub_strlen (dir_end + 1)) != GRUB_ERR_NONE)
-    goto fail;
+  copy_file_path ((grub_efi_file_path_device_path_t *) d,
+		  dir_end + 1, grub_strlen (dir_end + 1));
 
   /* Fill the end of device path nodes.  */
   d = GRUB_EFI_NEXT_DEVICE_PATH (d);
@@ -215,508 +191,12 @@ make_file_path (grub_efi_device_path_t *dp, const char *filename)
   return file_path;
 }
 
-#define SHIM_LOCK_GUID \
-  { 0x605dab50, 0xe046, 0x4300, { 0xab,0xb6,0x3d,0xd8,0x10,0xdd,0x8b,0x23 } }
-
-typedef union
-{
-  struct grub_pe32_header_32 pe32;
-  struct grub_pe32_header_64 pe32plus;
-} grub_pe_header_t;
-
-struct pe_coff_loader_image_context
-{
-  grub_efi_uint64_t image_address;
-  grub_efi_uint64_t image_size;
-  grub_efi_uint64_t entry_point;
-  grub_efi_uintn_t size_of_headers;
-  grub_efi_uint16_t image_type;
-  grub_efi_uint16_t number_of_sections;
-  grub_efi_uint32_t section_alignment;
-  struct grub_pe32_section_table *first_section;
-  struct grub_pe32_data_directory *reloc_dir;
-  struct grub_pe32_data_directory *sec_dir;
-  grub_efi_uint64_t number_of_rva_and_sizes;
-  grub_pe_header_t *pe_hdr;
-};
-
-typedef struct pe_coff_loader_image_context pe_coff_loader_image_context_t;
-
-struct grub_efi_shim_lock
-{
-  grub_efi_status_t (*verify)(void *buffer,
-                              grub_efi_uint32_t size);
-  grub_efi_status_t (*hash)(void *data,
-                            grub_efi_int32_t datasize,
-                            pe_coff_loader_image_context_t *context,
-                            grub_efi_uint8_t *sha256hash,
-                            grub_efi_uint8_t *sha1hash);
-  grub_efi_status_t (*context)(void *data,
-                               grub_efi_uint32_t size,
-                               pe_coff_loader_image_context_t *context);
-};
-
-typedef struct grub_efi_shim_lock grub_efi_shim_lock_t;
-
-static grub_efi_boolean_t
-read_header (void *data, grub_efi_uint32_t size,
-	     pe_coff_loader_image_context_t *context)
-{
-  grub_efi_guid_t guid = SHIM_LOCK_GUID;
-  grub_efi_shim_lock_t *shim_lock;
-  grub_efi_status_t status;
-
-  shim_lock = grub_efi_locate_protocol (&guid, NULL);
-
-  if (!shim_lock)
-    {
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "no shim lock protocol");
-      return 0;
-    }
-
-  status = shim_lock->context (data, size, context);
-
-  if (status == GRUB_EFI_SUCCESS)
-    {
-      grub_dprintf ("chain", "context success\n");
-      return 1;
-    }
-
-  switch (status)
-    {
-      case GRUB_EFI_UNSUPPORTED:
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error unsupported");
-      break;
-      case GRUB_EFI_INVALID_PARAMETER:
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error invalid parameter");
-      break;
-      default:
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "context error code");
-      break;
-    }
-
-  return 0;
-}
-
-static void*
-image_address (void *image, grub_efi_uint64_t sz, grub_efi_uint64_t adr)
-{
-  if (adr > sz)
-    return NULL;
-
-  return ((grub_uint8_t*)image + adr);
-}
-
-static int
-image_is_64_bit (grub_pe_header_t *pe_hdr)
-{
-  /* .Magic is the same offset in all cases */
-  if (pe_hdr->pe32plus.optional_header.magic == GRUB_PE32_PE64_MAGIC)
-    return 1;
-  return 0;
-}
-
-static grub_efi_status_t
-relocate_coff (pe_coff_loader_image_context_t *context,
-	       struct grub_pe32_section_table *section,
-	       void *orig, void *data)
-{
-  struct grub_pe32_data_directory *reloc_base, *reloc_base_end;
-  grub_efi_uint64_t adjust;
-  struct grub_pe32_fixup_block *reloc, *reloc_end;
-  char *fixup, *fixup_base, *fixup_data = NULL;
-  grub_efi_uint16_t *fixup_16;
-  grub_efi_uint32_t *fixup_32;
-  grub_efi_uint64_t *fixup_64;
-  grub_efi_uint64_t size = context->image_size;
-  void *image_end = (char *)orig + size;
-  int n = 0;
-
-  if (image_is_64_bit (context->pe_hdr))
-    context->pe_hdr->pe32plus.optional_header.image_base =
-      (grub_uint64_t)(unsigned long)data;
-  else
-    context->pe_hdr->pe32.optional_header.image_base =
-      (grub_uint32_t)(unsigned long)data;
-
-  /* Alright, so here's how this works:
-   *
-   * context->reloc_dir gives us two things:
-   * - the VA the table of base relocation blocks are (maybe) to be
-   *   mapped at (reloc_dir->rva)
-   * - the virtual size (reloc_dir->size)
-   *
-   * The .reloc section (section here) gives us some other things:
-   * - the name! kind of. (section->name)
-   * - the virtual size (section->virtual_size), which should be the same
-   *   as RelocDir->Size
-   * - the virtual address (section->virtual_address)
-   * - the file section size (section->raw_data_size), which is
-   *   a multiple of optional_header->file_alignment.  Only useful for image
-   *   validation, not really useful for iteration bounds.
-   * - the file address (section->raw_data_offset)
-   * - a bunch of stuff we don't use that's 0 in our binaries usually
-   * - Flags (section->characteristics)
-   *
-   * and then the thing that's actually at the file address is an array
-   * of struct grub_pe32_fixup_block structs with some values packed behind
-   * them.  The block_size field of this structure includes the
-   * structure itself, and adding it to that structure's address will
-   * yield the next entry in the array.
-   */
-
-  reloc_base = image_address (orig, size, section->raw_data_offset);
-  reloc_base_end = image_address (orig, size, section->raw_data_offset
-				  + section->virtual_size - 1);
-
-  grub_dprintf ("chain", "reloc_base %p reloc_base_end %p\n", reloc_base,
-		reloc_base_end);
-
-  if (!reloc_base && !reloc_base_end)
-    return GRUB_EFI_SUCCESS;
-
-  if (!reloc_base || !reloc_base_end)
-    {
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc table overflows binary");
-      return GRUB_EFI_UNSUPPORTED;
-    }
-
-  adjust = (grub_uint64_t)data - context->image_address;
-  if (adjust == 0)
-    return GRUB_EFI_SUCCESS;
-
-  while (reloc_base < reloc_base_end)
-    {
-      grub_uint16_t *entry;
-      reloc = (struct grub_pe32_fixup_block *)((char*)reloc_base);
-
-      if ((reloc_base->size == 0) ||
-	  (reloc_base->size > context->reloc_dir->size))
-	{
-	  grub_error (GRUB_ERR_BAD_ARGUMENT,
-		      "Reloc %d block size %d is invalid\n", n,
-		      reloc_base->size);
-	  return GRUB_EFI_UNSUPPORTED;
-	}
-
-      entry = &reloc->entries[0];
-      reloc_end = (struct grub_pe32_fixup_block *)
-	((char *)reloc_base + reloc_base->size);
-
-      if ((void *)reloc_end < data || (void *)reloc_end > image_end)
-        {
-          grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc entry %d overflows binary",
-		      n);
-          return GRUB_EFI_UNSUPPORTED;
-        }
-
-      fixup_base = image_address(data, size, reloc_base->rva);
-
-      if (!fixup_base)
-        {
-          grub_error (GRUB_ERR_BAD_ARGUMENT, "Reloc %d Invalid fixupbase", n);
-          return GRUB_EFI_UNSUPPORTED;
-        }
-
-      while ((void *)entry < (void *)reloc_end)
-        {
-          fixup = fixup_base + (*entry & 0xFFF);
-          switch ((*entry) >> 12)
-            {
-              case GRUB_PE32_REL_BASED_ABSOLUTE:
-                break;
-              case GRUB_PE32_REL_BASED_HIGH:
-                fixup_16 = (grub_uint16_t *)fixup;
-                *fixup_16 = (grub_uint16_t)
-		  (*fixup_16 + ((grub_uint16_t)((grub_uint32_t)adjust >> 16)));
-                if (fixup_data != NULL)
-                  {
-                    *(grub_uint16_t *) fixup_data = *fixup_16;
-                    fixup_data = fixup_data + sizeof (grub_uint16_t);
-                  }
-                break;
-              case GRUB_PE32_REL_BASED_LOW:
-                fixup_16 = (grub_uint16_t *)fixup;
-                *fixup_16 = (grub_uint16_t) (*fixup_16 + (grub_uint16_t)adjust);
-                if (fixup_data != NULL)
-                  {
-                    *(grub_uint16_t *) fixup_data = *fixup_16;
-                    fixup_data = fixup_data + sizeof (grub_uint16_t);
-                  }
-                break;
-              case GRUB_PE32_REL_BASED_HIGHLOW:
-                fixup_32 = (grub_uint32_t *)fixup;
-                *fixup_32 = *fixup_32 + (grub_uint32_t)adjust;
-                if (fixup_data != NULL)
-                  {
-                    fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint32_t));
-                    *(grub_uint32_t *) fixup_data = *fixup_32;
-                    fixup_data += sizeof (grub_uint32_t);
-                  }
-                break;
-              case GRUB_PE32_REL_BASED_DIR64:
-                fixup_64 = (grub_uint64_t *)fixup;
-                *fixup_64 = *fixup_64 + (grub_uint64_t)adjust;
-                if (fixup_data != NULL)
-                  {
-                    fixup_data = (char *)ALIGN_UP ((grub_addr_t)fixup_data, sizeof (grub_uint64_t));
-                    *(grub_uint64_t *) fixup_data = *fixup_64;
-                    fixup_data += sizeof (grub_uint64_t);
-                  }
-                break;
-              default:
-                grub_error (GRUB_ERR_BAD_ARGUMENT,
-			    "Reloc %d unknown relocation type %d",
-			    n, (*entry) >> 12);
-                return GRUB_EFI_UNSUPPORTED;
-            }
-          entry += 1;
-        }
-      reloc_base = (struct grub_pe32_data_directory *)reloc_end;
-      n++;
-    }
-
-  return GRUB_EFI_SUCCESS;
-}
-
-static grub_efi_device_path_t *
-grub_efi_get_media_file_path (grub_efi_device_path_t *dp)
-{
-  while (1)
-    {
-      grub_efi_uint8_t type = GRUB_EFI_DEVICE_PATH_TYPE (dp);
-      grub_efi_uint8_t subtype = GRUB_EFI_DEVICE_PATH_SUBTYPE (dp);
-
-      if (type == GRUB_EFI_END_DEVICE_PATH_TYPE)
-        break;
-      else if (type == GRUB_EFI_MEDIA_DEVICE_PATH_TYPE
-            && subtype == GRUB_EFI_FILE_PATH_DEVICE_PATH_SUBTYPE)
-      return dp;
-
-      dp = GRUB_EFI_NEXT_DEVICE_PATH (dp);
-    }
-
-    return NULL;
-}
-
-static grub_efi_boolean_t
-handle_image (void *data, grub_efi_uint32_t datasize)
-{
-  grub_efi_boot_services_t *b;
-  grub_efi_loaded_image_t *li, li_bak;
-  grub_efi_status_t efi_status;
-  char *buffer = NULL;
-  char *buffer_aligned = NULL;
-  grub_efi_uint32_t i, size;
-  struct grub_pe32_section_table *section;
-  char *base, *end;
-  pe_coff_loader_image_context_t context;
-  grub_uint32_t section_alignment;
-  grub_uint32_t buffer_size;
-
-  b = grub_efi_system_table->boot_services;
-
-  if (read_header (data, datasize, &context))
-    {
-      grub_dprintf ("chain", "Succeed to read header\n");
-    }
-  else
-    {
-      grub_dprintf ("chain", "Failed to read header\n");
-      goto error_exit;
-    }
-
-  section_alignment = context.section_alignment;
-  buffer_size = context.image_size + section_alignment;
-
-  efi_status = efi_call_3 (b->allocate_pool, GRUB_EFI_LOADER_DATA,
-			   buffer_size, &buffer);
-
-  if (efi_status != GRUB_EFI_SUCCESS)
-    {
-      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
-      goto error_exit;
-    }
-
-  buffer_aligned = (char *)ALIGN_UP ((grub_addr_t)buffer, section_alignment);
-
-  if (!buffer_aligned)
-    {
-      grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("out of memory"));
-      goto error_exit;
-    }
-
-  grub_memcpy (buffer_aligned, data, context.size_of_headers);
-
-  char *reloc_base, *reloc_base_end;
-  reloc_base = image_address (buffer_aligned, datasize,
-			      context.reloc_dir->rva);
-  /* RelocBaseEnd here is the address of the last byte of the table */
-  reloc_base_end = image_address (buffer_aligned, datasize,
-				  context.reloc_dir->rva
-				  + context.reloc_dir->size - 1);
-  struct grub_pe32_section_table *reloc_section = NULL;
-
-  section = context.first_section;
-  for (i = 0; i < context.number_of_sections; i++, section++)
-    {
-      size = section->virtual_size;
-      if (size > section->raw_data_size)
-        size = section->raw_data_size;
-
-      base = image_address (buffer_aligned, context.image_size,
-			    section->virtual_address);
-      end = image_address (buffer_aligned, context.image_size,
-			   section->virtual_address + size - 1);
-
-
-      /* We do want to process .reloc, but it's often marked
-       * discardable, so we don't want to memcpy it. */
-      if (grub_memcmp (section->name, ".reloc\0\0", 8) == 0)
-	{
-	  if (reloc_section)
-	    {
-	      grub_error (GRUB_ERR_BAD_ARGUMENT,
-			  "Image has multiple relocation sections");
-	      goto error_exit;
-	    }
-
-	  /* If it has nonzero sizes, and our bounds check
-	   * made sense, and the VA and size match RelocDir's
-	   * versions, then we believe in this section table. */
-	  if (section->raw_data_size && section->virtual_size &&
-	      base && end && reloc_base == base && reloc_base_end == end)
-	    {
-	      reloc_section = section;
-	    }
-	}
-
-      if (section->characteristics && GRUB_PE32_SCN_MEM_DISCARDABLE)
-	continue;
-
-      if (!base || !end)
-        {
-          grub_error (GRUB_ERR_BAD_ARGUMENT, "Invalid section size");
-          goto error_exit;
-        }
-
-      if (section->virtual_address < context.size_of_headers ||
-	  section->raw_data_offset < context.size_of_headers)
-	{
-	  grub_error (GRUB_ERR_BAD_ARGUMENT,
-		      "Section %d is inside image headers", i);
-	  goto error_exit;
-	}
-
-      if (section->raw_data_size > 0)
-        grub_memcpy (base, (grub_efi_uint8_t*)data + section->raw_data_offset,
-		     size);
-
-      if (size < section->virtual_size)
-        grub_memset (base + size, 0, section->virtual_size - size);
-
-      grub_dprintf ("chain", "copied section %s\n", section->name);
-    }
-
-  /* 5 == EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC */
-  if (context.number_of_rva_and_sizes <= 5)
-    {
-      grub_dprintf ("chain", "image has no relocation entry\n");
-      goto error_exit;
-    }
-
-  if (context.reloc_dir->size && reloc_section)
-    {
-      /* run the relocation fixups */
-      efi_status = relocate_coff (&context, reloc_section, data,
-				  buffer_aligned);
-
-      if (efi_status != GRUB_EFI_SUCCESS)
-	{
-	  grub_error (GRUB_ERR_BAD_ARGUMENT, "relocation failed");
-	  goto error_exit;
-	}
-    }
-
-  entry_point = image_address (buffer_aligned, context.image_size,
-			       context.entry_point);
-
-  if (!entry_point)
-    {
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "invalid entry point");
-      goto error_exit;
-    }
-
-  li = grub_efi_get_loaded_image (grub_efi_image_handle);
-  if (!li)
-    {
-      grub_error (GRUB_ERR_BAD_ARGUMENT, "no loaded image available");
-      goto error_exit;
-    }
-
-  grub_memcpy (&li_bak, li, sizeof (grub_efi_loaded_image_t));
-  li->image_base = buffer_aligned;
-  li->image_size = context.image_size;
-  li->load_options = cmdline;
-  li->load_options_size = cmdline_len;
-  li->file_path = grub_efi_get_media_file_path (file_path);
-  li->device_handle = dev_handle;
-  if (li->file_path)
-    {
-      grub_printf ("file path: ");
-      grub_efi_print_device_path (li->file_path);
-    }
-  else
-    {
-      grub_error (GRUB_ERR_UNKNOWN_DEVICE, "no matching file path found");
-      goto error_exit;
-    }
-
-  efi_status = efi_call_2 (entry_point, grub_efi_image_handle,
-			   grub_efi_system_table);
-
-  grub_memcpy (li, &li_bak, sizeof (grub_efi_loaded_image_t));
-  efi_status = efi_call_1 (b->free_pool, buffer);
-
-  return 1;
-
-error_exit:
-  if (buffer)
-      efi_call_1 (b->free_pool, buffer);
-
-  return 0;
-}
-
-static grub_err_t
-grub_secureboot_chainloader_unload (void)
-{
-  grub_efi_boot_services_t *b;
-
-  b = grub_efi_system_table->boot_services;
-  efi_call_2 (b->free_pages, address, pages);
-  grub_free (file_path);
-  grub_free (cmdline);
-  cmdline = 0;
-  file_path = 0;
-  dev_handle = 0;
-
-  grub_dl_unref (my_mod);
-  return GRUB_ERR_NONE;
-}
-
-static grub_err_t
-grub_secureboot_chainloader_boot (void)
-{
-  handle_image ((void *)address, fsize);
-  grub_loader_unset ();
-  return grub_errno;
-}
-
 static grub_err_t
 grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 		      int argc, char *argv[])
 {
   grub_file_t file = 0;
+  grub_ssize_t size;
   grub_efi_status_t status;
   grub_efi_boot_services_t *b;
   grub_device_t dev = 0;
@@ -724,6 +204,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   grub_efi_loaded_image_t *loaded_image;
   char *filename;
   void *boot_image = 0;
+  grub_efi_handle_t dev_handle = 0;
 
   if (argc == 0)
     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
@@ -735,45 +216,15 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   address = 0;
   image_handle = 0;
   file_path = 0;
-  dev_handle = 0;
 
   b = grub_efi_system_table->boot_services;
-
-  if (argc > 1)
-    {
-      int i;
-      grub_efi_char16_t *p16;
-
-      for (i = 1, cmdline_len = 0; i < argc; i++)
-        cmdline_len += grub_strlen (argv[i]) + 1;
-
-      cmdline_len *= sizeof (grub_efi_char16_t);
-      cmdline = p16 = grub_malloc (cmdline_len);
-      if (! cmdline)
-        goto fail;
-
-      for (i = 1; i < argc; i++)
-        {
-          char *p8;
-
-          p8 = argv[i];
-          while (*p8)
-            *(p16++) = *(p8++);
-
-          *(p16++) = ' ';
-        }
-      *(--p16) = 0;
-    }
 
   file = grub_file_open (filename);
   if (! file)
     goto fail;
 
-  /* Get the device path from filename. */
-  char *devname = grub_file_get_device_name (filename);
-  dev = grub_device_open (devname);
-  if (devname)
-    grub_free (devname);
+  /* Get the root device's device path.  */
+  dev = grub_device_open (0);
   if (! dev)
     goto fail;
 
@@ -813,14 +264,14 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
   grub_printf ("file path: ");
   grub_efi_print_device_path (file_path);
 
-  fsize = grub_file_size (file);
-  if (!fsize)
+  size = grub_file_size (file);
+  if (!size)
     {
       grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
 		  filename);
       goto fail;
     }
-  pages = (((grub_efi_uintn_t) fsize + ((1 << 12) - 1)) >> 12);
+  pages = (((grub_efi_uintn_t) size + ((1 << 12) - 1)) >> 12);
 
   status = efi_call_4 (b->allocate_pages, GRUB_EFI_ALLOCATE_ANY_PAGES,
 			      GRUB_EFI_LOADER_CODE,
@@ -834,7 +285,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
     }
 
   boot_image = (void *) ((grub_addr_t) address);
-  if (grub_file_read (file, boot_image, fsize) != fsize)
+  if (grub_file_read (file, boot_image, size) != size)
     {
       if (grub_errno == GRUB_ERR_NONE)
 	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
@@ -844,7 +295,7 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
     }
 
 #if defined (__i386__) || defined (__x86_64__)
-  if (fsize >= (grub_ssize_t) sizeof (struct grub_macho_fat_header))
+  if (size >= (grub_ssize_t) sizeof (struct grub_macho_fat_header))
     {
       struct grub_macho_fat_header *head = boot_image;
       if (head->magic
@@ -853,14 +304,6 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 	  grub_uint32_t i;
 	  struct grub_macho_fat_arch *archs
 	    = (struct grub_macho_fat_arch *) (head + 1);
-
-	  if (grub_efi_secure_boot())
-	    {
-	      grub_error (GRUB_ERR_BAD_OS,
-			  "MACHO binaries are forbidden with Secure Boot");
-	      goto fail;
-	    }
-
 	  for (i = 0; i < grub_cpu_to_le32 (head->nfat_arch); i++)
 	    {
 	      if (GRUB_MACHO_CPUTYPE_IS_HOST_CURRENT (archs[i].cputype))
@@ -875,28 +318,21 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 	      > ~grub_cpu_to_le32 (archs[i].size)
 	      || grub_cpu_to_le32 (archs[i].offset)
 	      + grub_cpu_to_le32 (archs[i].size)
-	      > (grub_size_t) fsize)
+	      > (grub_size_t) size)
 	    {
 	      grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
 			  filename);
 	      goto fail;
 	    }
 	  boot_image = (char *) boot_image + grub_cpu_to_le32 (archs[i].offset);
-	  fsize = grub_cpu_to_le32 (archs[i].size);
+	  size = grub_cpu_to_le32 (archs[i].size);
 	}
     }
 #endif
 
-  if (grub_linuxefi_secure_validate((void *)address, fsize))
-    {
-      grub_file_close (file);
-      grub_loader_set (grub_secureboot_chainloader_boot,
-		       grub_secureboot_chainloader_unload, 0);
-      return 0;
-    }
-
   status = efi_call_6 (b->load_image, 0, grub_efi_image_handle, file_path,
-		       boot_image, fsize, &image_handle);
+		       boot_image, size,
+		       &image_handle);
   if (status != GRUB_EFI_SUCCESS)
     {
       if (status == GRUB_EFI_OUT_OF_RESOURCES)
@@ -918,10 +354,33 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
     }
   loaded_image->device_handle = dev_handle;
 
-  if (cmdline)
+  if (argc > 1)
     {
+      int i, len;
+      grub_efi_char16_t *p16;
+
+      for (i = 1, len = 0; i < argc; i++)
+        len += grub_strlen (argv[i]) + 1;
+
+      len *= sizeof (grub_efi_char16_t);
+      cmdline = p16 = grub_malloc (len);
+      if (! cmdline)
+        goto fail;
+
+      for (i = 1; i < argc; i++)
+        {
+          char *p8;
+
+          p8 = argv[i];
+          while (*p8)
+            *(p16++) = *(p8++);
+
+          *(p16++) = ' ';
+        }
+      *(--p16) = 0;
+
       loaded_image->load_options = cmdline;
-      loaded_image->load_options_size = cmdline_len;
+      loaded_image->load_options_size = len;
     }
 
   grub_file_close (file);
@@ -942,9 +401,6 @@ grub_cmd_chainloader (grub_command_t cmd __attribute__ ((unused)),
 
   if (address)
     efi_call_2 (b->free_pages, address, pages);
-
-  if (cmdline)
-    grub_free (cmdline);
 
   grub_dl_unref (my_mod);
 

@@ -19,7 +19,6 @@ struct grub_module_verifier_arch archs[] = {
       -1
     }, (int[]){
       R_X86_64_PC32,
-      R_X86_64_PLT32,
       -1
     }
   },
@@ -129,7 +128,6 @@ struct platform_whitelist {
 
 static struct platform_whitelist whitelists[] = {
   {"i386", "xen", (const char *[]) {"all_video", 0}},
-  {"i386", "xen_pvh", (const char *[]) {"all_video", 0}},
   {"x86_64", "xen", (const char *[]) {"all_video", 0}},
   {"sparc64", "ieee1275", (const char *[]) {"all_video", 0}},
 

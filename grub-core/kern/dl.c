@@ -33,21 +33,9 @@
 #include <grub/cache.h>
 #include <grub/i18n.h>
 
-/* Begin TCG Extension */
-#include <grub/tpm.h>
-/* End TCG Extension */
-
 /* Platforms where modules are in a readonly area of memory.  */
 #if defined(GRUB_MACHINE_QEMU)
 #define GRUB_MODULES_MACHINE_READONLY
-#endif
-
-#ifdef GRUB_MACHINE_EMU
-#include <sys/mman.h>
-#endif
-
-#ifdef GRUB_MACHINE_EFI
-#include <grub/efi/efi.h>
 #endif
 
 
@@ -696,23 +684,7 @@ grub_dl_load_file (const char *filename)
   grub_file_t file = NULL;
   grub_ssize_t size;
   void *core = 0;
-  void *measureModBuf = 0;
   grub_dl_t mod = 0;
-
-#ifdef GRUB_MACHINE_EFI
-  if (grub_efi_secure_boot ())
-    {
-      grub_error (GRUB_ERR_ACCESS_DENIED,
-		  "Secure Boot forbids loading module from %s", filename);
-#if 0
-      /* This is an error, but grub2-mkconfig still generates a pile of
-       * insmod commands, so emitting it would be mostly just obnoxious. */
-      grub_error (GRUB_ERR_ACCESS_DENIED,
-		  "Secure Boot forbids loading module from %s", filename);
-#endif
-      return 0;
-    }
-#endif
 
   grub_boot_time ("Loading module %s", filename);
 
@@ -740,27 +712,10 @@ grub_dl_load_file (const char *filename)
      opens of the same device.  */
   grub_file_close (file);
 
-  /* Begin TCG Extension */
-  /* grub_dl_load_core() modifies the original buffer, so make a copy here that is measured later */
-  measureModBuf = grub_malloc (size);
-  if (! measureModBuf)
-  {
-	  return 0;
-  }
-  grub_memcpy(measureModBuf, core, size);
-
   mod = grub_dl_load_core (core, size);
   grub_free (core);
-
-  if (! mod) {
-	grub_free (measureModBuf);
+  if (! mod)
     return 0;
-  }
-
-  DEBUG_PRINT( ( "measured module: %s \n", mod->name ) );
-  grub_TPM_measure_buffer( measureModBuf, size, TPM_GRUB2_LOADED_FILES_MEASUREMENT_PCR );
-  grub_free (measureModBuf);
-  /* End TCG Extension */
 
   mod->ref_count--;
   return mod;
@@ -791,17 +746,15 @@ grub_dl_load (const char *name)
   if (! filename)
     return 0;
 
-  mod = grub_dl_load_file ( filename );
+  mod = grub_dl_load_file (filename);
+  grub_free (filename);
 
-  if (! mod) {
-	  grub_free (filename);
-	  return 0;
-  }
+  if (! mod)
+    return 0;
 
   if (grub_strcmp (mod->name, name) != 0)
     grub_error (GRUB_ERR_BAD_MODULE, "mismatched names");
 
-  grub_free (filename);
   return mod;
 }
 

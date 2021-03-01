@@ -21,16 +21,6 @@
 
 	.text
 	.align	4
-	/* The a.out header, as binutils decided to drop a.out
-         */
-	.word 0x1030107                        /* A_MAGIC */
-	.word 512 - GRUB_BOOT_AOUT_HEADER_SIZE /* text size */
-	.word 0                                /* data size */
-	.word 0                                /* bss size */
-	.word 0                                /* symbol table size */
-	.word _start                           /* entry point */
-	.word 0                                /* text relocations */
-	.word 0                                /* data relocations */
 	.globl	_start
 _start:
 	/* OF CIF entry point arrives in %o4 */
@@ -51,9 +41,9 @@ pic_base:
 	 * After loading in that block we will execute it by jumping to the
 	 * load address plus the size of the prepended A.OUT header (32 bytes).
 	 */
-	.org GRUB_BOOT_MACHINE_BOOT_DEVPATH + GRUB_BOOT_AOUT_HEADER_SIZE
+	.org GRUB_BOOT_MACHINE_BOOT_DEVPATH
 boot_path:
-	.org GRUB_BOOT_MACHINE_KERNEL_BYTE + GRUB_BOOT_AOUT_HEADER_SIZE
+	.org GRUB_BOOT_MACHINE_KERNEL_BYTE
 boot_path_end:
 kernel_byte:		.xword (2 << 9)
 kernel_address:		.word  GRUB_BOOT_MACHINE_KERNEL_ADDR
@@ -62,7 +52,7 @@ kernel_address:		.word  GRUB_BOOT_MACHINE_KERNEL_ADDR
 #define boot_path_end (_start + 1024)
 #include <grub/offsets.h>
 
-	.org 8 + GRUB_BOOT_AOUT_HEADER_SIZE
+	.org 8
 kernel_byte:		.xword (2 << 9)
 kernel_size:	        .word  512
 kernel_address:		.word  GRUB_BOOT_SPARC64_IEEE1275_IMAGE_ADDRESS
@@ -79,10 +69,6 @@ prom_seek_name:		.asciz "seek"
 prom_read_name:		.asciz "read"
 prom_exit_name:		.asciz "exit"
 grub_name:		.asciz "GRUB "
-#ifdef CDBOOT
-prom_close_name:	.asciz "close"
-#endif
-
 #define GRUB_NAME_LEN	5
 
 	.align	4
@@ -227,12 +213,6 @@ bootpath_known:
 	call	prom_call_3_1_o1
 #ifdef CDBOOT
 	 LDUW_ABS(kernel_size, 0x00, %o3)
-
-	GET_ABS(prom_close_name, %o0)
-	mov	1, %g1
-	mov	0, %o5
-	call	prom_call
-	 mov	BOOTDEV_REG, %o1
 #else
 	 mov	512, %o3
 #endif

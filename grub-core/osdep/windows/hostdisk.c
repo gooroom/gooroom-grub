@@ -111,7 +111,7 @@ grub_util_get_windows_path_real (const char *path)
 
   while (1)
     {
-      fpa = xcalloc (alloc, sizeof (fpa[0]));
+      fpa = xmalloc (alloc * sizeof (fpa[0]));
 
       len = GetFullPathName (tpath, alloc, fpa, NULL);
       if (len >= alloc)
@@ -275,18 +275,11 @@ grub_util_fd_write (grub_util_fd_t fd, const char *buf, size_t len)
 
 static int allow_fd_syncs = 1;
 
-int
+void
 grub_util_fd_sync (grub_util_fd_t fd)
 {
   if (allow_fd_syncs)
-    {
-      if (!FlushFileBuffers (fd))
-	{
-	  grub_util_info ("flush err %x", (int) GetLastError ());
-	  return -1;
-	}
-    }
-  return 0;
+    FlushFileBuffers (fd);
 }
 
 void
@@ -295,15 +288,10 @@ grub_util_disable_fd_syncs (void)
   allow_fd_syncs = 0;
 }
 
-int
+void
 grub_util_fd_close (grub_util_fd_t fd)
 {
-  if (!CloseHandle (fd))
-    {
-      grub_util_info ("close err %x", (int) GetLastError ());
-      return -1;
-    }
-  return 0;
+  CloseHandle (fd);
 }
 
 const char *
@@ -399,7 +387,7 @@ grub_util_fd_opendir (const char *name)
   for (l = 0; name_windows[l]; l++);
   for (l--; l >= 0 && (name_windows[l] == '\\' || name_windows[l] == '/'); l--);
   l++;
-  pattern = xcalloc (l + 3, sizeof (pattern[0]));
+  pattern = xmalloc ((l + 3) * sizeof (pattern[0]));
   memcpy (pattern, name_windows, l * sizeof (pattern[0]));
   pattern[l] = '\\';
   pattern[l + 1] = '*';
@@ -632,25 +620,16 @@ grub_util_fopen (const char *path, const char *mode)
   return ret;
 }
 
-int
+void
 grub_util_file_sync (FILE *f)
 {
   HANDLE hnd;
 
-  if (fflush (f) != 0)
-    {
-      grub_util_info ("fflush err %x", (int) GetLastError ());
-      return -1;
-    }
+  fflush (f);
   if (!allow_fd_syncs)
-    return 0;
+    return;
   hnd = (HANDLE) _get_osfhandle (fileno (f));
-  if (!FlushFileBuffers (hnd))
-    {
-      grub_util_info ("flush err %x", (int) GetLastError ());
-      return -1;
-    }
-  return 0;
+  FlushFileBuffers (hnd);
 }
 
 int

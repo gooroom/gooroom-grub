@@ -169,22 +169,20 @@ grub_util_fd_strerror (void)
 
 static int allow_fd_syncs = 1;
 
-int
+void
 grub_util_fd_sync (grub_util_fd_t fd)
 {
   if (allow_fd_syncs)
-    return fsync (fd);
-  return 0;
+    fsync (fd);
 }
 
-int
+void
 grub_util_file_sync (FILE *f)
 {
-  if (fflush (f) != 0)
-    return -1;
+  fflush (f);
   if (!allow_fd_syncs)
-    return 0;
-  return fsync (fileno (f));
+    return;
+  fsync (fileno (f));
 }
 
 void
@@ -193,10 +191,10 @@ grub_util_disable_fd_syncs (void)
   allow_fd_syncs = 0;
 }
 
-int
+void
 grub_util_fd_close (grub_util_fd_t fd)
 {
-  return close (fd);
+  close (fd);
 }
 
 char *

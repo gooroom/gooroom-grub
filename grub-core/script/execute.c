@@ -28,10 +28,6 @@
 #include <grub/extcmd.h>
 #include <grub/i18n.h>
 
-/* Begin TCG Extension */
-#include <grub/tpm.h>
-/* End TCG Extension */
-
 /* Max digits for a char is 3 (0xFF is 255), similarly for an int it
    is sizeof (int) * 3, and one extra for a possible -ve sign.  */
 #define ERRNO_DIGITS_MAX  (sizeof (int) * 3 + 1)
@@ -556,7 +552,7 @@ gettext_append (struct grub_script_argv *result, const char *orig_str)
   for (iptr = orig_str; *iptr; iptr++)
     if (*iptr == '$')
       dollar_cnt++;
-  ctx.allowed_strings = grub_calloc (dollar_cnt, sizeof (ctx.allowed_strings[0]));
+  ctx.allowed_strings = grub_malloc (sizeof (ctx.allowed_strings[0]) * dollar_cnt);
 
   if (parse_string (orig_str, gettext_save_allow, &ctx, 0))
     goto fail;
@@ -841,9 +837,7 @@ grub_script_function_call (grub_script_function_t func, int argc, char **args)
   old_scope = scope;
   scope = &new_scope;
 
-  func->executing++;
   ret = grub_script_execute (func->func);
-  func->executing--;
 
   function_return = 0;
   active_loops = loops;
@@ -1027,53 +1021,6 @@ grub_script_execute_cmdline (struct grub_script_cmd *cmd)
 	  ret = GRUB_ERR_NONE;
 	}
     }
-
-  /* Begin TCG Extension */
-
-  /* Do not measure the following commands:
-   * menuentry
-   * submenu
-   * [ ... ]
-   *
-   * They make precomputation of the PCR value difficult and it's unnecessary
-   * because each command within menuentry and submeny is measured anyway. As
-   * for [ ... ], it seems it isn't possible to execute a command within those.
-   */
-  if ( grub_strncmp( cmdname, "menuentry", grub_strlen( "menuentry" ) ) != 0 &&
-       grub_strncmp( cmdname, "submenu", grub_strlen( "submenu" ) ) != 0 &&
-       grub_strncmp( cmdname, "[", grub_strlen( "[" ) ) != 0 ) {
-
-	  unsigned int i, commandAndArgsLength;
-	  commandAndArgsLength = grub_strlen(cmdname);
-	  for( i = 1; i < argv.argc; i++  ) {
-          /* calculate command length */
-		  commandAndArgsLength++;	/* one byte for whitespace  */
-		  commandAndArgsLength += grub_strlen(argv.args[i]); /* length of arg */
-	  }
-	  /* plus one byte for string termination */
-	  commandAndArgsLength++;
-
-	  /* allocate memory now */
-	  char* commandAndArgs = grub_zalloc(commandAndArgsLength);
-	  if( !commandAndArgs ) {
-		  grub_errno = GRUB_ERR_OUT_OF_MEMORY;
-		  return grub_error (GRUB_ERR_OUT_OF_MEMORY,
-				     N_("memory allocation failed"));
-	  }
-
-	  grub_strcpy( commandAndArgs, cmdname );	/* copy command */
-
-	  /* append whitespace + args */
-	  for( i = 1; i < argv.argc; i++  ) {
-		  grub_snprintf(commandAndArgs, commandAndArgsLength, "%s%s%s", commandAndArgs, " ", argv.args[i]);
-	  }
-
-	  /*  measure string */
-	  grub_TPM_measure_string( commandAndArgs );
-
-	  grub_free( commandAndArgs );
-  }
-  /* End TCG Extension */
 
   /* Free arguments.  */
   grub_script_argv_free (&argv);

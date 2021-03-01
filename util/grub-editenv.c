@@ -197,8 +197,7 @@ write_envblk (const char *name, grub_envblk_t envblk)
     grub_util_error (_("cannot write to `%s': %s"), name,
 		     strerror (errno));
 
-  if (grub_util_file_sync (fp) < 0)
-    grub_util_error (_("cannot sync `%s': %s"), name, strerror (errno));
+  grub_util_file_sync (fp);
   fclose (fp);
 }
 

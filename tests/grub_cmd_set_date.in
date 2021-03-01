@@ -1,9 +1,6 @@
 #! /bin/bash
 set -e
 
-echo "Skipping flaky test."
-exit 77
-
 . "@builddir@/grub-core/modinfo.sh"
 
 case "${grub_modinfo_target_cpu}-${grub_modinfo_platform}" in

@@ -31,7 +31,6 @@
 #include <grub/hfs.h>
 #include <grub/charset.h>
 #include <grub/hfsplus.h>
-#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -476,12 +475,8 @@ grub_hfsplus_read_symlink (grub_fshelp_node_t node)
 {
   char *symlink;
   grub_ssize_t numread;
-  grub_size_t sz = node->size;
 
-  if (grub_add (sz, 1, &sz))
-    return NULL;
-
-  symlink = grub_malloc (sz);
+  symlink = grub_malloc (node->size + 1);
   if (!symlink)
     return 0;
 
@@ -719,8 +714,8 @@ list_nodes (void *record, void *hook_arg)
   if (type == GRUB_FSHELP_UNKNOWN)
     return 0;
 
-  filename = grub_calloc (grub_be_to_cpu16 (catkey->namelen),
-			  GRUB_MAX_UTF8_PER_UTF16 + 1);
+  filename = grub_malloc (grub_be_to_cpu16 (catkey->namelen)
+			  * GRUB_MAX_UTF8_PER_UTF16 + 1);
   if (! filename)
     return 0;
 
@@ -1017,7 +1012,7 @@ grub_hfsplus_label (grub_device_t device, char **label)
 	return 0;
     }
 
-  *label = grub_calloc (label_len, GRUB_MAX_UTF8_PER_UTF16 + 1);
+  *label = grub_malloc (label_len * GRUB_MAX_UTF8_PER_UTF16 + 1);
   if (! *label)
     return grub_errno;
 

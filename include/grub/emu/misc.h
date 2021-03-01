@@ -51,7 +51,6 @@ grub_util_device_is_mapped (const char *dev);
 #define GRUB_HOST_PRIxLONG_LONG "llx"
 #endif
 
-void * EXPORT_FUNC(xcalloc) (grub_size_t nmemb, grub_size_t size) WARN_UNUSED_RESULT;
 void * EXPORT_FUNC(xmalloc) (grub_size_t size) WARN_UNUSED_RESULT;
 void * EXPORT_FUNC(xrealloc) (void *ptr, grub_size_t size) WARN_UNUSED_RESULT;
 char * EXPORT_FUNC(xstrdup) (const char *str) WARN_UNUSED_RESULT;
@@ -74,6 +73,6 @@ FILE *
 grub_util_fopen (const char *path, const char *mode);
 #endif
 
-int grub_util_file_sync (FILE *f);
+void grub_util_file_sync (FILE *f);
 
 #endif /* GRUB_EMU_MISC_H */

@@ -35,12 +35,6 @@
 #include <grub/i18n.h>
 #include <grub/lib/cmdline.h>
 #include <grub/linux.h>
-#include <grub/machine/kernel.h>
-#include <grub/safemath.h>
-
-/* Begin TCG Extension */
-#include <grub/tpm.h>
-/* End TCG Extension */
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -81,8 +75,6 @@ static grub_size_t maximal_cmdline_size;
 static struct linux_kernel_params linux_params;
 static char *linux_cmdline;
 #ifdef GRUB_MACHINE_EFI
-static int using_linuxefi;
-static grub_command_t initrdefi_cmd;
 static grub_efi_uintn_t efi_mmap_size;
 #else
 static const grub_size_t efi_mmap_size = 0;
@@ -236,8 +228,9 @@ allocate_pages (grub_size_t prot_size, grub_size_t *align,
 	for (; err && *align + 1 > min_align; (*align)--)
 	  {
 	    grub_errno = GRUB_ERR_NONE;
-	    err = grub_relocator_alloc_chunk_align (relocator, &ch, 0x1000000,
-						    UP_TO_TOP32 (prot_size),
+	    err = grub_relocator_alloc_chunk_align (relocator, &ch,
+						    0x1000000,
+						    0xffffffff & ~prot_size,
 						    prot_size, 1 << *align,
 						    GRUB_RELOCATOR_PREFERENCE_LOW,
 						    1);
@@ -313,12 +306,6 @@ grub_linux_setup_video (struct linux_kernel_params *params)
   params->lfb_line_len = mode_info.pitch;
 
   params->lfb_base = (grub_size_t) framebuffer;
-
-#if defined (GRUB_MACHINE_EFI) && defined (__x86_64__)
-  params->ext_lfb_base = (grub_size_t) (((grub_uint64_t)(grub_size_t) framebuffer) >> 32);
-  params->capabilities |= VIDEO_CAPABILITY_64BIT_BASE;
-#endif
-
   params->lfb_size = ALIGN_UP (params->lfb_line_len * params->lfb_height, 65536);
 
   params->red_mask_size = mode_info.red_mask_size;
@@ -564,10 +551,6 @@ grub_linux_boot (void)
 	}
     }
 
-#ifdef GRUB_KERNEL_USE_RSDP_ADDR
-  linux_params.acpi_rsdp_addr = grub_le_to_cpu64 (grub_rsdp_addr);
-#endif
-
   mmap_size = find_mmap_size ();
   /* Make sure that each size is aligned to a page boundary.  */
   cl_offset = ALIGN_UP (mmap_size + sizeof (linux_params), 4096);
@@ -602,13 +585,9 @@ grub_linux_boot (void)
 
   {
     grub_relocator_chunk_t ch;
-    grub_size_t sz;
-
-    if (grub_add (ctx.real_size, efi_mmap_size, &sz))
-      return GRUB_ERR_OUT_OF_RANGE;
-
     err = grub_relocator_alloc_chunk_addr (relocator, &ch,
-					   ctx.real_mode_target, sz);
+					   ctx.real_mode_target,
+					   (ctx.real_size + efi_mmap_size));
     if (err)
      return err;
     real_mode_mem = get_virtual_current_address (ch);
@@ -699,50 +678,16 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 		int argc, char *argv[])
 {
   grub_file_t file = 0;
-  struct linux_i386_kernel_header lh;
+  struct linux_kernel_header lh;
   grub_uint8_t setup_sects;
-  grub_size_t real_size, prot_size, prot_file_size, kernelBufOffset = 0;
+  grub_size_t real_size, prot_size, prot_file_size;
   grub_ssize_t len;
   int i;
   grub_size_t align, min_align;
   int relocatable;
   grub_uint64_t preferred_address = GRUB_LINUX_BZIMAGE_ADDR;
-  grub_uint8_t* kernelBuf = 0;
 
   grub_dl_ref (my_mod);
-
-#ifdef GRUB_MACHINE_EFI
-  using_linuxefi = 0;
-  if (grub_efi_secure_boot ())
-    {
-      /* linuxefi requires a successful signature check and then hand over
-	 to the kernel without calling ExitBootServices. */
-      grub_dl_t mod;
-      grub_command_t linuxefi_cmd;
-
-      grub_dprintf ("linux", "Secure Boot enabled: trying linuxefi\n");
-
-      mod = grub_dl_load ("linuxefi");
-      if (mod)
-	{
-	  grub_dl_ref (mod);
-	  linuxefi_cmd = grub_command_find ("linuxefi");
-	  initrdefi_cmd = grub_command_find ("initrdefi");
-	  if (linuxefi_cmd && initrdefi_cmd)
-	    {
-	      (linuxefi_cmd->func) (linuxefi_cmd, argc, argv);
-	      if (grub_errno == GRUB_ERR_NONE)
-		{
-		  grub_dprintf ("linux", "Handing off to linuxefi\n");
-		  using_linuxefi = 1;
-		  return GRUB_ERR_NONE;
-		}
-	      grub_dprintf ("linux", "linuxefi failed (%d)\n", grub_errno);
-	      goto fail;
-	    }
-	}
-    }
-#endif
 
   if (argc == 0)
     {
@@ -754,24 +699,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
   if (! file)
     goto fail;
 
-  /* Begin TCG Extension */
-  kernelBuf = grub_malloc( file->size );
-  if( ! kernelBuf )
-  {
-	  grub_error (GRUB_ERR_OUT_OF_MEMORY, N_("allocating kernel buffer failed"));
-	  goto fail;
-  }
-
-  if (grub_file_read (file, kernelBuf, file->size) != (grub_ssize_t) file->size)
-  {
-	  if (!grub_errno)
-		  grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
-				  argv[0]);
-	  goto fail;
-  }
-
-  grub_memcpy( &lh, kernelBuf, sizeof(lh) );
-  kernelBufOffset = sizeof(lh);
+  if (grub_file_read (file, &lh, sizeof (lh)) != sizeof (lh))
+    {
+      if (!grub_errno)
+	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+		    argv[0]);
+      goto fail;
+    }
 
   if (lh.boot_flag != grub_cpu_to_le16_compile_time (0xaa55))
     {
@@ -787,7 +721,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 
   /* FIXME: 2.03 is not always good enough (Linux 2.4 can be 2.03 and
      still not support 32-bit boot.  */
-  if (lh.header != grub_cpu_to_le32_compile_time (GRUB_LINUX_I386_MAGIC_SIGNATURE)
+  if (lh.header != grub_cpu_to_le32_compile_time (GRUB_LINUX_MAGIC_SIGNATURE)
       || grub_le_to_cpu16 (lh.version) < 0x0203)
     {
       grub_error (GRUB_ERR_BAD_OS, "version too old for 32-bit boot"
@@ -872,9 +806,13 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
   linux_params.ps_mouse = linux_params.padding10 =  0;
 
   len = sizeof (linux_params) - sizeof (lh);
-
-  grub_memcpy( &linux_params + sizeof (lh), kernelBuf + kernelBufOffset, len );
-  kernelBufOffset+= len;
+  if (grub_file_read (file, (char *) &linux_params + sizeof (lh), len) != len)
+    {
+      if (!grub_errno)
+	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+		    argv[0]);
+      goto fail;
+    }
 
   linux_params.type_of_loader = GRUB_LINUX_BOOT_LOADER_TYPE;
 
@@ -906,12 +844,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 #ifdef GRUB_MACHINE_EFI
 #ifdef __x86_64__
   if (grub_le_to_cpu16 (linux_params.version) < 0x0208 &&
-      ((grub_addr_t) grub_efi_system_table >> 32) != 0) {
-	  grub_free(kernelBuf);
-	  return grub_error(GRUB_ERR_BAD_OS,
-	  		      "kernel does not support 64-bit addressing");
-  }
-
+      ((grub_addr_t) grub_efi_system_table >> 32) != 0)
+    return grub_error(GRUB_ERR_BAD_OS,
+		      "kernel does not support 64-bit addressing");
 #endif
 
   if (grub_le_to_cpu16 (linux_params.version) >= 0x0208)
@@ -935,7 +870,8 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 #endif
 
   /* The other parameters are filled when booting.  */
-  kernelBufOffset= real_size + GRUB_DISK_SECTOR_SIZE;
+
+  grub_file_seek (file, real_size + GRUB_DISK_SECTOR_SIZE);
 
   grub_dprintf ("linux", "bzImage, setup=0x%x, size=0x%x\n",
 		(unsigned) real_size, (unsigned) prot_size);
@@ -1083,31 +1019,21 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 			      - (sizeof (LINUX_IMAGE) - 1));
 
   len = prot_file_size;
-
-  grub_memcpy( prot_mode_mem, kernelBuf + kernelBufOffset, len );
-  kernelBufOffset+= len;
+  if (grub_file_read (file, prot_mode_mem, len) != len && !grub_errno)
+    grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
+		argv[0]);
 
   if (grub_errno == GRUB_ERR_NONE)
     {
       grub_loader_set (grub_linux_boot, grub_linux_unload,
 		       0 /* set noreturn=0 in order to avoid grub_console_fini() */);
       loaded = 1;
-
-      //TPM TESTING
-      grub_printf("loader/i386/linux.c \n");
-      DEBUG_PRINT( ("measured linux kernel: \n") );
-      grub_TPM_measure_buffer( kernelBuf, file->size, TPM_LOADER_MEASUREMENT_PCR );
     }
 
  fail:
 
   if (file)
     grub_file_close (file);
-
-  if(kernelBuf) {
-	  grub_free(kernelBuf);
-  }
-  /* End TCG Extension */
 
   if (grub_errno != GRUB_ERR_NONE)
     {
@@ -1127,12 +1053,6 @@ grub_cmd_initrd (grub_command_t cmd __attribute__ ((unused)),
   grub_addr_t addr;
   grub_err_t err;
   struct grub_linux_initrd_context initrd_ctx = { 0, 0, 0 };
-
-#ifdef GRUB_MACHINE_EFI
-  /* If we're using linuxefi, just forward to initrdefi.  */
-  if (using_linuxefi && initrdefi_cmd)
-    return (initrdefi_cmd->func) (initrdefi_cmd, argc, argv);
-#endif
 
   if (argc == 0)
     {

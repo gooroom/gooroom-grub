@@ -437,8 +437,8 @@ main (int argc, char *argv[])
   xorriso = xstrdup ("xorriso");
   label_font = grub_util_path_concat (2, pkgdatadir, "unicode.pf2");
 
-  argp_argv = xcalloc (argc, sizeof (argp_argv[0]));
-  xorriso_tail_argv = xcalloc (argc, sizeof (argp_argv[0]));
+  argp_argv = xmalloc (sizeof (argp_argv[0]) * argc);
+  xorriso_tail_argv = xmalloc (sizeof (argp_argv[0]) * argc);
 
   xorriso_tail_argc = 0;
   /* Program name */
@@ -738,7 +738,6 @@ main (int argc, char *argv[])
 
       grub_install_push_module ("part_gpt");
       grub_install_push_module ("part_msdos");
-      grub_install_push_module ("fat");
 
       imgname = grub_util_path_concat (2, efidir_efi_boot, "bootia64.efi");
       make_image_fwdisk_abs (GRUB_INSTALL_PLATFORM_IA64_EFI, "ia64-efi", imgname);
@@ -805,7 +804,6 @@ main (int argc, char *argv[])
       free (efiimgfat);
       free (efidir_efi);
       free (efidir);
-      grub_install_pop_module ();
       grub_install_pop_module ();
       grub_install_pop_module ();
     }

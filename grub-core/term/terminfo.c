@@ -151,7 +151,7 @@ grub_terminfo_set_current (struct grub_term_output *term,
       /* Clear the screen.  Using serial console, screen(1) only recognizes the
        * ANSI escape sequence.  Using video console, Apple Open Firmware
        * (version 3.1.1) only recognizes the literal ^L.  So use both.  */
-      data->cls               = grub_strdup ("\e[2J\e[m");
+      data->cls               = grub_strdup ("\e[2J");
       data->reverse_video_on  = grub_strdup ("\e[7m");
       data->reverse_video_off = grub_strdup ("\e[m");
       if (grub_strcmp ("ieee1275", str) == 0)
@@ -398,7 +398,7 @@ grub_terminfo_getwh (struct grub_term_output *term)
 }
 
 static void
-grub_terminfo_readkey (struct grub_term_input *term, int *keys, int *len, int max_len,
+grub_terminfo_readkey (struct grub_term_input *term, int *keys, int *len,
 		       int (*readkey) (struct grub_term_input *term))
 {
   int c;
@@ -414,9 +414,6 @@ grub_terminfo_readkey (struct grub_term_input *term, int *keys, int *len, int ma
     if (c == -1)						\
       return;							\
 								\
-    if (*len >= max_len)                                       \
-      return;                                                   \
-                                                                \
     keys[*len] = c;						\
     (*len)++;							\
   }
@@ -605,8 +602,8 @@ grub_terminfo_getkey (struct grub_term_input *termi)
       return ret;
     }
 
-  grub_terminfo_readkey (termi, data->input_buf, &data->npending,
-			 GRUB_TERMINFO_READKEY_MAX_LEN, data->readkey);
+  grub_terminfo_readkey (termi, data->input_buf,
+			 &data->npending, data->readkey);
 
 #if defined(__powerpc__) && defined(GRUB_MACHINE_IEEE1275)
   if (data->npending == 1 && data->input_buf[0] == '\e'

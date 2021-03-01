@@ -30,6 +30,7 @@ static struct grub_parser_state_transition state_transitions[] = {
   {GRUB_PARSER_STATE_TEXT, GRUB_PARSER_STATE_QUOTE, '\'', 0},
   {GRUB_PARSER_STATE_TEXT, GRUB_PARSER_STATE_DQUOTE, '\"', 0},
   {GRUB_PARSER_STATE_TEXT, GRUB_PARSER_STATE_VAR, '$', 0},
+  {GRUB_PARSER_STATE_TEXT, GRUB_PARSER_STATE_ESC, '\\', 0},
 
   {GRUB_PARSER_STATE_ESC, GRUB_PARSER_STATE_TEXT, 0, 1},
 
@@ -212,7 +213,7 @@ grub_parser_split_cmdline (const char *cmdline,
     return grub_errno;
   grub_memcpy (args, buffer, bp - buffer);
 
-  *argv = grub_calloc (*argc + 1, sizeof (char *));
+  *argv = grub_malloc (sizeof (char *) * (*argc + 1));
   if (!*argv)
     {
       grub_free (args);

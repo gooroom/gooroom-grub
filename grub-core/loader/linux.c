@@ -4,11 +4,6 @@
 #include <grub/misc.h>
 #include <grub/file.h>
 #include <grub/mm.h>
-#include <grub/safemath.h>
-
-/* Begin TCG Extension */
-#include <grub/tpm.h>
-/* End TCG Extension */
 
 struct newc_head
 {
@@ -103,13 +98,13 @@ free_dir (struct dir *root)
   grub_free (root);
 }
 
-static grub_err_t
+static grub_size_t
 insert_dir (const char *name, struct dir **root,
-	    grub_uint8_t *ptr, grub_size_t *size)
+	    grub_uint8_t *ptr)
 {
   struct dir *cur, **head = root;
   const char *cb, *ce = name;
-  *size = 0;
+  grub_size_t size = 0;
   while (1)
     {
       for (cb = ce; *cb == '/'; cb++);
@@ -135,22 +130,14 @@ insert_dir (const char *name, struct dir **root,
 	      ptr = make_header (ptr, name, ce - name,
 				 040777, 0);
 	    }
-	  if (grub_add (*size,
-		        ALIGN_UP ((ce - (char *) name)
-				  + sizeof (struct newc_head), 4),
-			size))
-	    {
-	      grub_error (GRUB_ERR_OUT_OF_RANGE, N_("overflow is detected"));
-	      grub_free (n->name);
-	      grub_free (n);
-	      return grub_errno;
-	    }
+	  size += ALIGN_UP ((ce - (char *) name)
+			    + sizeof (struct newc_head), 4);
 	  *head = n;
 	  cur = n;
 	}
       root = &cur->next;
     }
-  return GRUB_ERR_NONE;
+  return size;
 }
 
 grub_err_t
@@ -164,15 +151,12 @@ grub_initrd_init (int argc, char *argv[],
   initrd_ctx->nfiles = 0;
   initrd_ctx->components = 0;
 
-  initrd_ctx->components = grub_calloc (argc,
-					sizeof (initrd_ctx->components[0]));
+  initrd_ctx->components = grub_zalloc (argc
+					* sizeof (initrd_ctx->components[0]));
   if (!initrd_ctx->components)
     return grub_errno;
 
   initrd_ctx->size = 0;
-
-  //TPM testing
-  grub_printf("initrd init\n");
 
   for (i = 0; i < argc; i++)
     {
@@ -189,34 +173,27 @@ grub_initrd_init (int argc, char *argv[],
 	  eptr = grub_strchr (ptr, ':');
 	  if (eptr)
 	    {
-	      grub_size_t dir_size, name_len;
-
 	      grub_file_filter_disable_compression ();
 	      initrd_ctx->components[i].newc_name = grub_strndup (ptr, eptr - ptr);
-	      if (!initrd_ctx->components[i].newc_name ||
-		  insert_dir (initrd_ctx->components[i].newc_name, &root, 0,
-			      &dir_size))
+	      if (!initrd_ctx->components[i].newc_name)
 		{
 		  grub_initrd_close (initrd_ctx);
 		  return grub_errno;
 		}
-	      name_len = grub_strlen (initrd_ctx->components[i].newc_name);
-	      if (grub_add (initrd_ctx->size,
-			    ALIGN_UP (sizeof (struct newc_head) + name_len, 4),
-			    &initrd_ctx->size) ||
-		  grub_add (initrd_ctx->size, dir_size, &initrd_ctx->size))
-		goto overflow;
+	      initrd_ctx->size
+		+= ALIGN_UP (sizeof (struct newc_head)
+			    + grub_strlen (initrd_ctx->components[i].newc_name),
+			     4);
+	      initrd_ctx->size += insert_dir (initrd_ctx->components[i].newc_name,
+					      &root, 0);
 	      newc = 1;
 	      fname = eptr + 1;
 	    }
 	}
       else if (newc)
 	{
-	  if (grub_add (initrd_ctx->size,
-			ALIGN_UP (sizeof (struct newc_head)
-				  + sizeof ("TRAILER!!!") - 1, 4),
-			&initrd_ctx->size))
-	    goto overflow;
+	  initrd_ctx->size += ALIGN_UP (sizeof (struct newc_head)
+					+ sizeof ("TRAILER!!!") - 1, 4);
 	  free_dir (root);
 	  root = 0;
 	  newc = 0;
@@ -231,29 +208,19 @@ grub_initrd_init (int argc, char *argv[],
       initrd_ctx->nfiles++;
       initrd_ctx->components[i].size
 	= grub_file_size (initrd_ctx->components[i].file);
-      if (grub_add (initrd_ctx->size, initrd_ctx->components[i].size,
-		    &initrd_ctx->size))
-	goto overflow;
+      initrd_ctx->size += initrd_ctx->components[i].size;
     }
 
   if (newc)
     {
       initrd_ctx->size = ALIGN_UP (initrd_ctx->size, 4);
-      if (grub_add (initrd_ctx->size,
-		    ALIGN_UP (sizeof (struct newc_head)
-			      + sizeof ("TRAILER!!!") - 1, 4),
-		    &initrd_ctx->size))
-	goto overflow;
+      initrd_ctx->size += ALIGN_UP (sizeof (struct newc_head)
+				    + sizeof ("TRAILER!!!") - 1, 4);
       free_dir (root);
       root = 0;
     }
   
   return GRUB_ERR_NONE;
-
-overflow:
-  free_dir (root);
-  grub_initrd_close (initrd_ctx);
-  return grub_error (GRUB_ERR_OUT_OF_RANGE, N_("overflow is detected"));
 }
 
 grub_size_t
@@ -281,7 +248,6 @@ grub_err_t
 grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
 		  char *argv[], void *target)
 {
-	grub_printf("initrd_load\n");
   grub_uint8_t *ptr = target;
   int i;
   int newc = 0;
@@ -295,16 +261,8 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
 
       if (initrd_ctx->components[i].newc_name)
 	{
-	  grub_size_t dir_size;
-
-	  if (insert_dir (initrd_ctx->components[i].newc_name, &root, ptr,
-			  &dir_size))
-	    {
-	      free_dir (root);
-	      grub_initrd_close (initrd_ctx);
-	      return grub_errno;
-	    }
-	  ptr += dir_size;
+	  ptr += insert_dir (initrd_ctx->components[i].newc_name,
+			     &root, ptr);
 	  ptr = make_header (ptr, initrd_ctx->components[i].newc_name,
 			     grub_strlen (initrd_ctx->components[i].newc_name),
 			     0100777,
@@ -330,14 +288,6 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
 	  grub_initrd_close (initrd_ctx);
 	  return grub_errno;
 	}
-
-      //Modified for efi testing
-
-      grub_dprintf("linux","in linux.c before TPM measure buffer\n");
-      /* Begin TCG Extension */
-      grub_TPM_measure_buffer( ptr, cursize, TPM_LOADER_MEASUREMENT_PCR );
-      /* End TCG Extension */
-
       ptr += cursize;
     }
   if (newc)

@@ -48,8 +48,6 @@
 #include <grub/util/install.h>
 #include <grub/util/mkimage.h>
 
-#include <xen/elfnote.h>
-
 #pragma GCC diagnostic ignored "-Wcast-align"
 
 /* These structures are defined according to the CHRP binding to IEEE1275,
@@ -208,12 +206,12 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       phnum++;
       footer_size += sizeof (struct grub_ieee1275_note);
     }
-  if (image_target->id == IMAGE_XEN || image_target->id == IMAGE_XEN_PVH)
+  if (image_target->id == IMAGE_XEN)
     {
       phnum++;
       shnum++;
       string_size += sizeof (".xen");
-      footer_size += (image_target->id == IMAGE_XEN) ? XEN_NOTE_SIZE : XEN_PVH_NOTE_SIZE;
+      footer_size += XEN_NOTE_SIZE;
     }
   header_size = ALIGN_UP (sizeof (*ehdr) + phnum * sizeof (*phdr)
 			  + shnum * sizeof (*shdr) + string_size, align);
@@ -314,7 +312,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       note_ptr = (Elf_Nhdr *) ptr;
       note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
       note_ptr->n_descsz = grub_host_to_target32 (sizeof (PACKAGE_NAME));
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_GUEST_OS);
+      note_ptr->n_type = grub_host_to_target32 (6);
       ptr += sizeof (Elf_Nhdr);
       memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
       ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -325,7 +323,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       note_ptr = (Elf_Nhdr *) ptr;
       note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
       note_ptr->n_descsz = grub_host_to_target32 (sizeof ("generic"));
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_LOADER);
+      note_ptr->n_type = grub_host_to_target32 (8);
       ptr += sizeof (Elf_Nhdr);
       memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
       ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -336,7 +334,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       note_ptr = (Elf_Nhdr *) ptr;
       note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
       note_ptr->n_descsz = grub_host_to_target32 (sizeof ("xen-3.0"));
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_XEN_VERSION);
+      note_ptr->n_type = grub_host_to_target32 (5);
       ptr += sizeof (Elf_Nhdr);
       memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
       ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -347,7 +345,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       note_ptr = (Elf_Nhdr *) ptr;
       note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
       note_ptr->n_descsz = grub_host_to_target32 (image_target->voidp_sizeof);
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_ENTRY);
+      note_ptr->n_type = grub_host_to_target32 (1);
       ptr += sizeof (Elf_Nhdr);
       memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
       ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -358,7 +356,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       note_ptr = (Elf_Nhdr *) ptr;
       note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
       note_ptr->n_descsz = grub_host_to_target32 (image_target->voidp_sizeof);
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_VIRT_BASE);
+      note_ptr->n_type = grub_host_to_target32 (3);
       ptr += sizeof (Elf_Nhdr);
       memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
       ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -371,7 +369,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
 	  note_ptr = (Elf_Nhdr *) ptr;
 	  note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
 	  note_ptr->n_descsz = grub_host_to_target32 (sizeof ("yes,bimodal"));
-	  note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_PAE_MODE);
+	  note_ptr->n_type = grub_host_to_target32 (9);
 	  ptr += sizeof (Elf_Nhdr);
 	  memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
 	  ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
@@ -388,39 +386,6 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
       phdr->p_vaddr = 0;
       phdr->p_paddr = 0;
       phdr->p_filesz = grub_host_to_target32 (XEN_NOTE_SIZE);
-      phdr->p_memsz = 0;
-      phdr->p_offset = grub_host_to_target32 (header_size + program_size);
-    }
-
-  if (image_target->id == IMAGE_XEN_PVH)
-    {
-      char *note_start = (elf_img + program_size + header_size);
-      Elf_Nhdr *note_ptr;
-      char *ptr = (char *) note_start;
-
-      grub_util_info ("adding XEN NOTE segment");
-
-      /* Phys32 Entry.  */
-      note_ptr = (Elf_Nhdr *) ptr;
-      note_ptr->n_namesz = grub_host_to_target32 (sizeof (GRUB_XEN_NOTE_NAME));
-      note_ptr->n_descsz = grub_host_to_target32 (image_target->voidp_sizeof);
-      note_ptr->n_type = grub_host_to_target32 (XEN_ELFNOTE_PHYS32_ENTRY);
-      ptr += sizeof (Elf_Nhdr);
-      memcpy (ptr, GRUB_XEN_NOTE_NAME, sizeof (GRUB_XEN_NOTE_NAME));
-      ptr += ALIGN_UP (sizeof (GRUB_XEN_NOTE_NAME), 4);
-      memset (ptr, 0, image_target->voidp_sizeof);
-      *(grub_uint32_t *) ptr = GRUB_KERNEL_I386_XEN_PVH_LINK_ADDR;
-      ptr += image_target->voidp_sizeof;
-
-      assert (XEN_PVH_NOTE_SIZE == (ptr - note_start));
-
-      phdr++;
-      phdr->p_type = grub_host_to_target32 (PT_NOTE);
-      phdr->p_flags = grub_host_to_target32 (PF_R);
-      phdr->p_align = grub_host_to_target32 (image_target->voidp_sizeof);
-      phdr->p_vaddr = 0;
-      phdr->p_paddr = 0;
-      phdr->p_filesz = grub_host_to_target32 (XEN_PVH_NOTE_SIZE);
       phdr->p_memsz = 0;
       phdr->p_offset = grub_host_to_target32 (header_size + program_size);
     }
@@ -500,7 +465,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
     shdr->sh_entsize = grub_host_to_target32 (0);
     shdr++;
 
-    if (image_target->id == IMAGE_XEN || image_target->id == IMAGE_XEN_PVH)
+    if (image_target->id == IMAGE_XEN)
       {
 	memcpy (ptr, ".xen", sizeof (".xen"));
 	shdr->sh_name = grub_host_to_target32 (ptr - str_start);
@@ -508,10 +473,7 @@ SUFFIX (grub_mkimage_generate_elf) (const struct grub_install_image_target_desc 
 	shdr->sh_type = grub_host_to_target32 (SHT_PROGBITS);
 	shdr->sh_addr = grub_host_to_target_addr (target_addr + kernel_size);
 	shdr->sh_offset = grub_host_to_target_addr (program_size + header_size);
-	if (image_target->id == IMAGE_XEN)
-	  shdr->sh_size = grub_host_to_target32 (XEN_NOTE_SIZE);
-	else
-	  shdr->sh_size = grub_host_to_target32 (XEN_PVH_NOTE_SIZE);
+	shdr->sh_size = grub_host_to_target32 (XEN_NOTE_SIZE);
 	shdr->sh_link = grub_host_to_target32 (0);
 	shdr->sh_info = grub_host_to_target32 (0);
 	shdr->sh_addralign = grub_host_to_target32 (image_target->voidp_sizeof);
@@ -870,7 +832,6 @@ SUFFIX (relocate_addresses) (Elf_Ehdr *e, Elf_Shdr *sections,
 		  break;
 
 		case R_X86_64_PC32:
-		case R_X86_64_PLT32:
 		  {
 		    grub_uint32_t *t32 = (grub_uint32_t *) target;
 		    *t32 = grub_host_to_target64 (grub_target_to_host32 (*t32)
@@ -1105,7 +1066,7 @@ SUFFIX (relocate_addresses) (Elf_Ehdr *e, Elf_Shdr *sections,
 				       (int) sym_addr, (int) sym_addr);
 		       /* Data will be naturally aligned */
 		       if (image_target->id == IMAGE_EFI)
-			 sym_addr += GRUB_PE32_SECTION_ALIGNMENT;
+			 sym_addr += 0x400;
 		       *target = grub_host_to_target32 (grub_target_to_host32 (*target) + sym_addr);
 		     }
 		     break;
@@ -1823,7 +1784,7 @@ SUFFIX (locate_sections) (Elf_Ehdr *e, const char *kernel_path,
   if (image_target->elf_target == EM_AARCH64)
     layout->align = 4096;
 
-  section_addresses = xcalloc (num_sections, sizeof (*section_addresses));
+  section_addresses = xmalloc (sizeof (*section_addresses) * num_sections);
   memset (section_addresses, 0, sizeof (*section_addresses) * num_sections);
 
   layout->kernel_size = 0;
@@ -1860,21 +1821,6 @@ SUFFIX (locate_sections) (Elf_Ehdr *e, const char *kernel_path,
 	  }
       }
 
-#ifdef MKIMAGE_ELF32
-  if (image_target->elf_target == EM_ARM)
-    {
-      grub_size_t tramp;
-
-      layout->kernel_size = ALIGN_UP (layout->kernel_size, 16);
-
-      tramp = arm_get_trampoline_size (e, sections, section_entsize,
-				       num_sections, image_target);
-
-      layout->tramp_off = layout->kernel_size;
-      layout->kernel_size += ALIGN_UP (tramp, 16);
-    }
-#endif
-
   layout->kernel_size = ALIGN_UP (layout->kernel_size + image_target->vaddr_offset,
 			      image_target->section_align)
     - image_target->vaddr_offset;
@@ -1890,6 +1836,23 @@ SUFFIX (locate_sections) (Elf_Ehdr *e, const char *kernel_path,
 					      section_addresses,
 					      strtab,
 					      image_target);
+
+#ifdef MKIMAGE_ELF32
+  if (image_target->elf_target == EM_ARM)
+    {
+      grub_size_t tramp;
+      layout->kernel_size = ALIGN_UP (layout->kernel_size + image_target->vaddr_offset,
+				      image_target->section_align) - image_target->vaddr_offset;
+
+      layout->kernel_size = ALIGN_UP (layout->kernel_size, 16);
+
+      tramp = arm_get_trampoline_size (e, sections, section_entsize,
+				       num_sections, image_target);
+
+      layout->tramp_off = layout->kernel_size;
+      layout->kernel_size += ALIGN_UP (tramp, 16);
+    }
+#endif
 
   layout->bss_start = layout->kernel_size;
   layout->end = layout->kernel_size;
@@ -1970,7 +1933,7 @@ SUFFIX (grub_mkimage_load_image) (const char *kernel_path,
 						layout,
 						image_target);
 
-  section_vaddresses = xcalloc (num_sections, sizeof (*section_addresses));
+  section_vaddresses = xmalloc (sizeof (*section_addresses) * num_sections);
 
   for (i = 0; i < num_sections; i++)
     section_vaddresses[i] = section_addresses[i] + image_target->vaddr_offset;
