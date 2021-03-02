@@ -1,4 +1,4 @@
-grub2 (2.04-16) UNRELEASED; urgency=medium
+grub2 (2.04-16) unstable; urgency=medium
 
   * Fix broken advice in message when the postinst has to bail out (thanks
     to Daniel Leidert for pointing out the problem).
@@ -136,7 +136,7 @@ grub2 (2.04-16) UNRELEASED; urgency=medium
     - kern/mm: Fix grub_debug_calloc() compilation error
   * Add SBAT section (thanks, Chris Coulson).
 
- -- Colin Watson <cjwatson@debian.org>  Sun, 21 Feb 2021 00:01:18 +0000
+ -- Colin Watson <cjwatson@debian.org>  Tue, 02 Mar 2021 18:00:00 +0000
 
 grub2 (2.04-15) unstable; urgency=medium
 
