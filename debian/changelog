@@ -1,3 +1,9 @@
+grub2 (2.04-17) UNRELEASED; urgency=medium
+
+  * Pass --sbat when building the d-i netboot image as well.
+
+ -- Colin Watson <cjwatson@debian.org>  Wed, 03 Mar 2021 11:15:15 +0000
+
 grub2 (2.04-16) unstable; urgency=medium
 
   * Fix broken advice in message when the postinst has to bail out (thanks
