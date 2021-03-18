@@ -1,6 +1,8 @@
 grub2 (2.04-17) UNRELEASED; urgency=medium
 
   * Pass --sbat when building the d-i netboot image as well.
+  * i386-pc: build verifiers API as module (thanks, Michael Chang; closes:
+    #984488, #985374).
 
  -- Colin Watson <cjwatson@debian.org>  Wed, 03 Mar 2021 11:15:15 +0000
 
