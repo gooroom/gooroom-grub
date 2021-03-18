@@ -141,7 +141,7 @@ kernel = {
   common = kern/rescue_parser.c;
   common = kern/rescue_reader.c;
   common = kern/term.c;
-  common = kern/verifiers.c;
+  nopc = kern/verifiers.c;
 
   noemu = kern/compiler-rt.c;
   noemu = kern/mm.c;
@@ -949,6 +949,12 @@ module = {
   name = shim_lock;
   common = commands/efi/shim_lock.c;
   enable = x86_64_efi;
+};
+
+module = {
+  name = verifiers;
+  common = kern/verifiers.c;
+  enable = i386_pc;
 };
 
 module = {
