@@ -215,3 +215,4 @@ grub-install-inverted-nls-test.patch
 2021-02-security/113-kern-mm-Fix-grub_debug_calloc-compilation-error.patch
 pc-verifiers-module.patch
 enable_shim_lock_i386_efi.patch
+debug_verifiers.patch

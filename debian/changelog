@@ -4,6 +4,7 @@ grub2 (2.04-18) unstable; urgency=medium
     tpm is included in our EFI images.
   * List the modules we include the EFI images - make it easier to
     debug things.
+  * Add debug to display what's going on with verifiers
 
  -- Steve McIntyre <93sam@debian.org>  Fri, 16 Apr 2021 23:51:18 +0100
 
