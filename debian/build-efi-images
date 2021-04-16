@@ -150,12 +150,6 @@ case $platform in
 	cpuid
 	linuxefi
 	play
-	"
-	;;
-esac
-case $platform in
-    x86_64-efi)
-	CD_MODULES="$CD_MODULES
 	tpm
 	"
 	;;

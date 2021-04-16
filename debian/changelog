@@ -1,3 +1,10 @@
+grub2 (2.04-18) unstable; urgency=medium
+
+  * Enable the shim_lock and tpm modules for i386-efi too. Ensure that
+    tpm is included in our EFI images.
+
+ -- Steve McIntyre <93sam@debian.org>  Fri, 16 Apr 2021 23:51:18 +0100
+
 grub2 (2.04-17) unstable; urgency=medium
 
   * Pass --sbat when building the d-i netboot image as well.

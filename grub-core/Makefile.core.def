@@ -948,7 +948,7 @@ module = {
 module = {
   name = shim_lock;
   common = commands/efi/shim_lock.c;
-  enable = x86_64_efi;
+  enable = efi;
 };
 
 module = {
@@ -2488,7 +2488,7 @@ module = {
   name = tpm;
   common = commands/tpm.c;
   efi = commands/efi/tpm.c;
-  enable = x86_64_efi;
+  enable = efi;
 };
 
 module = {

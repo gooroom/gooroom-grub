@@ -1,0 +1,24 @@
+Enable shim_lock and tpm modules for all efi platforms, not just x86_64_efi
+
+diff --git a/grub-core/Makefile.core.def b/grub-core/Makefile.core.def
+index 43b3da725..b9d2912a0 100644
+--- a/grub-core/Makefile.core.def
++++ b/grub-core/Makefile.core.def
+@@ -948,7 +948,7 @@ module = {
+ module = {
+   name = shim_lock;
+   common = commands/efi/shim_lock.c;
+-  enable = x86_64_efi;
++  enable = efi;
+ };
+ 
+ module = {
+@@ -2488,7 +2488,7 @@ module = {
+   name = tpm;
+   common = commands/tpm.c;
+   efi = commands/efi/tpm.c;
+-  enable = x86_64_efi;
++  enable = efi;
+ };
+ 
+ module = {
