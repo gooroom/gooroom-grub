@@ -1,4 +1,4 @@
-grub2 (2.04-18) unstable; urgency=medium
+grub2 (2.04-18) UNRELEASED; urgency=medium
 
   * Enable the shim_lock and tpm modules for i386-efi too. Ensure that
     tpm is included in our EFI images.
