@@ -1,3 +1,13 @@
+From bb6fe7f81818b8d102ca92b174d79aebb62469a0 Mon Sep 17 00:00:00 2001
+From: Steve McIntyre <93sam@debian.org>
+Date: Sat, 17 Apr 2021 22:05:47 +0100
+Subject: Add debug to display what's going on with verifiers
+
+Patch-Name: debug_verifiers.patch
+---
+ grub-core/kern/verifiers.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
 diff --git a/grub-core/kern/verifiers.c b/grub-core/kern/verifiers.c
 index 58dbe152a..ff984c8d8 100644
 --- a/grub-core/kern/verifiers.c
