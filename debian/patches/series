@@ -216,3 +216,4 @@ grub-install-inverted-nls-test.patch
 pc-verifiers-module.patch
 enable_shim_lock_i386_efi.patch
 debug_verifiers.patch
+mkimage-fix-section-sizes.patch
