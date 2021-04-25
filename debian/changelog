@@ -1,4 +1,4 @@
-grub2 (2.04-18) UNRELEASED; urgency=medium
+grub2 (2.04-18) unstable; urgency=medium
 
   [ Steve McIntyre ]
   * Enable the shim_lock and tpm modules for i386-efi too. Ensure that
@@ -11,7 +11,7 @@ grub2 (2.04-18) UNRELEASED; urgency=medium
   * util/mkimage: Some fixes to PE binaries section size calculation
     (closes: #987103).
 
- -- Steve McIntyre <93sam@debian.org>  Fri, 16 Apr 2021 23:51:18 +0100
+ -- Colin Watson <cjwatson@debian.org>  Sun, 25 Apr 2021 16:20:17 +0100
 
 grub2 (2.04-17) unstable; urgency=medium
 
