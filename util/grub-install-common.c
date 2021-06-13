@@ -190,29 +190,41 @@ strcmp_ext (const char *a, const char *b, const char *ext)
 {
   char *bsuffix = grub_util_path_concat_ext (1, b, ext);
   int r = strcmp (a, bsuffix);
+
   free (bsuffix);
   return r;
 }
 
 enum clean_grub_dir_mode
 {
-  CLEAN = 0,
-  CLEAN_BACKUP = 1,
-  CREATE_BACKUP = 2,
-  RESTORE_BACKUP = 3,
+  CLEAN_NEW,
+  CLEAN_BACKUP,
+  CREATE_BACKUP,
+  RESTORE_BACKUP
 };
+
+#ifdef HAVE_ATEXIT
+static size_t backup_dirs_size = 0;
+static char **backup_dirs = NULL;
+static pid_t backup_process = 0;
+static int grub_install_backup_ponr = 0;
+
+void
+grub_set_install_backup_ponr (void)
+{
+  grub_install_backup_ponr = 1;
+}
+#endif
 
 static void
 clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
 {
   grub_util_fd_dir_t d;
   grub_util_fd_dirent_t de;
-  char suffix[2] = "";
+  const char *suffix = "";
 
   if ((mode == CLEAN_BACKUP) || (mode == RESTORE_BACKUP))
-    {
-      strcpy (suffix, "-");
-    }
+    suffix = "~";
 
   d = grub_util_fd_opendir (di);
   if (!d)
@@ -226,9 +238,11 @@ clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
   while ((de = grub_util_fd_readdir (d)))
     {
       const char *ext = strrchr (de->d_name, '.');
+
       if ((ext && (strcmp_ext (ext, ".mod", suffix) == 0
 		   || strcmp_ext (ext, ".lst", suffix) == 0
 		   || strcmp_ext (ext, ".img", suffix) == 0
+		   || strcmp_ext (ext, ".efi", suffix) == 0
 		   || strcmp_ext (ext, ".mo", suffix) == 0)
 	   && strcmp_ext (de->d_name, "menu.lst", suffix) != 0)
 	  || strcmp_ext (de->d_name, "modinfo.sh", suffix) == 0
@@ -239,7 +253,8 @@ clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
 
 	  if (mode == CREATE_BACKUP)
 	    {
-	      char *dstf = grub_util_path_concat_ext (2, di, de->d_name, "-");
+	      char *dstf = grub_util_path_concat_ext (2, di, de->d_name, "~");
+
 	      if (grub_util_rename (srcf, dstf) < 0)
 		grub_util_error (_("cannot backup `%s': %s"), srcf,
 				 grub_util_fd_strerror ());
@@ -248,7 +263,8 @@ clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
 	  else if (mode == RESTORE_BACKUP)
 	    {
 	      char *dstf = grub_util_path_concat (2, di, de->d_name);
-	      dstf[strlen (dstf) - 1] = 0;
+
+	      dstf[strlen (dstf) - 1] = '\0';
 	      if (grub_util_rename (srcf, dstf) < 0)
 		grub_util_error (_("cannot restore `%s': %s"), dstf,
 				 grub_util_fd_strerror ());
@@ -266,30 +282,65 @@ clean_grub_dir_real (const char *di, enum clean_grub_dir_mode mode)
   grub_util_fd_closedir (d);
 }
 
+#ifdef HAVE_ATEXIT
 static void
-restore_backup_on_exit (int status, void *arg)
+restore_backup_atexit (void)
 {
-  if (status == 0)
+  size_t i;
+
+  /*
+   * Some child inherited atexit() handler, did not clear it, and called it.
+   * Thus skip clean or restore logic.
+   */
+  if (backup_process != getpid ())
+    return;
+
+  for (i = 0; i < backup_dirs_size; i++)
     {
-      clean_grub_dir_real ((char *) arg, CLEAN_BACKUP);
+      /*
+       * If past point of no return simply clean the backups. Otherwise
+       * cleanup newly installed files, and restore the backups.
+       */
+      if (grub_install_backup_ponr)
+	clean_grub_dir_real (backup_dirs[i], CLEAN_BACKUP);
+      else
+	{
+	  clean_grub_dir_real (backup_dirs[i], CLEAN_NEW);
+	  clean_grub_dir_real (backup_dirs[i], RESTORE_BACKUP);
+	}
+      free (backup_dirs[i]);
     }
-  else
-    {
-      clean_grub_dir_real ((char *) arg, CLEAN);
-      clean_grub_dir_real ((char *) arg, RESTORE_BACKUP);
-    }
-  free (arg);
-  arg = NULL;
+
+  backup_dirs_size = 0;
+
+  free (backup_dirs);
 }
+
+static void
+append_to_backup_dirs (const char *dir)
+{
+  backup_dirs = xrealloc (backup_dirs, sizeof (char *) * (backup_dirs_size + 1));
+  backup_dirs[backup_dirs_size] = xstrdup (dir);
+  backup_dirs_size++;
+  if (!backup_process)
+    {
+      atexit (restore_backup_atexit);
+      backup_process = getpid ();
+    }
+}
+#else
+static void
+append_to_backup_dirs (const char *dir __attribute__ ((unused)))
+{
+}
+#endif
 
 static void
 clean_grub_dir (const char *di)
 {
   clean_grub_dir_real (di, CLEAN_BACKUP);
   clean_grub_dir_real (di, CREATE_BACKUP);
-#if defined(HAVE_ON_EXIT)
-  on_exit (restore_backup_on_exit, strdup (di));
-#endif
+  append_to_backup_dirs (di);
 }
 
 struct install_list
