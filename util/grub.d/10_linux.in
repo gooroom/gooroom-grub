@@ -177,14 +177,14 @@ linux_entry ()
     auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
     linux_root_device_thisversion="LABEL=${auto_label}"
     sed "s/^/$submenu_indentation/" << EOF
-        echo    '$(echo "$message" | grub_quote)'
+        #echo    '$(echo "$message" | grub_quote)'
 	linuxefi ${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
 EOF
   elif [ x$type = xrecovery ] ; then
     message="$(gettext_printf "Loading Linux %s ..." ${version})"
     linux_recovery_device_thisversion="LABEL=GRM_RECOVERY"
     sed "s/^/$submenu_indentation/" << EOF
-        echo    '$(echo "$message" | grub_quote)'
+        #echo    '$(echo "$message" | grub_quote)'
 	linux	${rel_dirname}/${basename} root=${linux_recovery_device_thisversion} ro ${args} break=bottom
 EOF
   else
@@ -192,20 +192,20 @@ EOF
     auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
     linux_root_device_thisversion="LABEL=${auto_label}"
     sed "s/^/$submenu_indentation/" << EOF
-        echo    '$(echo "$message" | grub_quote)'
+        #echo    '$(echo "$message" | grub_quote)'
 	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
 EOF
   fi
   if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
     message="$(gettext_printf "Loading SecureBoot initial ramdisk ...")"
     sed "s/^/$submenu_indentation/" << EOF
-        echo    '$(echo "$message" | grub_quote)'
+        #echo    '$(echo "$message" | grub_quote)'
 	initrdefi ${rel_dirname}/${initrd}
 EOF
   else
     message="$(gettext_printf "Loading initial ramdisk ...")"
     sed "s/^/$submenu_indentation/" << EOF
-        echo    '$(echo "$message" | grub_quote)'
+        #echo    '$(echo "$message" | grub_quote)'
 	initrd	${rel_dirname}/${initrd}
 EOF
   fi
