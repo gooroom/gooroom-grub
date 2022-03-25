@@ -1,0 +1,58 @@
+From 82715375cf6f7ad0c60cc8ba00b5af41132143a7 Mon Sep 17 00:00:00 2001
+From: "jongkyung.woo" <jkwoo@gooroom.kr>
+Date: Fri, 25 Mar 2022 22:08:44 +0900
+Subject: [PATCH] Dsiabled kernel version message in grub
+
+Change-Id: If5507a25dd5a05512984510ffa8bf3fe15b4f4ac
+---
+ util/grub.d/10_linux.in | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/util/grub.d/10_linux.in b/util/grub.d/10_linux.in
+index a1a3d5cb2..6e522501e 100644
+--- a/util/grub.d/10_linux.in
++++ b/util/grub.d/10_linux.in
+@@ -177,14 +177,14 @@ linux_entry ()
+     auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
+     linux_root_device_thisversion="LABEL=${auto_label}"
+     sed "s/^/$submenu_indentation/" << EOF
+-        echo    '$(echo "$message" | grub_quote)'
++        #echo    '$(echo "$message" | grub_quote)'
+ 	linuxefi ${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
+ EOF
+   elif [ x$type = xrecovery ] ; then
+     message="$(gettext_printf "Loading Linux %s ..." ${version})"
+     linux_recovery_device_thisversion="LABEL=GRM_RECOVERY"
+     sed "s/^/$submenu_indentation/" << EOF
+-        echo    '$(echo "$message" | grub_quote)'
++        #echo    '$(echo "$message" | grub_quote)'
+ 	linux	${rel_dirname}/${basename} root=${linux_recovery_device_thisversion} ro ${args} break=bottom
+ EOF
+   else
+@@ -192,20 +192,20 @@ EOF
+     auto_label="`e2label ${GRUB_DEVICE_BOOT} 2>/dev/null`"
+     linux_root_device_thisversion="LABEL=${auto_label}"
+     sed "s/^/$submenu_indentation/" << EOF
+-        echo    '$(echo "$message" | grub_quote)'
++        #echo    '$(echo "$message" | grub_quote)'
+ 	linux	${rel_dirname}/${basename} root=${linux_root_device_thisversion} ro ${args}
+ EOF
+   fi
+   if test -d /sys/firmware/efi && test -e "${linux}.sig"; then
+     message="$(gettext_printf "Loading SecureBoot initial ramdisk ...")"
+     sed "s/^/$submenu_indentation/" << EOF
+-        echo    '$(echo "$message" | grub_quote)'
++        #echo    '$(echo "$message" | grub_quote)'
+ 	initrdefi ${rel_dirname}/${initrd}
+ EOF
+   else
+     message="$(gettext_printf "Loading initial ramdisk ...")"
+     sed "s/^/$submenu_indentation/" << EOF
+-        echo    '$(echo "$message" | grub_quote)'
++        #echo    '$(echo "$message" | grub_quote)'
+ 	initrd	${rel_dirname}/${initrd}
+ EOF
+   fi
+-- 
+2.20.1
+
