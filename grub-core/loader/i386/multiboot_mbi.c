@@ -239,7 +239,7 @@ grub_multiboot_get_mbi_size (void)
   ret = sizeof (struct multiboot_info) + ALIGN_UP (cmdline_size, 4)
     + modcnt * sizeof (struct multiboot_mod_list) + total_modcmd
     + ALIGN_UP (sizeof(PACKAGE_STRING), 4) 
-    + grub_get_multiboot_mmap_count () * sizeof (struct multiboot_mmap_entry)
+    + grub_multiboot_get_mmap_count () * sizeof (struct multiboot_mmap_entry)
     + elf_sec_entsize * elf_sec_num
     + 256 * sizeof (struct multiboot_color)
 #if GRUB_MACHINE_HAS_VBE || GRUB_MACHINE_HAS_VGA_TEXT
@@ -466,10 +466,9 @@ grub_multiboot_make_mbi (grub_uint32_t *target)
 
   bufsize = grub_multiboot_get_mbi_size ();
 
-  err = grub_relocator_alloc_chunk_align (grub_multiboot_relocator, &ch,
-					  0x10000, 0xa0000 - bufsize,
-					  bufsize, 4,
-					  GRUB_RELOCATOR_PREFERENCE_NONE, 0);
+  err = grub_relocator_alloc_chunk_align_safe (grub_multiboot_relocator, &ch,
+					       0x10000, 0xa0000, bufsize, 4,
+					       GRUB_RELOCATOR_PREFERENCE_NONE, 0);
   if (err)
     return err;
   ptrorig = get_virtual_current_address (ch);
@@ -542,7 +541,7 @@ grub_multiboot_make_mbi (grub_uint32_t *target)
       mbi->mods_count = 0;
     }
 
-  mmap_size = grub_get_multiboot_mmap_count () 
+  mmap_size = grub_multiboot_get_mmap_count () 
     * sizeof (struct multiboot_mmap_entry);
   grub_fill_multiboot_mmap ((struct multiboot_mmap_entry *) ptrorig);
   mbi->mmap_length = mmap_size;
@@ -673,10 +672,8 @@ grub_multiboot_init_mbi (int argc, char *argv[])
     return grub_errno;
   cmdline_size = len;
 
-  grub_create_loader_cmdline (argc, argv, cmdline,
-			      cmdline_size);
-
-  return GRUB_ERR_NONE;
+  return grub_create_loader_cmdline (argc, argv, cmdline,
+				     cmdline_size, GRUB_VERIFY_KERNEL_CMDLINE);
 }
 
 grub_err_t
@@ -685,6 +682,7 @@ grub_multiboot_add_module (grub_addr_t start, grub_size_t size,
 {
   struct module *newmod;
   grub_size_t len = 0;
+  grub_err_t err;
 
   newmod = grub_malloc (sizeof (*newmod));
   if (!newmod)
@@ -704,8 +702,13 @@ grub_multiboot_add_module (grub_addr_t start, grub_size_t size,
   newmod->cmdline_size = len;
   total_modcmd += ALIGN_UP (len, 4);
 
-  grub_create_loader_cmdline (argc, argv, newmod->cmdline,
-			      newmod->cmdline_size);
+  err = grub_create_loader_cmdline (argc, argv, newmod->cmdline,
+				    newmod->cmdline_size, GRUB_VERIFY_MODULE_CMDLINE);
+  if (err)
+    {
+      grub_free (newmod);
+      return grub_errno;
+    }
 
   if (modules_last)
     modules_last->next = newmod;

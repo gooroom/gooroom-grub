@@ -46,6 +46,7 @@
 #include <grub/dl.h>
 #include <grub/types.h>
 #include <grub/fshelp.h>
+#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -102,6 +103,7 @@ GRUB_MOD_LICENSE ("GPLv3+");
 #define EXT4_FEATURE_INCOMPAT_64BIT		0x0080
 #define EXT4_FEATURE_INCOMPAT_MMP		0x0100
 #define EXT4_FEATURE_INCOMPAT_FLEX_BG		0x0200
+#define EXT4_FEATURE_INCOMPAT_ENCRYPT          0x10000
 
 /* The set of back-incompatible features this driver DOES support. Add (OR)
  * flags here as the related features are implemented into the driver.  */
@@ -109,7 +111,8 @@ GRUB_MOD_LICENSE ("GPLv3+");
                                        | EXT4_FEATURE_INCOMPAT_EXTENTS  \
                                        | EXT4_FEATURE_INCOMPAT_FLEX_BG \
                                        | EXT2_FEATURE_INCOMPAT_META_BG \
-                                       | EXT4_FEATURE_INCOMPAT_64BIT)
+                                       | EXT4_FEATURE_INCOMPAT_64BIT \
+                                       | EXT4_FEATURE_INCOMPAT_ENCRYPT)
 /* List of rationales for the ignored "incompatible" features:
  * needs_recovery: Not really back-incompatible - was added as such to forbid
  *                 ext2 drivers from mounting an ext3 volume with a dirty
@@ -138,6 +141,7 @@ GRUB_MOD_LICENSE ("GPLv3+");
 #define EXT3_JOURNAL_FLAG_DELETED	4
 #define EXT3_JOURNAL_FLAG_LAST_TAG	8
 
+#define EXT4_ENCRYPT_FLAG              0x800
 #define EXT4_EXTENTS_FLAG		0x80000
 
 /* The ext2 superblock.  */
@@ -700,22 +704,36 @@ grub_ext2_read_symlink (grub_fshelp_node_t node)
 {
   char *symlink;
   struct grub_fshelp_node *diro = node;
+  grub_size_t sz;
 
   if (! diro->inode_read)
     {
       grub_ext2_read_inode (diro->data, diro->ino, &diro->inode);
       if (grub_errno)
 	return 0;
+
+      if (diro->inode.flags & grub_cpu_to_le32_compile_time (EXT4_ENCRYPT_FLAG))
+       {
+         grub_error (GRUB_ERR_NOT_IMPLEMENTED_YET, "symlink is encrypted");
+         return 0;
+       }
     }
 
-  symlink = grub_malloc (grub_le_to_cpu32 (diro->inode.size) + 1);
+  if (grub_add (grub_le_to_cpu32 (diro->inode.size), 1, &sz))
+    {
+      grub_error (GRUB_ERR_OUT_OF_RANGE, N_("overflow is detected"));
+      return NULL;
+    }
+
+  symlink = grub_malloc (sz);
   if (! symlink)
     return 0;
 
-  /* If the filesize of the symlink is bigger than
-     60 the symlink is stored in a separate block,
-     otherwise it is stored in the inode.  */
-  if (grub_le_to_cpu32 (diro->inode.size) <= sizeof (diro->inode.symlink))
+  /*
+   * If the filesize of the symlink is equal to or bigger than 60 the symlink
+   * is stored in a separate block, otherwise it is stored in the inode.
+   */
+  if (grub_le_to_cpu32 (diro->inode.size) < sizeof (diro->inode.symlink))
     grub_memcpy (symlink,
 		 diro->inode.symlink,
 		 grub_le_to_cpu32 (diro->inode.size));
@@ -747,6 +765,12 @@ grub_ext2_iterate_dir (grub_fshelp_node_t dir,
       grub_ext2_read_inode (diro->data, diro->ino, &diro->inode);
       if (grub_errno)
 	return 0;
+    }
+
+  if (diro->inode.flags & grub_cpu_to_le32_compile_time (EXT4_ENCRYPT_FLAG))
+    {
+      grub_error (GRUB_ERR_NOT_IMPLEMENTED_YET, "directory is encrypted");
+      return 0;
     }
 
   /* Search the file.  */
@@ -857,6 +881,12 @@ grub_ext2_open (struct grub_file *file, const char *name)
       err = grub_ext2_read_inode (data, fdiro->ino, &fdiro->inode);
       if (err)
 	goto fail;
+    }
+
+  if (fdiro->inode.flags & grub_cpu_to_le32_compile_time (EXT4_ENCRYPT_FLAG))
+    {
+      err = grub_error (GRUB_ERR_NOT_IMPLEMENTED_YET, "file is encrypted");
+      goto fail;
     }
 
   grub_memcpy (data->inode, &fdiro->inode, sizeof (struct grub_ext2_inode));
@@ -1025,7 +1055,7 @@ grub_ext2_uuid (grub_device_t device, char **uuid)
 
 /* Get mtime.  */
 static grub_err_t
-grub_ext2_mtime (grub_device_t device, grub_int32_t *tm)
+grub_ext2_mtime (grub_device_t device, grub_int64_t *tm)
 {
   struct grub_ext2_data *data;
   grub_disk_t disk = device->disk;
@@ -1051,13 +1081,13 @@ grub_ext2_mtime (grub_device_t device, grub_int32_t *tm)
 static struct grub_fs grub_ext2_fs =
   {
     .name = "ext2",
-    .dir = grub_ext2_dir,
-    .open = grub_ext2_open,
-    .read = grub_ext2_read,
-    .close = grub_ext2_close,
-    .label = grub_ext2_label,
-    .uuid = grub_ext2_uuid,
-    .mtime = grub_ext2_mtime,
+    .fs_dir = grub_ext2_dir,
+    .fs_open = grub_ext2_open,
+    .fs_read = grub_ext2_read,
+    .fs_close = grub_ext2_close,
+    .fs_label = grub_ext2_label,
+    .fs_uuid = grub_ext2_uuid,
+    .fs_mtime = grub_ext2_mtime,
 #ifdef GRUB_UTIL
     .reserved_first_sector = 1,
     .blocklist_install = 1,

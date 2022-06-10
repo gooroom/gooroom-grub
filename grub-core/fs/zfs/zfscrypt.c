@@ -22,6 +22,7 @@
 #include <grub/misc.h>
 #include <grub/disk.h>
 #include <grub/partition.h>
+#include <grub/safemath.h>
 #include <grub/dl.h>
 #include <grub/types.h>
 #include <grub/zfs/zfs.h>
@@ -82,9 +83,13 @@ grub_zfs_add_key (grub_uint8_t *key_in,
 		  int passphrase)
 {
   struct grub_zfs_wrap_key *key;
+  grub_size_t sz;
+
   if (!passphrase && keylen > 32)
     keylen = 32;
-  key = grub_malloc (sizeof (*key) + keylen);
+  if (grub_add (sizeof (*key), keylen, &sz))
+    return GRUB_ERR_OUT_OF_RANGE;
+  key = grub_malloc (sz);
   if (!key)
     return grub_errno;
   key->is_passphrase = passphrase;
@@ -425,7 +430,7 @@ grub_cmd_zfs_key (grub_extcmd_context_t ctxt, int argc, char **args)
   if (argc > 0)
     {
       grub_file_t file;
-      file = grub_file_open (args[0]);
+      file = grub_file_open (args[0], GRUB_FILE_TYPE_ZFS_ENCRYPTION_KEY);
       if (!file)
 	return grub_errno;
       real_size = grub_file_read (file, buf, 1024);

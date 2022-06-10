@@ -556,8 +556,8 @@ get_utf8 (grub_uint8_t *in, grub_size_t len)
   grub_uint16_t *tmp;
   grub_size_t i;
 
-  buf = grub_malloc (len * GRUB_MAX_UTF8_PER_UTF16 + 1);
-  tmp = grub_malloc (len * sizeof (tmp[0]));
+  buf = grub_calloc (len, GRUB_MAX_UTF8_PER_UTF16 + 1);
+  tmp = grub_calloc (len, sizeof (tmp[0]));
   if (!buf || !tmp)
     {
       grub_free (buf);
@@ -1212,12 +1212,12 @@ grub_ntfs_uuid (grub_device_t device, char **uuid)
 static struct grub_fs grub_ntfs_fs =
   {
     .name = "ntfs",
-    .dir = grub_ntfs_dir,
-    .open = grub_ntfs_open,
-    .read = grub_ntfs_read,
-    .close = grub_ntfs_close,
-    .label = grub_ntfs_label,
-    .uuid = grub_ntfs_uuid,
+    .fs_dir = grub_ntfs_dir,
+    .fs_open = grub_ntfs_open,
+    .fs_read = grub_ntfs_read,
+    .fs_close = grub_ntfs_close,
+    .fs_label = grub_ntfs_label,
+    .fs_uuid = grub_ntfs_uuid,
 #ifdef GRUB_UTIL
     .reserved_first_sector = 1,
     .blocklist_install = 1,

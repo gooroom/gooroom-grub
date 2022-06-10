@@ -30,6 +30,7 @@
 #include <grub/hfs.h>
 #include <grub/i18n.h>
 #include <grub/fshelp.h>
+#include <grub/lockdown.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -1360,7 +1361,7 @@ grub_hfs_label (grub_device_t device, char **label)
       grub_size_t len = data->sblock.volname[0];
       if (len > sizeof (data->sblock.volname) - 1)
 	len = sizeof (data->sblock.volname) - 1;
-      *label = grub_malloc (len * MAX_UTF8_PER_MAC_ROMAN + 1);
+      *label = grub_calloc (MAX_UTF8_PER_MAC_ROMAN + 1, len);
       if (*label)
 	macroman_to_utf8 (*label, data->sblock.volname + 1,
 			  len + 1, 0);
@@ -1373,7 +1374,7 @@ grub_hfs_label (grub_device_t device, char **label)
 }
 
 static grub_err_t
-grub_hfs_mtime (grub_device_t device, grub_int32_t *tm)
+grub_hfs_mtime (grub_device_t device, grub_int64_t *tm)
 {
   struct grub_hfs_data *data;
 
@@ -1417,13 +1418,13 @@ grub_hfs_uuid (grub_device_t device, char **uuid)
 static struct grub_fs grub_hfs_fs =
   {
     .name = "hfs",
-    .dir = grub_hfs_dir,
-    .open = grub_hfs_open,
-    .read = grub_hfs_read,
-    .close = grub_hfs_close,
-    .label = grub_hfs_label,
-    .uuid = grub_hfs_uuid,
-    .mtime = grub_hfs_mtime,
+    .fs_dir = grub_hfs_dir,
+    .fs_open = grub_hfs_open,
+    .fs_read = grub_hfs_read,
+    .fs_close = grub_hfs_close,
+    .fs_label = grub_hfs_label,
+    .fs_uuid = grub_hfs_uuid,
+    .fs_mtime = grub_hfs_mtime,
 #ifdef GRUB_UTIL
     .reserved_first_sector = 1,
     .blocklist_install = 1,
@@ -1433,11 +1434,13 @@ static struct grub_fs grub_hfs_fs =
 
 GRUB_MOD_INIT(hfs)
 {
-  grub_fs_register (&grub_hfs_fs);
+  if (!grub_is_lockdown ())
+    grub_fs_register (&grub_hfs_fs);
   my_mod = mod;
 }
 
 GRUB_MOD_FINI(hfs)
 {
-  grub_fs_unregister (&grub_hfs_fs);
+  if (!grub_is_lockdown())
+    grub_fs_unregister (&grub_hfs_fs);
 }

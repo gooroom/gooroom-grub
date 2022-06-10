@@ -16,7 +16,9 @@
  *  along with GRUB.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef GRUB_BUILD
 #include <config-util.h>
+#endif
 #include <config.h>
 
 #include <errno.h>
@@ -81,6 +83,18 @@ grub_util_error (const char *fmt, ...)
   va_end (ap);
   fprintf (stderr, ".\n");
   exit (1);
+}
+
+void *
+xcalloc (grub_size_t nmemb, grub_size_t size)
+{
+  void *p;
+
+  p = calloc (nmemb, size);
+  if (!p)
+    grub_util_error ("%s", _("out of memory"));
+
+  return p;
 }
 
 void *

@@ -29,6 +29,8 @@ void grub_arm_clean_dcache_range_armv6 (grub_addr_t start, grub_addr_t end,
 					grub_addr_t dlinesz);
 void grub_arm_clean_dcache_range_armv7 (grub_addr_t start, grub_addr_t end,
 					grub_addr_t dlinesz);
+void grub_arm_clean_dcache_range_poc_armv7 (grub_addr_t start, grub_addr_t end,
+					    grub_addr_t dlinesz);
 void grub_arm_invalidate_icache_range_armv6 (grub_addr_t start, grub_addr_t end,
 					     grub_addr_t dlinesz);
 void grub_arm_invalidate_icache_range_armv7 (grub_addr_t start, grub_addr_t end,
@@ -91,13 +93,16 @@ probe_caches (void)
       grub_arch_cache_ilinesz = 8 << (cache_type & 3);
       type = ARCH_ARMV6;
       break;
-    case 0x80 ... 0x8f:
+    default:
+      /*
+       * The CTR register is pretty much unchanged from v7 onwards,
+       * and is guaranteed to be backward compatible (the IDC/DIC bits
+       * allow certain CMOs to be elided, but performing them is never
+       * wrong), hence handling it like its AArch64 equivalent.
+       */
       grub_arch_cache_dlinesz = 4 << ((cache_type >> 16) & 0xf);
       grub_arch_cache_ilinesz = 4 << (cache_type & 0xf);
       type = ARCH_ARMV7;
-      break;
-    default:
-      grub_fatal ("Unsupported cache type 0x%x", cache_type);
     }
   if (grub_arch_cache_dlinesz > grub_arch_cache_ilinesz)
     grub_arch_cache_max_linesz = grub_arch_cache_dlinesz;
@@ -245,6 +250,38 @@ grub_arch_sync_caches (void *address, grub_size_t len)
       /* Nothing to do.  */
     case ARCH_ARMV5_WRITE_THROUGH:
     case ARCH_ARMV6_UNIFIED:
+      break;
+      /* Pacify GCC.  */
+    case ARCH_UNKNOWN:
+      break;
+    }
+}
+
+void
+grub_arch_sync_dma_caches (volatile void *address, grub_size_t len)
+{
+  grub_addr_t start = (grub_addr_t) address;
+  grub_addr_t end = start + len;
+
+  if (type == ARCH_UNKNOWN)
+    probe_caches ();
+  start = ALIGN_DOWN (start, grub_arch_cache_max_linesz);
+  end = ALIGN_UP (end, grub_arch_cache_max_linesz);
+  switch (type)
+    {
+    case ARCH_ARMV6:
+      grub_arm_clean_dcache_range_armv6 (start, end, grub_arch_cache_dlinesz);
+      grub_arm_invalidate_icache_range_armv6 (start, end,
+					      grub_arch_cache_ilinesz);
+      break;
+    case ARCH_ARMV5_WRITE_THROUGH:
+    case ARCH_ARMV6_UNIFIED:
+      grub_arm_clean_dcache_range_armv6 (start, end, grub_arch_cache_dlinesz);
+      break;
+    case ARCH_ARMV7:
+      grub_arm_clean_dcache_range_poc_armv7 (start, end, grub_arch_cache_dlinesz);
+      grub_arm_invalidate_icache_range_armv7 (start, end,
+					      grub_arch_cache_ilinesz);
       break;
       /* Pacify GCC.  */
     case ARCH_UNKNOWN:

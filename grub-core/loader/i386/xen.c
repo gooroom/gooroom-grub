@@ -40,6 +40,8 @@
 #include <grub/xen_file.h>
 #include <grub/linux.h>
 #include <grub/i386/memory.h>
+#include <grub/verify.h>
+#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -635,6 +637,7 @@ grub_cmd_xen (grub_command_t cmd __attribute__ ((unused)),
   grub_relocator_chunk_t ch;
   grub_addr_t kern_start;
   grub_addr_t kern_end;
+  grub_size_t sz;
 
   if (argc == 0)
     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
@@ -644,11 +647,14 @@ grub_cmd_xen (grub_command_t cmd __attribute__ ((unused)),
 
   grub_xen_reset ();
 
-  grub_create_loader_cmdline (argc - 1, argv + 1,
-			      (char *) xen_state.next_start.cmd_line,
-			      sizeof (xen_state.next_start.cmd_line) - 1);
+  err = grub_create_loader_cmdline (argc - 1, argv + 1,
+				    (char *) xen_state.next_start.cmd_line,
+				    sizeof (xen_state.next_start.cmd_line) - 1,
+				    GRUB_VERIFY_KERNEL_CMDLINE);
+  if (err)
+    return err;
 
-  file = grub_file_open (argv[0]);
+  file = grub_file_open (argv[0], GRUB_FILE_TYPE_LINUX_KERNEL);
   if (!file)
     return grub_errno;
 
@@ -699,8 +705,14 @@ grub_cmd_xen (grub_command_t cmd __attribute__ ((unused)),
 
   xen_state.max_addr = ALIGN_UP (kern_end, PAGE_SIZE);
 
-  err = grub_relocator_alloc_chunk_addr (xen_state.relocator, &ch, kern_start,
-					 kern_end - kern_start);
+
+  if (grub_sub (kern_end, kern_start, &sz))
+    {
+      err = GRUB_ERR_OUT_OF_RANGE;
+      goto fail;
+    }
+
+  err = grub_relocator_alloc_chunk_addr (xen_state.relocator, &ch, kern_start, sz);
   if (err)
     goto fail;
   kern_chunk_src = get_virtual_current_address (ch);
@@ -893,9 +905,8 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
 
   xen_state.max_addr = ALIGN_UP (xen_state.max_addr, PAGE_SIZE);
 
-  if (nounzip)
-    grub_file_filter_disable_compression ();
-  file = grub_file_open (argv[0]);
+  file = grub_file_open (argv[0], GRUB_FILE_TYPE_LINUX_INITRD |
+			 (nounzip ? GRUB_FILE_TYPE_NO_DECOMPRESS : GRUB_FILE_TYPE_NONE));
   if (!file)
     return grub_errno;
   size = grub_file_size (file);
@@ -907,8 +918,11 @@ grub_cmd_module (grub_command_t cmd __attribute__ ((unused)),
   if (err)
     goto fail;
 
-  grub_create_loader_cmdline (argc - 1, argv + 1,
-			      get_virtual_current_address (ch), cmdline_len);
+  err = grub_create_loader_cmdline (argc - 1, argv + 1,
+				    get_virtual_current_address (ch), cmdline_len,
+				    GRUB_VERIFY_MODULE_CMDLINE);
+  if (err)
+    goto fail;
 
   xen_state.module_info_page[xen_state.n_modules].cmdline =
     xen_state.max_addr - xen_state.modules_target_start;

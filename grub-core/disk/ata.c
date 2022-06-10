@@ -219,8 +219,9 @@ grub_ata_setaddress (struct grub_ata *dev,
 	if (dev->sectors_per_track == 0
 	    || dev->heads == 0)
 	  return grub_error (GRUB_ERR_OUT_OF_RANGE,
-			     "sector %d cannot be addressed "
-			     "using CHS addressing", sector);
+			     "sector %" PRIxGRUB_UINT64_T " cannot be "
+			     "addressed using CHS addressing",
+			     sector);
 
 	/* Calculate the sector, cylinder and head to use.  */
 	sect = ((grub_uint32_t) sector % dev->sectors_per_track) + 1;
@@ -232,8 +233,9 @@ grub_ata_setaddress (struct grub_ata *dev,
 	    || cylinder > dev->cylinders
 	    || head > dev->heads)
 	  return grub_error (GRUB_ERR_OUT_OF_RANGE,
-			     "sector %d cannot be addressed "
-			     "using CHS addressing", sector);
+			     "sector %" PRIxGRUB_UINT64_T " cannot be "
+			     "addressed using CHS addressing",
+			     sector);
 	
 	parms->taskfile.disk = 0xE0 | head;
 	parms->taskfile.sectnum = sect;
@@ -510,11 +512,11 @@ static struct grub_disk_dev grub_atadisk_dev =
   {
     .name = "ATA",
     .id = GRUB_DISK_DEVICE_ATA_ID,
-    .iterate = grub_ata_iterate,
-    .open = grub_ata_open,
-    .close = grub_ata_close,
-    .read = grub_ata_read,
-    .write = grub_ata_write,
+    .disk_iterate = grub_ata_iterate,
+    .disk_open = grub_ata_open,
+    .disk_close = grub_ata_close,
+    .disk_read = grub_ata_read,
+    .disk_write = grub_ata_write,
     .next = 0
   };
 

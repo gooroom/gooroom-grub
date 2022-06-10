@@ -35,6 +35,8 @@
 #include <grub/i18n.h>
 #include <grub/lib/cmdline.h>
 #include <grub/linux.h>
+#include <grub/machine/kernel.h>
+#include <grub/safemath.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -44,6 +46,7 @@ GRUB_MOD_LICENSE ("GPLv3+");
 
 #ifdef GRUB_MACHINE_EFI
 #include <grub/efi/efi.h>
+#include <grub/efi/sb.h>
 #define HAS_VGA_TEXT 0
 #define DEFAULT_VIDEO_MODE "auto"
 #define ACCEPTS_PURE_TEXT 0
@@ -100,55 +103,6 @@ page_align (grub_size_t size)
 {
   return (size + (1 << 12) - 1) & (~((1 << 12) - 1));
 }
-
-#ifdef GRUB_MACHINE_EFI
-/* Find the optimal number of pages for the memory map. Is it better to
-   move this code to efi/mm.c?  */
-static grub_efi_uintn_t
-find_efi_mmap_size (void)
-{
-  static grub_efi_uintn_t mmap_size = 0;
-
-  if (mmap_size != 0)
-    return mmap_size;
-
-  mmap_size = (1 << 12);
-  while (1)
-    {
-      int ret;
-      grub_efi_memory_descriptor_t *mmap;
-      grub_efi_uintn_t desc_size;
-      grub_efi_uintn_t cur_mmap_size = mmap_size;
-
-      mmap = grub_malloc (cur_mmap_size);
-      if (! mmap)
-	return 0;
-
-      ret = grub_efi_get_memory_map (&cur_mmap_size, mmap, 0, &desc_size, 0);
-      grub_free (mmap);
-
-      if (ret < 0)
-	{
-	  grub_error (GRUB_ERR_IO, "cannot get memory map");
-	  return 0;
-	}
-      else if (ret > 0)
-	break;
-
-      if (mmap_size < cur_mmap_size)
-	mmap_size = cur_mmap_size;
-      mmap_size += (1 << 12);
-    }
-
-  /* Increase the size a bit for safety, because GRUB allocates more on
-     later, and EFI itself may allocate more.  */
-  mmap_size += (3 << 12);
-
-  mmap_size = page_align (mmap_size);
-  return mmap_size;
-}
-
-#endif
 
 /* Helper for find_mmap_size.  */
 static int
@@ -228,9 +182,8 @@ allocate_pages (grub_size_t prot_size, grub_size_t *align,
 	for (; err && *align + 1 > min_align; (*align)--)
 	  {
 	    grub_errno = GRUB_ERR_NONE;
-	    err = grub_relocator_alloc_chunk_align (relocator, &ch,
-						    0x1000000,
-						    0xffffffff & ~prot_size,
+	    err = grub_relocator_alloc_chunk_align (relocator, &ch, 0x1000000,
+						    UP_TO_TOP32 (prot_size),
 						    prot_size, 1 << *align,
 						    GRUB_RELOCATOR_PREFERENCE_LOW,
 						    1);
@@ -306,6 +259,12 @@ grub_linux_setup_video (struct linux_kernel_params *params)
   params->lfb_line_len = mode_info.pitch;
 
   params->lfb_base = (grub_size_t) framebuffer;
+
+#if defined (GRUB_MACHINE_EFI) && defined (__x86_64__)
+  params->ext_lfb_base = (grub_size_t) (((grub_uint64_t)(grub_size_t) framebuffer) >> 32);
+  params->capabilities |= VIDEO_CAPABILITY_64BIT_BASE;
+#endif
+
   params->lfb_size = ALIGN_UP (params->lfb_line_len * params->lfb_height, 65536);
 
   params->red_mask_size = mode_info.red_mask_size;
@@ -551,6 +510,10 @@ grub_linux_boot (void)
 	}
     }
 
+#ifdef GRUB_KERNEL_USE_RSDP_ADDR
+  linux_params.acpi_rsdp_addr = grub_le_to_cpu64 (grub_rsdp_addr);
+#endif
+
   mmap_size = find_mmap_size ();
   /* Make sure that each size is aligned to a page boundary.  */
   cl_offset = ALIGN_UP (mmap_size + sizeof (linux_params), 4096);
@@ -560,7 +523,7 @@ grub_linux_boot (void)
   ctx.real_size = ALIGN_UP (cl_offset + maximal_cmdline_size, 4096);
 
 #ifdef GRUB_MACHINE_EFI
-  efi_mmap_size = find_efi_mmap_size ();
+  efi_mmap_size = grub_efi_find_mmap_size ();
   if (efi_mmap_size == 0)
     return grub_errno;
 #endif
@@ -585,9 +548,13 @@ grub_linux_boot (void)
 
   {
     grub_relocator_chunk_t ch;
+    grub_size_t sz;
+
+    if (grub_add (ctx.real_size, efi_mmap_size, &sz))
+      return GRUB_ERR_OUT_OF_RANGE;
+
     err = grub_relocator_alloc_chunk_addr (relocator, &ch,
-					   ctx.real_mode_target,
-					   (ctx.real_size + efi_mmap_size));
+					   ctx.real_mode_target, sz);
     if (err)
      return err;
     real_mode_mem = get_virtual_current_address (ch);
@@ -617,6 +584,9 @@ grub_linux_boot (void)
     grub_efi_uintn_t efi_desc_size;
     grub_size_t efi_mmap_target;
     grub_efi_uint32_t efi_desc_version;
+
+    ctx.params->secure_boot = grub_efi_get_secureboot ();
+
     err = grub_efi_finish_boot_services (&efi_mmap_size, efi_mmap_buf, NULL,
 					 &efi_desc_size, &efi_desc_version);
     if (err)
@@ -678,7 +648,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 		int argc, char *argv[])
 {
   grub_file_t file = 0;
-  struct linux_kernel_header lh;
+  struct linux_i386_kernel_header lh;
   grub_uint8_t setup_sects;
   grub_size_t real_size, prot_size, prot_file_size;
   grub_ssize_t len;
@@ -695,7 +665,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       goto fail;
     }
 
-  file = grub_file_open (argv[0]);
+  file = grub_file_open (argv[0], GRUB_FILE_TYPE_LINUX_KERNEL);
   if (! file)
     goto fail;
 
@@ -721,7 +691,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 
   /* FIXME: 2.03 is not always good enough (Linux 2.4 can be 2.03 and
      still not support 32-bit boot.  */
-  if (lh.header != grub_cpu_to_le32_compile_time (GRUB_LINUX_MAGIC_SIGNATURE)
+  if (lh.header != grub_cpu_to_le32_compile_time (GRUB_LINUX_I386_MAGIC_SIGNATURE)
       || grub_le_to_cpu16 (lh.version) < 0x0203)
     {
       grub_error (GRUB_ERR_BAD_OS, "version too old for 32-bit boot"
@@ -766,7 +736,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       for (align = 0; align < 32; align++)
 	if (grub_le_to_cpu32 (lh.kernel_alignment) & (1 << align))
 	  break;
-      relocatable = grub_le_to_cpu32 (lh.relocatable);
+      relocatable = lh.relocatable;
     }
   else
     {
@@ -781,14 +751,11 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       prot_init_space = page_align (prot_size);
       if (relocatable)
 	preferred_address = grub_le_to_cpu64 (lh.pref_address);
-      else
-	preferred_address = GRUB_LINUX_BZIMAGE_ADDR;
     }
   else
     {
       min_align = align;
       prot_size = prot_file_size;
-      preferred_address = GRUB_LINUX_BZIMAGE_ADDR;
       /* Usually, the compression ratio is about 50%.  */
       prot_init_space = page_align (prot_size) * 3;
     }
@@ -799,14 +766,26 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
     goto fail;
 
   grub_memset (&linux_params, 0, sizeof (linux_params));
-  grub_memcpy (&linux_params.setup_sects, &lh.setup_sects, sizeof (lh) - 0x1F1);
 
-  linux_params.code32_start = prot_mode_target + lh.code32_start - GRUB_LINUX_BZIMAGE_ADDR;
-  linux_params.kernel_alignment = (1 << align);
-  linux_params.ps_mouse = linux_params.padding10 =  0;
+  /*
+   * The Linux 32-bit boot protocol defines the setup header end
+   * to be at 0x202 + the byte value at 0x201.
+   */
+  len = 0x202 + *((char *) &lh.jump + 1);
 
-  len = sizeof (linux_params) - sizeof (lh);
-  if (grub_file_read (file, (char *) &linux_params + sizeof (lh), len) != len)
+  /* Verify the struct is big enough so we do not write past the end. */
+  if (len > (char *) &linux_params.edd_mbr_sig_buffer - (char *) &linux_params) {
+    grub_error (GRUB_ERR_BAD_OS, "Linux setup header too big");
+    goto fail;
+  }
+
+  grub_memcpy (&linux_params.setup_sects, &lh.setup_sects, len - 0x1F1);
+
+  /* We've already read lh so there is no need to read it second time. */
+  len -= sizeof(lh);
+
+  if ((len > 0) &&
+      (grub_file_read (file, (char *) &linux_params + sizeof (lh), len) != len))
     {
       if (!grub_errno)
 	grub_error (GRUB_ERR_BAD_OS, N_("premature end of file %s"),
@@ -814,6 +793,9 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
       goto fail;
     }
 
+  linux_params.code32_start = prot_mode_target + lh.code32_start - GRUB_LINUX_BZIMAGE_ADDR;
+  linux_params.kernel_alignment = (1 << align);
+  linux_params.ps_mouse = linux_params.padding11 = 0;
   linux_params.type_of_loader = GRUB_LINUX_BOOT_LOADER_TYPE;
 
   /* These two are used (instead of cmd_line_ptr) by older versions of Linux,
@@ -967,7 +949,7 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
 #endif /* GRUB_MACHINE_PCBIOS */
     if (grub_memcmp (argv[i], "mem=", 4) == 0)
       {
-	char *val = argv[i] + 4;
+	const char *val = argv[i] + 4;
 
 	linux_mem_size = grub_strtoul (val, &val, 0);
 
@@ -1012,11 +994,17 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
   if (!linux_cmdline)
     goto fail;
   grub_memcpy (linux_cmdline, LINUX_IMAGE, sizeof (LINUX_IMAGE));
-  grub_create_loader_cmdline (argc, argv,
-			      linux_cmdline
-			      + sizeof (LINUX_IMAGE) - 1,
-			      maximal_cmdline_size
-			      - (sizeof (LINUX_IMAGE) - 1));
+  {
+    grub_err_t err;
+    err = grub_create_loader_cmdline (argc, argv,
+				      linux_cmdline
+				      + sizeof (LINUX_IMAGE) - 1,
+				      maximal_cmdline_size
+				      - (sizeof (LINUX_IMAGE) - 1),
+				      GRUB_VERIFY_KERNEL_CMDLINE);
+    if (err)
+      goto fail;
+  }
 
   len = prot_file_size;
   if (grub_file_read (file, prot_mode_mem, len) != len && !grub_errno)

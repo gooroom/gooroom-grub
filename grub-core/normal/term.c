@@ -264,7 +264,7 @@ grub_term_save_pos (void)
   FOR_ACTIVE_TERM_OUTPUTS(cur)
     cnt++;
 
-  ret = grub_malloc (cnt * sizeof (ret[0]));
+  ret = grub_calloc (cnt, sizeof (ret[0]));
   if (!ret)
     return NULL;
 
@@ -331,7 +331,7 @@ read_terminal_list (const char *prefix)
       return;
     }
 
-  file = grub_file_open (filename);
+  file = grub_file_open (filename, GRUB_FILE_TYPE_GRUB_MODULE_LIST);
   grub_free (filename);
   if (!file)
     {
@@ -1013,7 +1013,7 @@ grub_xnputs (const char *str, grub_size_t msg_len)
 
   grub_error_push ();
 
-  unicode_str = grub_malloc (msg_len * sizeof (grub_uint32_t));
+  unicode_str = grub_calloc (msg_len, sizeof (grub_uint32_t));
  
   grub_error_pop ();
 

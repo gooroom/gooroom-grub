@@ -95,6 +95,7 @@ CD_MODULES="
 	ext2
 	fat
 	font
+	f2fs
 	gettext
 	gfxmenu
 	gfxterm
@@ -104,6 +105,7 @@ CD_MODULES="
 	help
 	hfsplus
 	iso9660
+	jfs
 	jpeg
 	keystatus
 	loadenv
@@ -123,6 +125,7 @@ CD_MODULES="
 	part_gpt
 	password_pbkdf2
 	png
+	probe
 	reboot
 	regexp
 	search
@@ -147,6 +150,7 @@ case $platform in
 	cpuid
 	linuxefi
 	play
+	tpm
 	"
 	;;
 esac
@@ -187,6 +191,7 @@ NET_MODULES="$CD_MODULES
 	"
 
 # CD boot image
+echo "Including modules $CD_MODULES in $outdir/gcd$efi_name.efi"
 "$grub_mkimage" -O "$platform" -o "$outdir/gcd$efi_name.efi" \
 	-d "$grub_core" \
 	-c "$workdir/grub-bootstrap.cfg" -m "$workdir/memdisk.fat" \
@@ -195,12 +200,14 @@ NET_MODULES="$CD_MODULES
 	$CD_MODULES
 
 # Normal disk boot image
+echo "Including modules $GRUB_MODULES in $outdir/grub$efi_name.efi"
 "$grub_mkimage" -O "$platform" -o "$outdir/grub$efi_name.efi" \
 	-d "$grub_core" -p "/EFI/$efi_vendor" \
 	--sbat "$sbat_csv" \
 	$GRUB_MODULES
 
 # Normal network boot image
+echo "Including modules $NET_MODULES in $outdir/grubnet$efi_name.efi"
 "$grub_mkimage" -O "$platform" -o "$outdir/grubnet$efi_name.efi" \
 	-d "$grub_core" -c "$workdir/grub-bootstrap.cfg" \
 	-m "$workdir/memdisk-netboot.fat" \
@@ -211,9 +218,12 @@ NET_MODULES="$CD_MODULES
 # Special network boot image for d-i to use. Just the same as the
 # normal network boot image, but with a different value baked in for
 # the prefix setting
+echo "Including modules $NET_MODULES in $outdir/grubnet$efi_name-installer.efi"
 "$grub_mkimage" -O "$platform" -o "$outdir/grubnet$efi_name-installer.efi" \
 	-d "$grub_core" -c "$workdir/grub-bootstrap.cfg" \
 	-m "$workdir/memdisk-netboot.fat" \
-	-p "${efi_vendor}-installer/$deb_arch/grub" $NET_MODULES
+	-p "/${efi_vendor}-installer/$deb_arch/grub" \
+	--sbat "$sbat_csv" \
+	$NET_MODULES
 
 exit 0

@@ -64,13 +64,13 @@ grub_fs_probe (grub_device_t device)
 	  if (grub_strcmp (p->name, "btrfs") == 0)
 	    {
 	      char *label = 0;
-	      p->uuid (device, &label);
+	      p->fs_uuid (device, &label);
 	      if (label)
 		grub_free (label);
 	    }
 	  else
 #endif
-	    (p->dir) (device, "/", probe_dummy_iter, NULL);
+	    (p->fs_dir) (device, "/", probe_dummy_iter, NULL);
 	  if (grub_errno == GRUB_ERR_NONE)
 	    return p;
 
@@ -94,7 +94,7 @@ grub_fs_probe (grub_device_t device)
 	    {
 	      p = grub_fs_list;
 
-	      (p->dir) (device, "/", probe_dummy_iter, NULL);
+	      (p->fs_dir) (device, "/", probe_dummy_iter, NULL);
 	      if (grub_errno == GRUB_ERR_NONE)
 		{
 		  count--;
@@ -134,11 +134,12 @@ struct grub_fs_block
 static grub_err_t
 grub_fs_blocklist_open (grub_file_t file, const char *name)
 {
-  char *p = (char *) name;
+  const char *p = name;
   unsigned num = 0;
   unsigned i;
   grub_disk_t disk = file->device->disk;
   struct grub_fs_block *blocks;
+  grub_size_t max_sectors;
 
   /* First, count the number of blocks.  */
   do
@@ -151,11 +152,12 @@ grub_fs_blocklist_open (grub_file_t file, const char *name)
   while (p);
 
   /* Allocate a block list.  */
-  blocks = grub_zalloc (sizeof (struct grub_fs_block) * (num + 1));
+  blocks = grub_calloc (num + 1, sizeof (struct grub_fs_block));
   if (! blocks)
     return 0;
 
   file->size = 0;
+  max_sectors = grub_disk_from_native_sector (disk, disk->total_sectors);
   p = (char *) name;
   for (i = 0; i < num; i++)
     {
@@ -181,7 +183,7 @@ grub_fs_blocklist_open (grub_file_t file, const char *name)
 	  goto fail;
 	}
 
-      if (disk->total_sectors < blocks[i].offset + blocks[i].length)
+      if (max_sectors < blocks[i].offset + blocks[i].length)
 	{
 	  grub_error (GRUB_ERR_BAD_FILENAME, "beyond the total sectors");
 	  goto fail;
@@ -243,9 +245,9 @@ grub_fs_blocklist_read (grub_file_t file, char *buf, grub_size_t len)
 struct grub_fs grub_fs_blocklist =
   {
     .name = "blocklist",
-    .dir = 0,
-    .open = grub_fs_blocklist_open,
-    .read = grub_fs_blocklist_read,
-    .close = 0,
+    .fs_dir = 0,
+    .fs_open = grub_fs_blocklist_open,
+    .fs_read = grub_fs_blocklist_read,
+    .fs_close = 0,
     .next = 0
   };

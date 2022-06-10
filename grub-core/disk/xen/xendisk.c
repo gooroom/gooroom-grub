@@ -249,11 +249,11 @@ grub_virtdisk_write (grub_disk_t disk, grub_disk_addr_t sector,
 static struct grub_disk_dev grub_virtdisk_dev = {
   .name = "xen",
   .id = GRUB_DISK_DEVICE_XEN,
-  .iterate = grub_virtdisk_iterate,
-  .open = grub_virtdisk_open,
-  .close = grub_virtdisk_close,
-  .read = grub_virtdisk_read,
-  .write = grub_virtdisk_write,
+  .disk_iterate = grub_virtdisk_iterate,
+  .disk_open = grub_virtdisk_open,
+  .disk_close = grub_virtdisk_close,
+  .disk_read = grub_virtdisk_read,
+  .disk_write = grub_virtdisk_write,
   .next = 0
 };
 
@@ -426,7 +426,7 @@ grub_xendisk_init (void)
   if (!ctr)
     return;
 
-  virtdisks = grub_malloc (ctr * sizeof (virtdisks[0]));
+  virtdisks = grub_calloc (ctr, sizeof (virtdisks[0]));
   if (!virtdisks)
     return;
   if (grub_xenstore_dir ("device/vbd", fill, &ctr))

@@ -24,6 +24,7 @@
 #include <grub/device.h>
 #include <grub/disk.h>
 #include <grub/partition.h>
+#include <grub/gpt_partition.h>
 #include <grub/net.h>
 #include <grub/fs.h>
 #include <grub/file.h>
@@ -31,6 +32,7 @@
 #include <grub/env.h>
 #include <grub/extcmd.h>
 #include <grub/i18n.h>
+#include <grub/i386/pc/boot.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -45,6 +47,7 @@ static const struct grub_arg_option options[] =
     {"fs",		'f', 0, N_("Determine filesystem type."), 0, 0},
     {"fs-uuid",		'u', 0, N_("Determine filesystem UUID."), 0, 0},
     {"label",		'l', 0, N_("Determine filesystem label."), 0, 0},
+    {"part-uuid",	0,   0, N_("Determine partition UUID."), 0, 0},
     {0, 0, 0, 0, 0, 0}
   };
 
@@ -98,6 +101,56 @@ grub_cmd_probe (grub_extcmd_context_t ctxt, int argc, char **args)
       grub_device_close (dev);
       return GRUB_ERR_NONE;
     }
+  if (state[6].set)
+    {
+      /* AAAABBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF + null terminator */
+      char val[37] = "none";
+      if (dev->disk && dev->disk->partition)
+	{
+	  struct grub_partition *p = dev->disk->partition;
+	  grub_disk_t disk = grub_disk_open(dev->disk->name);
+
+	  if (!disk)
+	    {
+	      grub_device_close (dev);
+	      return grub_errno;
+	    }
+
+	  if (grub_strcmp(dev->disk->partition->partmap->name, "gpt") == 0)
+	    {
+	      struct grub_gpt_partentry entry;
+	      grub_gpt_part_guid_t *guid;
+
+	      if (grub_disk_read(disk, p->offset, p->index, sizeof(entry), &entry))
+		return grub_errno;
+	      guid = &entry.guid;
+	      grub_snprintf (val, sizeof(val),
+			     "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+			     grub_le_to_cpu32 (guid->data1),
+			     grub_le_to_cpu16 (guid->data2),
+			     grub_le_to_cpu16 (guid->data3),
+			     guid->data4[0], guid->data4[1], guid->data4[2],
+			     guid->data4[3], guid->data4[4], guid->data4[5],
+			     guid->data4[6], guid->data4[7]);
+	    }
+	  else if (grub_strcmp(dev->disk->partition->partmap->name, "msdos") == 0)
+	    {
+	      grub_uint32_t nt_disk_sig;
+
+	      if (grub_disk_read(disk, 0, GRUB_BOOT_MACHINE_WINDOWS_NT_MAGIC,
+				 sizeof(nt_disk_sig), &nt_disk_sig) == 0)
+		grub_snprintf (val, sizeof(val), "%08x-%02x",
+			       grub_le_to_cpu32(nt_disk_sig), 1 + p->number);
+	    }
+	  grub_disk_close(disk);
+	}
+      if (state[0].set)
+	grub_env_set (state[0].arg, val);
+      else
+	grub_printf ("%s", val);
+      grub_device_close (dev);
+      return GRUB_ERR_NONE;
+    }
   fs = grub_fs_probe (dev);
   if (! fs)
     return grub_errno;
@@ -113,10 +166,10 @@ grub_cmd_probe (grub_extcmd_context_t ctxt, int argc, char **args)
   if (state[4].set)
     {
       char *uuid;
-      if (! fs->uuid)
+      if (! fs->fs_uuid)
 	return grub_error (GRUB_ERR_NOT_IMPLEMENTED_YET,
 			   N_("%s does not support UUIDs"), fs->name);
-      err = fs->uuid (dev, &uuid);
+      err = fs->fs_uuid (dev, &uuid);
       if (err)
 	return err;
       if (! uuid)
@@ -134,11 +187,11 @@ grub_cmd_probe (grub_extcmd_context_t ctxt, int argc, char **args)
   if (state[5].set)
     {
       char *label;
-      if (! fs->label)
+      if (! fs->fs_label)
 	return grub_error (GRUB_ERR_NOT_IMPLEMENTED_YET,
 			   N_("filesystem `%s' does not support labels"),
 			   fs->name);
-      err = fs->label (dev, &label);
+      err = fs->fs_label (dev, &label);
       if (err)
 	return err;
       if (! label)

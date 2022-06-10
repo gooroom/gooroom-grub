@@ -27,6 +27,7 @@
 #include <grub/normal.h>
 #include <grub/extcmd.h>
 #include <grub/i18n.h>
+#include <grub/verify.h>
 
 /* Max digits for a char is 3 (0xFF is 255), similarly for an int it
    is sizeof (int) * 3, and one extra for a possible -ve sign.  */
@@ -121,7 +122,7 @@ replace_scope (struct grub_script_scope *new_scope)
 grub_err_t
 grub_script_break (grub_command_t cmd, int argc, char *argv[])
 {
-  char *p = 0;
+  const char *p = NULL;
   unsigned long count;
 
   if (argc == 0)
@@ -153,7 +154,7 @@ grub_err_t
 grub_script_shift (grub_command_t cmd __attribute__((unused)),
 		   int argc, char *argv[])
 {
-  char *p = 0;
+  const char *p = NULL;
   unsigned long n = 0;
 
   if (! scope)
@@ -214,7 +215,7 @@ grub_err_t
 grub_script_return (grub_command_t cmd __attribute__((unused)),
 		    int argc, char *argv[])
 {
-  char *p;
+  const char *p = NULL;
   unsigned long n;
 
   if (! scope || argc > 1)
@@ -484,7 +485,7 @@ gettext_putvar (const char *str, grub_size_t len,
     return 0;
 
   /* Enough for any number.  */
-  if (len == 1 && str[0] == '#')
+  if (len == 1 && str[0] == '#' && scope != NULL)
     {
       grub_snprintf (*ptr, 30, "%u", scope->argv.argc);
       *ptr += grub_strlen (*ptr);
@@ -552,7 +553,7 @@ gettext_append (struct grub_script_argv *result, const char *orig_str)
   for (iptr = orig_str; *iptr; iptr++)
     if (*iptr == '$')
       dollar_cnt++;
-  ctx.allowed_strings = grub_malloc (sizeof (ctx.allowed_strings[0]) * dollar_cnt);
+  ctx.allowed_strings = grub_calloc (dollar_cnt, sizeof (ctx.allowed_strings[0]));
 
   if (parse_string (orig_str, gettext_save_allow, &ctx, 0))
     goto fail;
@@ -622,6 +623,9 @@ grub_script_arglist_to_argv (struct grub_script_arglist *arglist,
   char **values = 0;
   struct grub_script_arg *arg = 0;
   struct grub_script_argv result = { 0, 0, 0 };
+
+  if (arglist == NULL)
+    return 1;
 
   for (; arglist && arglist->arg; arglist = arglist->next)
     {
@@ -837,7 +841,9 @@ grub_script_function_call (grub_script_function_t func, int argc, char **args)
   old_scope = scope;
   scope = &new_scope;
 
+  func->executing++;
   ret = grub_script_execute (func->func);
+  func->executing--;
 
   function_return = 0;
   active_loops = loops;
@@ -929,16 +935,37 @@ grub_script_execute_cmdline (struct grub_script_cmd *cmd)
   grub_err_t ret = 0;
   grub_script_function_t func = 0;
   char errnobuf[18];
-  char *cmdname;
-  int argc;
+  char *cmdname, *cmdstring;
+  int argc, offset = 0, cmdlen = 0;
+  unsigned int i;
   char **args;
   int invert;
   struct grub_script_argv argv = { 0, 0, 0 };
 
   /* Lookup the command.  */
-  if (grub_script_arglist_to_argv (cmdline->arglist, &argv) || ! argv.args[0])
+  if (grub_script_arglist_to_argv (cmdline->arglist, &argv) || ! argv.args || ! argv.args[0])
     return grub_errno;
 
+  for (i = 0; i < argv.argc; i++)
+    {
+      cmdlen += grub_strlen (argv.args[i]) + 1;
+    }
+
+  cmdstring = grub_malloc (cmdlen);
+  if (!cmdstring)
+    {
+      return grub_error (GRUB_ERR_OUT_OF_MEMORY,
+			 N_("cannot allocate command buffer"));
+    }
+
+  for (i = 0; i < argv.argc; i++)
+    {
+      offset += grub_snprintf (cmdstring + offset, cmdlen - offset, "%s ",
+			       argv.args[i]);
+    }
+  cmdstring[cmdlen - 1] = '\0';
+  grub_verify_string (cmdstring, GRUB_VERIFY_COMMAND);
+  grub_free (cmdstring);
   invert = 0;
   argc = argv.argc - 1;
   args = argv.args + 1;
@@ -1163,4 +1190,3 @@ grub_script_execute (struct grub_script *script)
 
   return grub_script_execute_cmd (script->cmd);
 }
-

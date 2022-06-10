@@ -119,10 +119,10 @@ grub_normal_print_device_info (const char *name)
 	  if (grub_strcmp (fsname, "ext2") == 0)
 	    fsname = "ext*";
 	  grub_printf_ (N_("Filesystem type %s"), fsname);
-	  if (fs->label)
+	  if (fs->fs_label)
 	    {
 	      char *label;
-	      (fs->label) (dev, &label);
+	      (fs->fs_label) (dev, &label);
 	      if (grub_errno == GRUB_ERR_NONE)
 		{
 		  if (label && grub_strlen (label))
@@ -134,11 +134,11 @@ grub_normal_print_device_info (const char *name)
 		}
 	      grub_errno = GRUB_ERR_NONE;
 	    }
-	  if (fs->mtime)
+	  if (fs->fs_mtime)
 	    {
-	      grub_int32_t tm;
+	      grub_int64_t tm;
 	      struct grub_datetime datetime;
-	      (fs->mtime) (dev, &tm);
+	      (fs->fs_mtime) (dev, &tm);
 	      if (grub_errno == GRUB_ERR_NONE)
 		{
 		  grub_unixtime2datetime (tm, &datetime);
@@ -154,10 +154,10 @@ grub_normal_print_device_info (const char *name)
 		}
 	      grub_errno = GRUB_ERR_NONE;
 	    }
-	  if (fs->uuid)
+	  if (fs->fs_uuid)
 	    {
 	      char *uuid;
-	      (fs->uuid) (dev, &uuid);
+	      (fs->fs_uuid) (dev, &uuid);
 	      if (grub_errno == GRUB_ERR_NONE)
 		{
 		  if (uuid && grub_strlen (uuid))
@@ -176,14 +176,14 @@ grub_normal_print_device_info (const char *name)
 		     (grub_partition_get_start (dev->disk->partition) & 1) ? ".5" : "" );
       else
 	grub_printf_ (N_(" - Sector size %uB"), 1 << dev->disk->log_sector_size);
-      if (grub_disk_get_size (dev->disk) == GRUB_DISK_SIZE_UNKNOWN)
+      if (grub_disk_native_sectors (dev->disk) == GRUB_DISK_SIZE_UNKNOWN)
 	grub_puts_ (N_(" - Total size unknown"));
       else
 	grub_printf (_(" - Total size %llu%sKiB"),
-		     (unsigned long long) (grub_disk_get_size (dev->disk) >> 1),
+		     (unsigned long long) (grub_disk_native_sectors (dev->disk) >> 1),
 		     /* TRANSLATORS: Replace dot with appropriate decimal separator for
 			your language.  */
-		     (grub_disk_get_size (dev->disk) & 1) ? _(".5") : "");
+		     (grub_disk_native_sectors (dev->disk) & 1) ? _(".5") : "");
     }
 
   if (dev)

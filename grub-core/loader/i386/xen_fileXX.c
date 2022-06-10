@@ -25,7 +25,7 @@ parse_xen_guest (grub_elf_t elf, struct grub_xen_file_info *xi,
 		 grub_off_t off, grub_size_t sz)
 {
   char *buf;
-  char *ptr;
+  const char *ptr;
   int has_paddr = 0;
 
   grub_errno = GRUB_ERR_NONE;
@@ -343,6 +343,23 @@ grub_xen_get_infoXX (grub_elf_t elf, struct grub_xen_file_info *xi)
 
   s = (Elf_Shdr *) ((char *) s0 + elf->ehdr.ehdrXX.e_shstrndx * shentsize);
   stroff = s->sh_offset;
+
+  for (s = s0; s < (Elf_Shdr *) ((char *) s0 + shnum * shentsize);
+       s = (Elf_Shdr *) ((char *) s + shentsize))
+    {
+      if (s->sh_type == SHT_NOTE)
+	{
+	  err = parse_note (elf, xi, s->sh_offset, s->sh_size);
+	  if (err)
+	    goto cleanup;
+	}
+    }
+
+  if (xi->has_note)
+    {
+      err = GRUB_ERR_NONE;
+      goto cleanup;
+    }
 
   for (s = s0; s < (Elf_Shdr *) ((char *) s0 + shnum * shentsize);
        s = (Elf_Shdr *) ((char *) s + shentsize))

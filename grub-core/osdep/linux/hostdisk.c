@@ -366,6 +366,9 @@ grub_util_fd_open_device (const grub_disk_t disk, grub_disk_addr_t sector, int f
 #ifdef O_BINARY
   flags |= O_BINARY;
 #endif
+#ifdef O_CLOEXEC
+  flags |= O_CLOEXEC;
+#endif
 
   /* Linux has a bug that the disk cache for a whole disk is not consistent
      with the one for a partition of the disk.  */
@@ -374,7 +377,8 @@ grub_util_fd_open_device (const grub_disk_t disk, grub_disk_addr_t sector, int f
     char dev[PATH_MAX];
     grub_disk_addr_t part_start = 0;
 
-    part_start = grub_partition_get_start (disk->partition);
+    part_start = grub_partition_get_start (disk->partition)
+                 >> (disk->log_sector_size - GRUB_DISK_SECTOR_BITS);
 
     strncpy (dev, grub_util_biosdisk_get_osdev (disk), sizeof (dev) - 1);
     dev[sizeof(dev) - 1] = '\0';

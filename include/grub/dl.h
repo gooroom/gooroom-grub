@@ -175,6 +175,7 @@ struct grub_dl
 {
   char *name;
   int ref_count;
+  int persistent;
   grub_dl_dep_t dep;
   grub_dl_segment_t segment;
   Elf_Sym *symtab;
@@ -202,9 +203,11 @@ grub_dl_t EXPORT_FUNC(grub_dl_load) (const char *name);
 grub_dl_t grub_dl_load_core (void *addr, grub_size_t size);
 grub_dl_t EXPORT_FUNC(grub_dl_load_core_noinit) (void *addr, grub_size_t size);
 int EXPORT_FUNC(grub_dl_unload) (grub_dl_t mod);
-void grub_dl_unload_unneeded (void);
-int EXPORT_FUNC(grub_dl_ref) (grub_dl_t mod);
-int EXPORT_FUNC(grub_dl_unref) (grub_dl_t mod);
+extern void grub_dl_unload_unneeded (void);
+extern int EXPORT_FUNC(grub_dl_ref) (grub_dl_t mod);
+extern int EXPORT_FUNC(grub_dl_unref) (grub_dl_t mod);
+extern int EXPORT_FUNC(grub_dl_ref_count) (grub_dl_t mod);
+
 extern grub_dl_t EXPORT_VAR(grub_dl_head);
 
 #ifndef GRUB_UTIL
@@ -238,6 +241,18 @@ grub_dl_get (const char *name)
       return l;
 
   return 0;
+}
+
+static inline void
+grub_dl_set_persistent (grub_dl_t mod)
+{
+  mod->persistent = 1;
+}
+
+static inline int
+grub_dl_is_persistent (grub_dl_t mod)
+{
+  return mod->persistent;
 }
 
 #endif
@@ -279,12 +294,14 @@ grub_arch_dl_get_tramp_got_size (const void *ehdr, grub_size_t *tramp,
 				 grub_size_t *got);
 #endif
 
-#if defined (__powerpc__) || defined (__mips__) || defined (__arm__)
+#if defined (__powerpc__) || defined (__mips__) || defined (__arm__) || \
+    (defined(__riscv) && (__riscv_xlen == 32))
 #define GRUB_ARCH_DL_TRAMP_ALIGN 4
 #define GRUB_ARCH_DL_GOT_ALIGN 4
 #endif
 
-#if defined (__aarch64__) || defined (__sparc__)
+#if defined (__aarch64__) || defined (__sparc__) || \
+    (defined(__riscv) && (__riscv_xlen == 64))
 #define GRUB_ARCH_DL_TRAMP_ALIGN 8
 #define GRUB_ARCH_DL_GOT_ALIGN 8
 #endif

@@ -120,9 +120,9 @@ read_file (char *pathname, int (*hook) (grub_off_t ofs, char *buf, int len, void
       return;
     }
 
-  if (uncompress == 0)
-    grub_file_filter_disable_compression ();
-  file = grub_file_open (pathname);
+  file = grub_file_open (pathname, ((uncompress == 0)
+				    ? GRUB_FILE_TYPE_NO_DECOMPRESS : GRUB_FILE_TYPE_NONE)
+			 | GRUB_FILE_TYPE_FSTEST);
   if (!file)
     {
       grub_util_error (_("cannot open `%s': %s"), pathname,
@@ -470,9 +470,9 @@ fstest (int n)
 	fs = grub_fs_probe (dev);
 	if (!fs)
 	  grub_util_error ("%s", grub_errmsg);
-	if (!fs->uuid)
+	if (!fs->fs_uuid)
 	  grub_util_error ("%s", _("couldn't retrieve UUID"));
-	if (fs->uuid (dev, &uuid))
+	if (fs->fs_uuid (dev, &uuid))
 	  grub_util_error ("%s", grub_errmsg);
 	if (!uuid)
 	  grub_util_error ("%s", _("couldn't retrieve UUID"));
@@ -538,7 +538,7 @@ void (*argp_program_version_hook) (FILE *, struct argp_state *) = print_version;
 static error_t 
 argp_parser (int key, char *arg, struct argp_state *state)
 {
-  char *p;
+  const char *p;
 
   switch (key)
     {
@@ -650,7 +650,7 @@ argp_parser (int key, char *arg, struct argp_state *state)
   if (args_count < num_disks)
     {
       if (args_count == 0)
-	images = xmalloc (num_disks * sizeof (images[0]));
+	images = xcalloc (num_disks, sizeof (images[0]));
       images[args_count] = grub_canonicalize_file_name (arg);
       args_count++;
       return 0;
@@ -734,7 +734,7 @@ main (int argc, char *argv[])
 
   grub_util_host_init (&argc, &argv);
 
-  args = xmalloc (argc * sizeof (args[0]));
+  args = xcalloc (argc, sizeof (args[0]));
 
   argp_parse (&argp, argc, argv, 0, 0, 0);
 

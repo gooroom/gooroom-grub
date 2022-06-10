@@ -1,8 +1,176 @@
-grub2 (2.02+dfsg1-20+deb10u4) buster-security; urgency=high
+grub2 (2.06-3) unstable; urgency=medium
+
+  [ Colin Watson ]
+  * Update a few leftover uses of "which" to use "command -v" instead.
+  * Remove some old Lintian overrides.
+  * Trim trailing whitespace.
+  * debian/copyright: use spaces rather than tabs to start continuation lines.
+  * Add missing ${misc:Depends} to Depends for grub-efi-ia32-signed-template,
+    grub-efi-amd64-signed-template, grub-efi-arm64-signed-template.
+  * Bump debhelper from old 10 to 13.
+  * Set upstream metadata fields: Bug-Submit (from ./configure), Repository,
+    Repository-Browse.
+  * Drop now-unnecessary sparc PIE workaround from debian/rules (thanks,
+    John Paul Adrian Glaubitz; closes: #952815).
+
+  [ Debconf translations ]
+  * [id] Indonesian (Andika Triwidada; closes: #1007706).
+
+  [ Julian Andres Klode ]
+  * Add Julian Andres Klode to uploaders
+  * Disable building with LTO, as used in Ubuntu and possibly other
+    downstreams (maybe Debian one day), as that breaks the build.
+  * SECURITY UPDATE: Crafted PNG grayscale images may lead to out-of-bounds
+    write in heap.
+    - 0070-video-readers-png-Drop-greyscale-support-to-fix-heap.patch:
+      video/readers/png: Drop greyscale support to fix heap out-of-bounds write
+    - CVE-2021-3695
+  * SECURITY UPDATE: Crafted PNG image may lead to out-of-bound write during
+    huffman table handling.
+    - 0071-video-readers-png-Avoid-heap-OOB-R-W-inserting-huff-.patch:
+      video/readers/png: Avoid heap OOB R/W inserting huff table items
+    - CVE-2021-3696
+  * SECURITY UPDATE: Crafted JPEG image can lead to buffer underflow write in
+    the heap.
+    - 0076-video-readers-jpeg-Block-int-underflow-wild-pointer-.patch:
+      video/readers/jpeg: Block int underflow -> wild pointer write
+    - CVE-2021-3697
+  * SECURITY UPDATE: Integer underflow in grub_net_recv_ip4_packets
+    - 0079-net-ip-Do-IP-fragment-maths-safely.patch: net/ip: Do IP fragment
+      maths safely
+    - CVE-2022-28733
+  * SECURITY UPDATE: Out-of-bounds write when handling split HTTP headers
+    - 0085-net-http-Fix-OOB-write-for-split-http-headers.patch: net/http: Fix
+      OOB write for split http headers
+    - CVE-2022-28734
+  * SECURITY UPDATE: shim_lock verifier allows non-kernel files to be loaded
+    - 0066-kern-efi-sb-Reject-non-kernel-files-in-the-shim_lock.patch:
+      kern/efi/sb: Reject non-kernel files in the shim_lock verifier
+    - CVE-2022-28735
+    - Closes: #1001057
+  * SECURITY UPDATE: use-after-free in grub_cmd_chainloader()
+    - 0063-loader-efi-chainloader-Simplify-the-loader-state.patch:
+      loader/efi/chainloader: simplify the loader state
+    - 0064-commands-boot-Add-API-to-pass-context-to-loader.patch: commands/boot:
+      Add API to pass context to loader
+    - 0065-loader-efi-chainloader-Use-grub_loader_set_ex.patch:
+      loader/efi/chainloader: Use grub_loader_set_ex
+    - 0066-loader-i386-efi-linux-Use-grub_loader_set_ex.patch:
+      loader/i386/efi/linux: Use grub_loader_set_ex
+  * Various fixes as a result of fuzzing and static analysis:
+    - 0067-kern-file-Do-not-leak-device_name-on-error-in-grub_f.patch:
+      kern/file: Do not leak device_name on error in grub_file_open()
+    - 0068-video-readers-png-Abort-sooner-if-a-read-operation-f.patch:
+      video/readers/png: Abort sooner if a read operation fails
+    - 0069-video-readers-png-Refuse-to-handle-multiple-image-he.patch:
+      video/readers/png: Refuse to handle multiple image headers
+    - 0072-video-readers-png-Sanity-check-some-huffman-codes.patch:
+      video/readers/png: Sanity check some huffman codes
+    - 0073-video-readers-jpeg-Abort-sooner-if-a-read-operation-.patch:
+      video/readers/jpeg: Abort sooner if a read operation fails
+    - 0074-video-readers-jpeg-Do-not-reallocate-a-given-huff-ta.patch:
+      video/readers/jpeg: Do not reallocate a given huff table
+    - 0075-video-readers-jpeg-Refuse-to-handle-multiple-start-o.patch:
+      video/readers/jpeg: Refuse to handle multiple start of streams
+    - 0077-normal-charset-Fix-array-out-of-bounds-formatting-un.patch:
+      normal/charset: Fix array out-of-bounds formatting unicode for display
+    - 0078-net-netbuff-Block-overly-large-netbuff-allocs.patch:
+      net/netbuff: Block overly large netbuff allocs
+    - 0080-net-dns-Fix-double-free-addresses-on-corrupt-DNS-res.patch:
+      net/dns: Fix double-free addresses on corrupt DNS response
+    - 0081-net-dns-Don-t-read-past-the-end-of-the-string-we-re-.patch:
+      net/dns: Don't read past the end of the string we're checking against
+    - 0082-net-tftp-Prevent-a-UAF-and-double-free-from-a-failed.patch:
+      net/tftp: Prevent a UAF and double-free from a failed seek
+    - 0083-net-tftp-Avoid-a-trivial-UAF.patch: net/tftp: Avoid a trivial UAF
+    - 0084-net-http-Do-not-tear-down-socket-if-it-s-already-bee.patch:
+      net/http: Do not tear down socket if it's already been torn down
+    - 0086-net-http-Error-out-on-headers-with-LF-without-CR.patch:
+      net/http: Error out on headers with LF without CR
+    - 0087-fs-f2fs-Do-not-read-past-the-end-of-nat-journal-entr.patch:
+      fs/f2fs: Do not read past the end of nat journal entries
+    - 0088-fs-f2fs-Do-not-read-past-the-end-of-nat-bitmap.patch:
+      fs/f2fs: Do not read past the end of nat bitmap
+    - 0089-fs-f2fs-Do-not-copy-file-names-that-are-too-long.patch:
+      fs/f2fs: Do not copy file names that are too long
+    - 0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch:
+      fs/btrfs: Fix several fuzz issues with invalid dir item sizing
+    - 0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch:
+      fs/btrfs: Fix more ASAN and SEGV issues found with fuzzing
+    - 0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch:
+      fs/btrfs: Fix more fuzz issues related to chunks
+  * Bump SBAT generation:
+    - update debian/sbat.debian.csv.in
+
+ -- Julian Andres Klode <jak@debian.org>  Fri, 10 Jun 2022 11:15:11 +0200
+
+grub2 (2.06-2) unstable; urgency=medium
+
+  * Update to minilzo-2.10, fixing build failures on armel, mips64el,
+    mipsel, and ppc64el.
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 29 Nov 2021 00:10:09 +0000
+
+grub2 (2.06-1) unstable; urgency=medium
+
+  * Use "command -v" in maintainer scripts rather than "which".
+  * New upstream release.
+    - Switch to the upstream shim_lock verifier, dropping several more
+      manual checks for UEFI Secure Boot.
+  * Cherry-pick from upstream:
+    - fs/xfs: Fix unreadable filesystem with v4 superblock
+    - tests/ahci: Change "ide-drive" deprecated QEMU device name to "ide-hd"
+      (closes: #997100)
+  * Remove dir_to_symlink maintainer script code, which was only needed for
+    upgrades from before jessie.
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 28 Nov 2021 13:30:32 +0000
+
+grub2 (2.04-20) unstable; urgency=medium
+
+  [ Mathieu Trudel-Lapierre ]
+  * tpm: Pass unknown error as non-fatal, but debug print the error we got
+    (closes: #940911, LP: #1848892).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 11 Jul 2021 00:37:36 +0100
+
+grub2 (2.04-19) unstable; urgency=medium
+
+  * Resync grub-install backup and restore patches from upstream, fixing
+    problems that left the system unbootable after certain kinds of failure
+    (closes: #983435).
+
+ -- Colin Watson <cjwatson@debian.org>  Sat, 19 Jun 2021 13:04:38 +0100
+
+grub2 (2.04-18) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * Enable the shim_lock and tpm modules for i386-efi too. Ensure that
+    tpm is included in our EFI images.
+  * List the modules we include the EFI images - make it easier to
+    debug things.
+  * Add debug to display what's going on with verifiers
+
+  [ Colin Watson ]
+  * util/mkimage: Some fixes to PE binaries section size calculation
+    (closes: #987103).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 25 Apr 2021 16:20:17 +0100
+
+grub2 (2.04-17) unstable; urgency=medium
+
+  * Pass --sbat when building the d-i netboot image as well.
+  * i386-pc: build verifiers API as module (thanks, Michael Chang; closes:
+    #984488, #985374).
+
+ -- Colin Watson <cjwatson@debian.org>  Fri, 19 Mar 2021 10:41:41 +0000
+
+grub2 (2.04-16) unstable; urgency=medium
 
   * Fix broken advice in message when the postinst has to bail out (thanks
     to Daniel Leidert for pointing out the problem).
   * Backport security patch series from upstream:
+    - verifiers: Move verifiers API to kernel image
     - kern: Add lockdown support
     - kern/lockdown: Set a variable if the GRUB is locked down
     - efi: Lockdown the GRUB when the UEFI Secure Boot is enabled
@@ -35,6 +203,7 @@ grub2 (2.02+dfsg1-20+deb10u4) buster-security; urgency=high
     - gnulib/regexec: Fix possible null-dereference
     - gnulib/regcomp: Fix uninitialized re_token
     - io/lzopio: Resolve unnecessary self-assignment errors
+    - zstd: Initialize seq_t structure fully
     - kern/partition: Check for NULL before dereferencing input string
     - disk/ldm: Make sure comp data is freed before exiting from make_vg()
     - disk/ldm: If failed then free vg variable too
@@ -103,6 +272,8 @@ grub2 (2.02+dfsg1-20+deb10u4) buster-security; urgency=high
     - disk/lvm: Do not overread metadata
     - disk/lvm: Sanitize rlocn->offset to prevent wild read
     - disk/lvm: Do not allow a LV to be it's own segment's node's LV
+    - fs/btrfs: Validate the number of stripes/parities in RAID5/6
+    - fs/btrfs: Squash some uninitialized reads
     - kern/parser: Fix a memory leak
     - kern/parser: Introduce process_char() helper
     - kern/parser: Introduce terminate_arg() helper
@@ -132,9 +303,60 @@ grub2 (2.02+dfsg1-20+deb10u4) buster-security; urgency=high
     - kern/mm: Fix grub_debug_calloc() compilation error
   * Add SBAT section (thanks, Chris Coulson).
 
- -- Colin Watson <cjwatson@debian.org>  Mon, 01 Mar 2021 22:50:45 +0000
+ -- Colin Watson <cjwatson@debian.org>  Tue, 02 Mar 2021 18:00:00 +0000
 
-grub2 (2.02+dfsg1-20+deb10u3) buster; urgency=high
+grub2 (2.04-15) unstable; urgency=medium
+
+  * Demote grub-common → mtools dependency to Suggests, to go with xorriso;
+    explain the situation in the package description (closes: #982313).
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 08 Feb 2021 21:39:24 +0000
+
+grub2 (2.04-14) unstable; urgency=medium
+
+  [ Raphaël Hertzog ]
+  * Extend grub-efi to also cover arm64/ia64/arm (closes: #981819).
+
+  [ Colin Watson ]
+  * Cherry-pick from upstream:
+    - grub-install: Fix inverted test for NLS enabled when copying locales
+      (closes: #979754).
+  * Fix handling of trailing commas in grub-pc/install_devices (closes:
+    #913928).
+  * Make grub-firmware-qemu Recommend/Enhance qemu-system-x86, not qemu
+    (closes: #966243).
+  * Make grub-common depend on mtools on EFI platforms, for grub-mkrescue
+    (closes: #774910).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 07 Feb 2021 15:23:51 +0000
+
+grub2 (2.04-13) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * Switch to using the efivarfs interface for detecting "system setup"
+    (Closes: #979299)
+
+ -- Colin Watson <cjwatson@debian.org>  Sat, 06 Feb 2021 17:30:38 +0000
+
+grub2 (2.04-12) unstable; urgency=medium
+
+  * Cherry-pick from upstream:
+    - mdraid1x_linux: Fix gcc10 error -Werror=array-bounds
+    - zfs: Fix gcc10 error -Werror=zero-length-bounds
+  * Build with GCC 10 (closes: #978515).
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 28 Dec 2020 22:33:23 +0000
+
+grub2 (2.04-11) unstable; urgency=medium
+
+  * grub-install: Fix backup restoration on i386 (closes: #976671).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 06 Dec 2020 18:29:51 +0000
+
+grub2 (2.04-10) unstable; urgency=medium
+
+  [ Ian Campbell ]
+  * Remove myself from uploaders.
 
   [ Colin Watson ]
   * When upgrading grub-pc noninteractively, bail out if grub-install fails.
@@ -144,25 +366,18 @@ grub2 (2.02+dfsg1-20+deb10u3) buster; urgency=high
     grub-install, since grub-install copies modules to /boot/grub/ before
     installing the core image, and the new modules might be incompatible
     with the old core image (closes: #966575).
-  * Backport from upstream:
-    - unix exec: avoid atexit handlers when child exits
+  * Cherry-pick from upstream:
+    - tftp: Roll-over block counter to prevent data packets timeouts
+      (LP: #1892290).
 
   [ Dimitri John Ledkov ]
   * grub-install: Add backup and restore.
   * Don't call grub-install on fresh install of grub-pc.  It's the job of
     installers to do that after a fresh install.
 
- -- Colin Watson <cjwatson@debian.org>  Mon, 28 Dec 2020 22:53:47 +0000
+ -- Colin Watson <cjwatson@debian.org>  Sun, 08 Nov 2020 16:26:08 +0000
 
-grub2 (2.02+dfsg1-20+deb10u2) buster-security; urgency=high
-
-  * Fix a regression caused by "efi: fix some malformed device path
-    arithmetic errors" (thanks, Chris Coulson and Steve McIntyre; closes:
-    #966554).
-
- -- Colin Watson <cjwatson@debian.org>  Thu, 30 Jul 2020 20:19:53 +0100
-
-grub2 (2.02+dfsg1-20+deb10u1) buster-security; urgency=high
+grub2 (2.04-9) unstable; urgency=high
 
   * Backport security patch series from upstream:
     - CVE-2020-10713: yylex: Make lexer fatal errors actually be fatal
@@ -179,6 +394,7 @@ grub2 (2.02+dfsg1-20+deb10u1) buster-security; urgency=high
     - lzma: Make sure we don't dereference past array
     - term: Fix overflow on user inputs
     - udf: Fix memory leak
+    - multiboot2: Fix memory leak if grub_create_loader_cmdline() fails
     - tftp: Do not use priority queue
     - relocator: Protect grub_relocator_alloc_chunk_addr() input args
       against integer underflow/overflow
@@ -193,17 +409,175 @@ grub2 (2.02+dfsg1-20+deb10u1) buster-security; urgency=high
     - lvm: fix two more potential data-dependent alloc overflows
     - emu: make grub_free(NULL) safe
     - efi: fix some malformed device path arithmetic errors
+    - Fix a regression caused by "efi: fix some malformed device path
+      arithmetic errors"
     - update safemath with fallback code for gcc older than 5.1
     - efi: Fix use-after-free in halt/reboot path
     - linux loader: avoid overflow on initrd size calculation
-    - CVE-2020-15707: linux: Fix integer overflows in initrd size handling
+  * CVE-2020-15707: linux: Fix integer overflows in initrd size handling
   * Apply overflow checking to allocations in Debian patches:
-    - CVE-2020-15707: efilinux: Fix integer overflows in grub_cmd_initrd
     - bootp: Fix integer overflow in parse_dhcp6_option
     - unix/config: Fix integer overflow in grub_util_load_config
     - deviceiter: Fix integer overflow in grub_util_iterate_devices
 
- -- Colin Watson <cjwatson@debian.org>  Sun, 26 Jul 2020 22:38:55 +0100
+ -- Colin Watson <cjwatson@debian.org>  Wed, 29 Jul 2020 17:58:37 +0100
+
+grub2 (2.04-8) unstable; urgency=medium
+
+  [ Vincent Lefevre ]
+  * Fix typos in /etc/grub.d/05_debian_theme. Closes: #959484
+
+  [ Fabian Greffrath ]
+  * Change font dependency to fonts-dejavu-core. Closes: #912846
+
+  [ Colin Watson ]
+  * Cherry-pick from upstream:
+    - templates/20_linux_xen: Ignore xenpolicy and config files too.
+    - templates/20_linux_xen: Support Xen Security Modules (XSM/FLASK).
+
+  [ Ian Jackson ]
+  * 20_linux_xen: Do not load XSM policy in non-XSM options (closes:
+    #961673).
+
+ -- Colin Watson <cjwatson@debian.org>  Sun, 07 Jun 2020 10:06:37 +0100
+
+grub2 (2.04-7) unstable; urgency=medium
+
+  [ Christian Göttsche ]
+  * Create grub default configuration with default SELinux context.
+
+  [ Steve McIntyre ]
+  * In the signed packages, change the version dependency on
+    grub-common to be >= and not =. This will allow for installation
+    in unstable to still work in the window while we wait for the
+    template package to do its second trip through the archive.
+  * Tweak the build-dep architecture listing for libefiboot-dev and
+    libefivar-dev. The linux-* wildcards don't work in the way
+    expected, and were missing out (at least) armhf and armel.
+    Closes: #958461
+
+ -- Colin Watson <cjwatson@debian.org>  Wed, 22 Apr 2020 14:52:13 +0100
+
+grub2 (2.04-6) unstable; urgency=medium
+
+  [ Romain Perier ]
+  * Add f2fs module to signed UEFI images
+
+  [ Steve McIntyre ]
+  * Add jfs module to signed UEFI images. Closes: #950959
+
+  [ Colin Watson ]
+  * Drop mkconfig-mid-upgrade.patch; it was only needed for upgrades from
+    GRUB 1.99 (now a long time ago) and can inappropriately hide problems
+    when /etc/grub.d/00_header should have been updated but wasn't (closes:
+    #953201).
+  * Cherry-pick from upstream:
+    - btrfs: Add support for new RAID1C34 profiles (closes: #958236).
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 20 Apr 2020 01:03:08 +0100
+
+grub2 (2.04-5) unstable; urgency=medium
+
+  * Cherry-pick from upstream:
+    - verifiers: Blocklist fallout cleanup (this was one cause of a build
+      failure on hurd-i386, though may not be the only one).
+  * Only recommend grub-efi-*-signed on the architectures where they exist.
+
+ -- Colin Watson <cjwatson@debian.org>  Mon, 16 Dec 2019 15:48:45 +0000
+
+grub2 (2.04-4) unstable; urgency=medium
+
+  [ Thomas Gaugler ]
+  * Add leading / to prefix of network boot image for d-i.
+
+  [ Martin von Wittich ]
+  * upgrade-from-grub-legacy: Set DPKG_MAINTSCRIPT_NAME and
+    DPKG_MAINTSCRIPT_PACKAGE when calling grub-pc.postinst manually (closes:
+    #943387).
+
+  [ Colin Watson ]
+  * Use policy-compliant architecture wildcards in libefiboot-dev and
+    libefivar-dev build-dependencies.
+  * Build with GCC 9 (closes: #944166).
+
+ -- Colin Watson <cjwatson@debian.org>  Fri, 08 Nov 2019 10:58:30 +0000
+
+grub2 (2.04-3) unstable; urgency=medium
+
+  * Apply patch from James Clarke to fix BIOS Boot Partition support on
+    sparc64 (closes: #931969).
+  * Fix UEFI installation for Devuan (thanks, Ivan J.; closes: #932966).
+  * Add probe module to signed UEFI images (closes: #936082).
+
+ -- Colin Watson <cjwatson@debian.org>  Fri, 30 Aug 2019 13:50:41 +0100
+
+grub2 (2.04-2) unstable; urgency=medium
+
+  [ James Clarke ]
+  * Only Build-Depend on libefiboot-dev and libefivar-dev on Linux
+    architectures, since they're Linux-only.
+
+  [ Colin Watson ]
+  * Use debhelper-compat instead of debian/compat.
+  * debian/apport/source_grub2.py:
+    - Avoid star import.
+    - Fix flake8 errors.
+  * Run gentpl.py with python3.
+
+ -- Colin Watson <cjwatson@debian.org>  Sat, 03 Aug 2019 13:42:49 +0100
+
+grub2 (2.04-1) unstable; urgency=medium
+
+  * New upstream release.
+  * debian/upstream/signing-key.asc: Add signing key of new upstream
+    maintainer (Daniel Kiper).
+
+ -- Colin Watson <cjwatson@debian.org>  Tue, 09 Jul 2019 11:48:01 +0100
+
+grub2 (2.04~rc1-3) experimental; urgency=medium
+
+  [ Will Thompson ]
+  * Fix --disable-quiet-boot.
+
+  [ Steve Langasek ]
+  * If we don't have writable grubenv and we're on EFI, always show the menu
+    (merged from Ubuntu).
+
+  [ Steve McIntyre ]
+  * Make all the signed EFI arches have a Recommends: from
+    grub-efi-ARCH-signed to shim-signed, not just amd64.
+    Closes: #931038
+  * Add myself to Uploaders
+
+  [ Colin Watson ]
+  * Squash linuxefi* patches into a single patch.
+
+ -- Colin Watson <cjwatson@debian.org>  Thu, 27 Jun 2019 08:51:37 +0100
+
+grub2 (2.04~rc1-2) experimental; urgency=medium
+
+  [ Colin Watson ]
+  * debian/build-efi-images: Add tpm on x86_64-efi (thanks, Chris Coulson).
+
+  [ Steve McIntyre ]
+  * Add the ntfs module to signed UEFI images. Closes: #923855
+  * Add the cpuid module to signed UEFI images. Closes: #928628
+  * Add the play module to signed UEFI images. Closes: #930290
+  * Add an extra di-specific version of the UEFI netboot image with a
+    different baked-in prefix value. Helps to fix #928750.
+  * Deal with --force-extra-removable with signed shim too. Closes: #930531
+
+ -- Colin Watson <cjwatson@debian.org>  Sat, 15 Jun 2019 09:41:19 +0100
+
+grub2 (2.04~rc1-1) experimental; urgency=medium
+
+  * New upstream release candidate.
+    - getroot: Save/restore CWD more reliably on Unix (closes: #918700).
+  * Rename patches to use "-" as a separator rather than "_" (except when
+    referring to a file, function, or command containing a "_").
+  * Fix format of debian/copyright.
+
+ -- Colin Watson <cjwatson@debian.org>  Thu, 30 May 2019 16:56:05 +0100
 
 grub2 (2.02+dfsg1-20) unstable; urgency=medium
 
@@ -623,7 +997,7 @@ grub2 (2.02~beta3-3) unstable; urgency=medium
   * debian/control: Breaks shim (<< 0.9+1474479173.6c180c6-0ubuntu1~) due to
     the renamed binaries in the new shim.
   * debian/postinst.in: call on to update-secureboot-policy on configure to
-    make sure users can disable shim validation if necessary. 
+    make sure users can disable shim validation if necessary.
   * debian/build-efi-images: add loopback and squash4 modules to the signed
     EFI images.
 
@@ -1843,7 +2217,7 @@ grub2 (1.99-18) unstable; urgency=low
     - Make FAT UUID uppercase to match Linux (LP: #948716).
 
   [ Debconf translations ]
-  * Norwegian Bokmål (Hans Fredrik Nordhaug). 
+  * Norwegian Bokmål (Hans Fredrik Nordhaug).
   * Gujarati (Kartik Mistry).  Closes: #663542
 
  -- Colin Watson <cjwatson@debian.org>  Mon, 19 Mar 2012 18:24:33 +0000
@@ -1885,7 +2259,7 @@ grub2 (1.99-15) unstable; urgency=low
   [ Debconf translations ]
   * Dutch (Jeroen Schot).  Closes: #651275
   * Bulgarian (Damyan Ivanov).  Closes: #653356
-  * Icelandic (Sveinn í Felli). 
+  * Icelandic (Sveinn í Felli).
   * Ukrainian (Yatsenko Alexandr).  Closes: #654294
   * Italian (Luca Monducci).  Closes: #654304
   * Thai (Theppitak Karoonboonyanan).  Closes: #656551
@@ -1896,7 +2270,7 @@ grub2 (1.99-15) unstable; urgency=low
   * Polish (Michał Kułach).  Closes: #657265
   * Asturian (Mikel González).
   * Dzongkha (Dawa Pemo)
-  * Tamil (Dr.T.Vasudevan). 
+  * Tamil (Dr.T.Vasudevan).
   * Belarusian (Viktar Siarhiejczyk).  Closes: #662615
 
  -- Colin Watson <cjwatson@debian.org>  Mon, 05 Mar 2012 16:58:01 +0000
@@ -3296,7 +3670,7 @@ grub2 (1.98~20091229-1) unstable; urgency=high
 grub2 (1.98~20091222-1) unstable; urgency=low
 
   * New Baazar snapshot.
-    - Make 30_os-prober again dash compatible. (Closes: #562034) 
+    - Make 30_os-prober again dash compatible. (Closes: #562034)
 
  -- Felix Zielcke <fzielcke@z-51.de>  Tue, 22 Dec 2009 12:50:57 +0100
 
@@ -3321,7 +3695,7 @@ grub2 (1.98~20091210-1) unstable; urgency=low
 grub2 (1.97+20091210-1) unstable; urgency=low
 
   * New Bazaar snapshot.
-    - patches/02_fix_mountpoints_in_mkrelpath.diff: Remove (merged). 
+    - patches/02_fix_mountpoints_in_mkrelpath.diff: Remove (merged).
     - Fixes FTBFS on powerpc (again) and sparc.
     - patches/903_grub_legacy_0_based_partitions.diff: Resync (merged into
       debian branch).
@@ -3409,7 +3783,7 @@ grub2 (1.97+20091115-1) unstable; urgency=low
   * patches/906_grub_extras.diff: Remove. Superseded by GRUB_CONTRIB variable
     in recent upstream trunk.
   * rules: Export GRUB_CONTRIB to enable grub-extras add-ons.
-  * Pass --force to grub-install in the postinst. (Closes: #553415) 
+  * Pass --force to grub-install in the postinst. (Closes: #553415)
   * Don't strip debug symbols from grub-emu. It's meant for debugging
     and with them it's much more useful.
   * Ship grub-mkfloppy in grub-pc.
@@ -3652,7 +4026,7 @@ grub2 (1.96+20090808-1) unstable; urgency=low
     also disable UUIDs on LVM over RAID.
   * Add a debconf prompt to remove all grub2 files from /boot/grub on
     purge. (Closes: #527068, #470400)
-  * Move the Suggests: os-prober from grub-pc to grub-common. 
+  * Move the Suggests: os-prober from grub-pc to grub-common.
   * patches/901_dpkg_version_comparison.diff: Updated.
   * Update the Replaces on grub-common for the other packages to (<<
     1.96+20080831-1). (Closes: #540492)
@@ -3840,7 +4214,7 @@ grub2 (1.96+20090609-1) experimental; urgency=low
   * Add kopensolaris-i386 to arch list.
 
   [ Felix Zielcke ]
-  * Add a NEWS entry about the grub-efi split. 
+  * Add a NEWS entry about the grub-efi split.
   * Drop the build dependency on gcc-multilib for all *i386.
   * Change upgrade-from-grub-legacy to use `dpkg-reconfigure grub-pc' to
     install grub2 into MBR.
@@ -4994,7 +5368,7 @@ grub2 (1.94-4) unstable; urgency=low
     native building.
   * Remove convert_kernel26 usage since it's not necessary anymore and due
     initramfs-tools changes it's bug too.
-  
+
   [ Robert Millan ]
   * Fork update-grub from grub legacy, and tweak a few commands in output to
     make it work for grub2.
@@ -5028,7 +5402,7 @@ grub2 (1.94-1) unstable; urgency=low
   * New upstream release.
     - Fix powerpc building. Closes: #370259
     - 01_fix_grub-install.patch: merged upstream.
-    - Moved modules to /usr/lib/grub since they are architecture 
+    - Moved modules to /usr/lib/grub since they are architecture
       dependent.
   * Leave CDBS set debhelper compatibility level.
   * Allow amd64 build to happen. Closes: #364956
@@ -5064,8 +5438,8 @@ grub2 (1.92-1) unstable; urgency=low
     - Add support for Apple HFS+ filesystems.
   * 01_fix_grub-install.patch: Added. Fix grub-install to use
     /bin/grub-mkimage instead of /sbin/grub-mkimage. Closes: #338824
-  * Do not use CDBS tarball mode anymore. Closes: #344272  
-  
+  * Do not use CDBS tarball mode anymore. Closes: #344272
+
  -- Otavio Salvador <otavio@debian.org>  Thu,  5 Jan 2006 15:20:40 -0200
 
 grub2 (1.91-0) unstable; urgency=low

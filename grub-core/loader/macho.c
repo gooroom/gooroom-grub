@@ -97,7 +97,7 @@ grub_macho_file (grub_file_t file, const char *filename, int is_64bit)
       if (grub_file_seek (macho->file, sizeof (struct grub_macho_fat_header))
 	  == (grub_off_t) -1)
 	goto fail;
-      archs = grub_malloc (sizeof (struct grub_macho_fat_arch) * narchs);
+      archs = grub_calloc (narchs, sizeof (struct grub_macho_fat_arch));
       if (!archs)
 	goto fail;
       if (grub_file_read (macho->file, archs,
@@ -188,12 +188,12 @@ fail:
 }
 
 grub_macho_t
-grub_macho_open (const char *name, int is_64bit)
+grub_macho_open (const char *name, enum grub_file_type type, int is_64bit)
 {
   grub_file_t file;
   grub_macho_t macho;
 
-  file = grub_file_open (name);
+  file = grub_file_open (name, type);
   if (! file)
     return 0;
 

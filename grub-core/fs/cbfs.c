@@ -148,16 +148,16 @@ grub_cbfs_mount (grub_disk_t disk)
   grub_off_t header_off;
   struct cbfs_header head;
 
-  if (grub_disk_get_size (disk) == GRUB_DISK_SIZE_UNKNOWN)
+  if (grub_disk_native_sectors (disk) == GRUB_DISK_SIZE_UNKNOWN)
     goto fail;
 
-  if (grub_disk_read (disk, grub_disk_get_size (disk) - 1,
+  if (grub_disk_read (disk, grub_disk_native_sectors (disk) - 1,
 		      GRUB_DISK_SECTOR_SIZE - sizeof (ptr),
 		      sizeof (ptr), &ptr))
     goto fail;
 
   ptr = grub_cpu_to_le32 (ptr);
-  header_off = (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS)
+  header_off = (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS)
     + (grub_int32_t) ptr;
 
   if (grub_disk_read (disk, 0, header_off,
@@ -171,16 +171,16 @@ grub_cbfs_mount (grub_disk_t disk)
   if (!data)
     goto fail;
 
-  data->cbfs_start = (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS)
+  data->cbfs_start = (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS)
     - (grub_be_to_cpu32 (head.romsize) - grub_be_to_cpu32 (head.offset));
-  data->cbfs_end = (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS)
+  data->cbfs_end = (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS)
     - grub_be_to_cpu32 (head.bootblocksize);
   data->cbfs_align = grub_be_to_cpu32 (head.align);
 
-  if (data->cbfs_start >= (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS))
+  if (data->cbfs_start >= (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS))
     goto fail;
-  if (data->cbfs_end > (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS))
-    data->cbfs_end = (grub_disk_get_size (disk) << GRUB_DISK_SECTOR_BITS);
+  if (data->cbfs_end > (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS))
+    data->cbfs_end = (grub_disk_native_sectors (disk) << GRUB_DISK_SECTOR_BITS);
 
   data->next_hofs = data->cbfs_start;
 
@@ -328,11 +328,11 @@ static struct grub_disk_dev grub_cbfsdisk_dev =
   {
     .name = "cbfsdisk",
     .id = GRUB_DISK_DEVICE_CBFSDISK_ID,
-    .iterate = grub_cbfsdisk_iterate,
-    .open = grub_cbfsdisk_open,
-    .close = grub_cbfsdisk_close,
-    .read = grub_cbfsdisk_read,
-    .write = grub_cbfsdisk_write,
+    .disk_iterate = grub_cbfsdisk_iterate,
+    .disk_open = grub_cbfsdisk_open,
+    .disk_close = grub_cbfsdisk_close,
+    .disk_read = grub_cbfsdisk_read,
+    .disk_write = grub_cbfsdisk_write,
     .next = 0
   };
 
@@ -375,10 +375,10 @@ fini_cbfsdisk (void)
 
 static struct grub_fs grub_cbfs_fs = {
   .name = "cbfs",
-  .dir = grub_cbfs_dir,
-  .open = grub_cbfs_open,
-  .read = grub_cbfs_read,
-  .close = grub_cbfs_close,
+  .fs_dir = grub_cbfs_dir,
+  .fs_open = grub_cbfs_open,
+  .fs_read = grub_cbfs_read,
+  .fs_close = grub_cbfs_close,
 #ifdef GRUB_UTIL
   .reserved_first_sector = 0,
   .blocklist_install = 0,

@@ -388,11 +388,11 @@ static struct grub_disk_dev grub_util_biosdisk_dev =
   {
     .name = "hostdisk",
     .id = GRUB_DISK_DEVICE_HOSTDISK_ID,
-    .iterate = grub_util_biosdisk_iterate,
-    .open = grub_util_biosdisk_open,
-    .close = grub_util_biosdisk_close,
-    .read = grub_util_biosdisk_read,
-    .write = grub_util_biosdisk_write,
+    .disk_iterate = grub_util_biosdisk_iterate,
+    .disk_open = grub_util_biosdisk_open,
+    .disk_close = grub_util_biosdisk_close,
+    .disk_read = grub_util_biosdisk_read,
+    .disk_write = grub_util_biosdisk_write,
     .next = 0
   };
 
@@ -615,7 +615,7 @@ static char *
 grub_util_path_concat_real (size_t n, int ext, va_list ap)
 {
   size_t totlen = 0;
-  char **l = xmalloc ((n + ext) * sizeof (l[0]));
+  char **l = xcalloc (n + ext, sizeof (l[0]));
   char *r, *p, *pi;
   size_t i;
   int first = 1;

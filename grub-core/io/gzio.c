@@ -43,6 +43,7 @@
 #include <grub/dl.h>
 #include <grub/deflate.h>
 #include <grub/i18n.h>
+#include <grub/crypto.h>
 
 GRUB_MOD_LICENSE ("GPLv3+");
 
@@ -94,6 +95,14 @@ struct grub_gzio
   struct huft *tl;
   /* The distance code table.  */
   struct huft *td;
+  /* The checksum algorithm */
+  const gcry_md_spec_t *hdesc;
+  /* The wanted checksum */
+  grub_uint32_t orig_checksum;
+  /* The uncompressed length */
+  grub_size_t orig_len;
+  /* Context for checksum calculation */
+  grub_uint8_t *hcontext;
   /* The lookup bits for the literal/length code table. */
   int bl;
   /* The lookup bits for the distance code table.  */
@@ -140,24 +149,24 @@ eat_field (grub_file_t file, int len)
 #define OLD_GZIP_MAGIC	grub_le_to_cpu16 (0x9E1F)
 
 /* Compression methods (see algorithm.doc) */
-#define STORED      0
-#define COMPRESSED  1
-#define PACKED      2
-#define LZHED       3
+#define GRUB_GZ_STORED      0
+#define GRUB_GZ_COMPRESSED  1
+#define GRUB_GZ_PACKED      2
+#define GRUB_GZ_LZHED       3
 /* methods 4 to 7 reserved */
-#define DEFLATED    8
-#define MAX_METHODS 9
+#define GRUB_GZ_DEFLATED    8
+#define GRUB_GZ_MAX_METHODS 9
 
 /* gzip flag byte */
-#define ASCII_FLAG   0x01	/* bit 0 set: file probably ascii text */
-#define CONTINUATION 0x02	/* bit 1 set: continuation of multi-part gzip file */
-#define EXTRA_FIELD  0x04	/* bit 2 set: extra field present */
-#define ORIG_NAME    0x08	/* bit 3 set: original file name present */
-#define COMMENT      0x10	/* bit 4 set: file comment present */
-#define ENCRYPTED    0x20	/* bit 5 set: file is encrypted */
-#define RESERVED     0xC0	/* bit 6,7:   reserved */
+#define GRUB_GZ_ASCII_FLAG   0x01	/* bit 0 set: file probably ascii text */
+#define GRUB_GZ_CONTINUATION 0x02	/* bit 1 set: continuation of multi-part gzip file */
+#define GRUB_GZ_EXTRA_FIELD  0x04	/* bit 2 set: extra field present */
+#define GRUB_GZ_ORIG_NAME    0x08	/* bit 3 set: original file name present */
+#define GRUB_GZ_COMMENT      0x10	/* bit 4 set: file comment present */
+#define GRUB_GZ_ENCRYPTED    0x20	/* bit 5 set: file is encrypted */
+#define GRUB_GZ_RESERVED     0xC0	/* bit 6,7:   reserved */
 
-#define UNSUPPORTED_FLAGS	(CONTINUATION | ENCRYPTED | RESERVED)
+#define GRUB_GZ_UNSUPPORTED_FLAGS	(GRUB_GZ_CONTINUATION | GRUB_GZ_ENCRYPTED | GRUB_GZ_RESERVED)
 
 /* inflate block codes */
 #define INFLATE_STORED	0
@@ -180,7 +189,7 @@ test_gzip_header (grub_file_t file)
     grub_uint8_t os_type;
   } hdr;
   grub_uint16_t extra_len;
-  grub_uint32_t orig_len;
+  grub_uint32_t crc32;
   grub_gzio_t gzio = file->data;
 
   if (grub_file_tell (gzio->file) != 0)
@@ -201,26 +210,29 @@ test_gzip_header (grub_file_t file)
    *  problem occurs from here on, then we have corrupt or otherwise
    *  bad data, and the error should be reported to the user.
    */
-  if (hdr.method != DEFLATED
-      || (hdr.flags & UNSUPPORTED_FLAGS)
-      || ((hdr.flags & EXTRA_FIELD)
+  if (hdr.method != GRUB_GZ_DEFLATED
+      || (hdr.flags & GRUB_GZ_UNSUPPORTED_FLAGS)
+      || ((hdr.flags & GRUB_GZ_EXTRA_FIELD)
 	  && (grub_file_read (gzio->file, &extra_len, 2) != 2
 	      || eat_field (gzio->file,
 			    grub_le_to_cpu16 (extra_len))))
-      || ((hdr.flags & ORIG_NAME) && eat_field (gzio->file, -1))
-      || ((hdr.flags & COMMENT) && eat_field (gzio->file, -1)))
+      || ((hdr.flags & GRUB_GZ_ORIG_NAME) && eat_field (gzio->file, -1))
+      || ((hdr.flags & GRUB_GZ_COMMENT) && eat_field (gzio->file, -1)))
     return 0;
 
   gzio->data_offset = grub_file_tell (gzio->file);
 
   /* FIXME: don't do this on not easily seekable files.  */
   {
-    grub_file_seek (gzio->file, grub_file_size (gzio->file) - 4);
-    if (grub_file_read (gzio->file, &orig_len, 4) != 4)
+    grub_file_seek (gzio->file, grub_file_size (gzio->file) - 8);
+    if (grub_file_read (gzio->file, &crc32, 4) != 4)
+      return 0;
+    gzio->orig_checksum = grub_le_to_cpu32 (crc32);
+    if (grub_file_read (gzio->file, &gzio->orig_len, 4) != 4)
       return 0;
     /* FIXME: this does not handle files whose original size is over 4GB.
        But how can we know the real original size?  */
-    file->size = grub_le_to_cpu32 (orig_len);
+    file->size = grub_le_to_cpu32 (gzio->orig_len);
   }
 
   initialize_tables (gzio);
@@ -495,6 +507,7 @@ huft_build (unsigned *b,	/* code lengths in bits (all assumed <= BMAX) */
     }
 
   /* Make a table of values in order of bit lengths */
+  grub_memset (v, N_MAX, ARRAY_SIZE (v));
   p = b;
   i = 0;
   do
@@ -542,7 +555,7 @@ huft_build (unsigned *b,	/* code lengths in bits (all assumed <= BMAX) */
 	      z = 1 << j;	/* table entries for j-bit table */
 
 	      /* allocate and link in new table */
-	      q = (struct huft *) grub_zalloc ((z + 1) * sizeof (struct huft));
+	      q = (struct huft *) grub_calloc (z + 1, sizeof (struct huft));
 	      if (! q)
 		{
 		  if (h)
@@ -576,10 +589,17 @@ huft_build (unsigned *b,	/* code lengths in bits (all assumed <= BMAX) */
 	      r.v.n = (ush) (*p);	/* simple code is just the value */
 	      p++;		/* one compiler does not like *p++ */
 	    }
-	  else
+	  else if (*p < N_MAX)
 	    {
 	      r.e = (uch) e[*p - s];	/* non-simple--look up in lists */
 	      r.v.n = d[*p++ - s];
+	    }
+	  else
+	    {
+	      /* Detected an uninitialised value, abort. */
+	      if (h)
+		huft_free (u[0]);
+	      return 2;
 	    }
 
 	  /* fill code-like entries with r */
@@ -657,6 +677,13 @@ inflate_codes_in_window (grub_gzio_t gzio)
     {
       if (! gzio->code_state)
 	{
+
+	  if (gzio->tl == NULL)
+	    {
+	      grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "NULL gzio->tl");
+	      return 1;
+	    }
+
 	  NEEDBITS ((unsigned) gzio->bl);
 	  if ((e = (t = gzio->tl + ((unsigned) b & ml))->e) > 16)
 	    do
@@ -694,6 +721,12 @@ inflate_codes_in_window (grub_gzio_t gzio)
 	      NEEDBITS (e);
 	      n = t->v.n + ((unsigned) b & mask_bits[e]);
 	      DUMPBITS (e);
+
+	      if (gzio->td == NULL)
+		{
+		  grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "NULL gzio->td");
+		  return 1;
+		}
 
 	      /* decode distance of block to copy */
 	      NEEDBITS ((unsigned) gzio->bd);
@@ -905,6 +938,13 @@ init_dynamic_block (grub_gzio_t gzio)
   n = nl + nd;
   m = mask_bits[gzio->bl];
   i = l = 0;
+
+  if (gzio->tl == NULL)
+    {
+      grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "NULL gzio->tl");
+      return;
+    }
+
   while ((unsigned) i < n)
     {
       NEEDBITS ((unsigned) gzio->bl);
@@ -921,7 +961,7 @@ init_dynamic_block (grub_gzio_t gzio)
 	  if ((unsigned) i + j > n)
 	    {
 	      grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "too many codes found");
-	      return;
+	      goto fail;
 	    }
 	  while (j--)
 	    ll[i++] = l;
@@ -934,7 +974,7 @@ init_dynamic_block (grub_gzio_t gzio)
 	  if ((unsigned) i + j > n)
 	    {
 	      grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "too many codes found");
-	      return;
+	      goto fail;
 	    }
 	  while (j--)
 	    ll[i++] = 0;
@@ -949,7 +989,7 @@ init_dynamic_block (grub_gzio_t gzio)
 	  if ((unsigned) i + j > n)
 	    {
 	      grub_error (GRUB_ERR_BAD_COMPRESSED_DATA, "too many codes found");
-	      return;
+	      goto fail;
 	    }
 	  while (j--)
 	    ll[i++] = 0;
@@ -970,6 +1010,7 @@ init_dynamic_block (grub_gzio_t gzio)
   gzio->bl = lbits;
   if (huft_build (ll, nl, 257, cplens, cplext, &gzio->tl, &gzio->bl) != 0)
     {
+      gzio->tl = 0;
       grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
 		  "failed in building a Huffman code table");
       return;
@@ -979,6 +1020,7 @@ init_dynamic_block (grub_gzio_t gzio)
     {
       huft_free (gzio->tl);
       gzio->tl = 0;
+      gzio->td = 0;
       grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
 		  "failed in building a Huffman code table");
       return;
@@ -987,6 +1029,12 @@ init_dynamic_block (grub_gzio_t gzio)
   /* indicate we're now working on a block */
   gzio->code_state = 0;
   gzio->block_len++;
+  return;
+
+ fail:
+  huft_free (gzio->tl);
+  gzio->td = NULL;
+  gzio->tl = NULL;
 }
 
 
@@ -1095,7 +1143,23 @@ inflate_window (grub_gzio_t gzio)
 
   gzio->saved_offset += gzio->wp;
 
-  /* XXX do CRC calculation here! */
+  if (gzio->hcontext)
+    {
+      gzio->hdesc->write (gzio->hcontext, gzio->slide, gzio->wp);
+
+      if (gzio->saved_offset == gzio->orig_len)
+	{
+	  grub_uint32_t csum;
+
+	  gzio->hdesc->final (gzio->hcontext);
+	  csum = grub_get_unaligned32 (gzio->hdesc->read (gzio->hcontext));
+	  csum = grub_be_to_cpu32 (csum);
+	  if (csum != gzio->orig_checksum)
+	    grub_error (GRUB_ERR_BAD_COMPRESSED_DATA,
+			"checksum mismatch %08x/%08x",
+			gzio->orig_checksum, csum);
+	}
+    }
 }
 
 
@@ -1118,6 +1182,9 @@ initialize_tables (grub_gzio_t gzio)
   huft_free (gzio->td);
   gzio->tl = NULL;
   gzio->td = NULL;
+
+  if (gzio->hcontext)
+    gzio->hdesc->init(gzio->hcontext);
 }
 
 
@@ -1125,10 +1192,13 @@ initialize_tables (grub_gzio_t gzio)
    even if IO does not contain data compressed by gzip, return a valid file
    object. Note that this function won't close IO, even if an error occurs.  */
 static grub_file_t
-grub_gzio_open (grub_file_t io, const char *name __attribute__ ((unused)))
+grub_gzio_open (grub_file_t io, enum grub_file_type type)
 {
   grub_file_t file;
   grub_gzio_t gzio = 0;
+
+  if (type & GRUB_FILE_TYPE_NO_DECOMPRESS)
+    return io;
 
   file = (grub_file_t) grub_zalloc (sizeof (*file));
   if (! file)
@@ -1143,6 +1213,9 @@ grub_gzio_open (grub_file_t io, const char *name __attribute__ ((unused)))
 
   gzio->file = io;
 
+  gzio->hdesc = GRUB_MD_CRC32;
+  gzio->hcontext = grub_malloc(gzio->hdesc->contextsize);
+
   file->device = io->device;
   file->data = gzio;
   file->fs = &grub_gzio_fs;
@@ -1151,6 +1224,7 @@ grub_gzio_open (grub_file_t io, const char *name __attribute__ ((unused)))
   if (! test_gzip_header (file))
     {
       grub_errno = GRUB_ERR_NONE;
+      grub_free (gzio->hcontext);
       grub_free (gzio);
       grub_free (file);
       grub_file_seek (io, 0);
@@ -1183,7 +1257,7 @@ test_zlib_header (grub_gzio_t gzio)
   flg = get_byte (gzio);
 
   /* Check that compression method is DEFLATE.  */
-  if ((cmf & 0xf) != DEFLATED)
+  if ((cmf & 0xf) != GRUB_GZ_DEFLATED)
     {
       /* TRANSLATORS: It's about given file having some strange format, not
 	 complete lack of gzip support.  */
@@ -1287,6 +1361,7 @@ grub_gzio_close (grub_file_t file)
   grub_file_close (gzio->file);
   huft_free (gzio->tl);
   huft_free (gzio->td);
+  grub_free (gzio->hcontext);
   grub_free (gzio);
 
   /* No need to close the same device twice.  */
@@ -1350,11 +1425,11 @@ grub_deflate_decompress (char *inbuf, grub_size_t insize, grub_off_t off,
 static struct grub_fs grub_gzio_fs =
   {
     .name = "gzio",
-    .dir = 0,
-    .open = 0,
-    .read = grub_gzio_read,
-    .close = grub_gzio_close,
-    .label = 0,
+    .fs_dir = 0,
+    .fs_open = 0,
+    .fs_read = grub_gzio_read,
+    .fs_close = grub_gzio_close,
+    .fs_label = 0,
     .next = 0
   };
 

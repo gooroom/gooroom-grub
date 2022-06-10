@@ -2,17 +2,17 @@ Source: grub2
 Section: admin
 Priority: optional
 Maintainer: GRUB Maintainers <pkg-grub-devel@alioth-lists.debian.net>
-Uploaders: Felix Zielcke <fzielcke@z-51.de>, Jordi Mallach <jordi@debian.org>, Colin Watson <cjwatson@debian.org>, Ian Campbell <ijc@debian.org>, Steve McIntyre <93sam@debian.org>
-Build-Depends: debhelper (>= 10~),
+Uploaders: Felix Zielcke <fzielcke@z-51.de>, Jordi Mallach <jordi@debian.org>, Colin Watson <cjwatson@debian.org>, Steve McIntyre <93sam@debian.org>, Julian Andres Klode <jak@debian.org>
+Build-Depends: debhelper-compat (= 13),
  patchutils,
- python,
+ python3,
  flex,
  bison,
  po-debconf,
  help2man,
  texinfo,
- gcc-8,
- gcc-8-multilib [i386 kopensolaris-i386 any-amd64 any-ppc64 any-sparc],
+ gcc-10,
+ gcc-10-multilib [i386 kopensolaris-i386 any-amd64 any-ppc64 any-sparc],
  xfonts-unifont,
  libfreetype6-dev,
  gettext,
@@ -24,7 +24,7 @@ Build-Depends: debhelper (>= 10~),
  cpio [i386 kopensolaris-i386 amd64 x32],
  parted [!hurd-any],
  libfuse-dev (>= 2.8.4-1.4) [linux-any kfreebsd-any],
- ttf-dejavu-core,
+ fonts-dejavu-core,
  liblzma-dev,
  dosfstools [any-i386 any-amd64 any-arm64],
  mtools [any-i386 any-amd64 any-arm64],
@@ -32,8 +32,8 @@ Build-Depends: debhelper (>= 10~),
  libparted-dev [any-powerpc any-ppc64 any-ppc64el],
  pkg-config,
  bash-completion,
- libefiboot-dev [any-i386 any-amd64 any-ia64 any-arm any-arm64],
- libefivar-dev [any-i386 any-amd64 any-ia64 any-arm any-arm64],
+ libefiboot-dev [i386 amd64 ia64 x32 armel armhf arm64],
+ libefivar-dev [i386 amd64 ia64 x32 armel armhf arm64],
 Build-Conflicts: autoconf2.13, libzfs-dev, libnvpair-dev
 Standards-Version: 3.9.6
 Homepage: https://www.gnu.org/software/grub/
@@ -61,22 +61,20 @@ Description: GRand Unified Bootloader, version 2 (dummy package)
  This is a dummy transitional package that depends on grub-coreboot.
 
 Package: grub-efi
-Section: oldlibs
-Architecture: any-i386 any-amd64
+Architecture: any-i386 any-amd64 any-arm64 any-ia64 any-arm
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, grub-efi-ia32 (= ${binary:Version}) [any-i386], grub-efi-amd64 (= ${binary:Version}) [any-amd64]
+Depends: ${misc:Depends}, grub-efi-ia32 (= ${binary:Version}) [any-i386], grub-efi-amd64 (= ${binary:Version}) [any-amd64], grub-efi-arm64 (= ${binary:Version}) [any-arm64], grub-efi-ia64 (= ${binary:Version}) [any-ia64], grub-efi-arm (= ${binary:Version}) [any-arm]
 Multi-Arch: foreign
 Description: GRand Unified Bootloader, version 2 (dummy package)
- This is a dummy transitional package that depends on either grub-efi-ia32 or
- grub-efi-amd64, depending on the architecture.
-
+ This is a dummy package that depends on the grub-efi-$ARCH package most likely
+ to be appropriate for each architecture.
 
 Package: grub-common
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}, gettext-base, ${lsb-base-depends}
 Replaces: grub-pc (<< 2.00-4), grub-ieee1275 (<< 2.00-4), grub-efi (<< 1.99-1), grub-coreboot (<< 2.00-4), grub-linuxbios (<< 1.96+20080831-1), grub-efi-ia32 (<< 2.00-4), grub-efi-amd64 (<< 2.00-4), grub-efi-ia64 (<< 2.00-4), grub-yeeloong (<< 2.00-4), init-select
 Recommends: os-prober (>= 1.33)
-Suggests: multiboot-doc, grub-emu [any-i386 any-amd64 any-powerpc], xorriso (>= 0.5.6.pl00), desktop-base (>= 4.0.6), console-setup
+Suggests: multiboot-doc, grub-emu [any-i386 any-amd64 any-powerpc], mtools [any-i386 any-amd64 any-ia64 any-arm any-arm64], xorriso (>= 0.5.6.pl00), desktop-base (>= 4.0.6), console-setup
 Conflicts: init-select
 # mdadm: See bugs #435983 and #455746
 Breaks: mdadm (<< 2.6.7-2), lupin-support (<< 0.55), friendly-recovery (<< 0.2.13), apport (<< 2.1.1)
@@ -85,6 +83,9 @@ Description: GRand Unified Bootloader (common files)
  This package contains common files shared by the distinct flavours of GRUB.
  It is shared between GRUB Legacy and GRUB 2, although a number of files
  specific to GRUB 2 are here as long as they do not break GRUB Legacy.
+ .
+ grub-mkrescue needs the suggested packages mtools (for UEFI targets) and
+ xorriso.
 
 Package: grub2-common
 # Not Architecture: any because this package contains some things which are
@@ -247,7 +248,7 @@ Description: GRand Unified Bootloader, version 2 (Coreboot version)
 Package: grub-efi-ia32-bin
 Architecture: any-i386 any-amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, grub-common (= ${binary:Version})
-Recommends: grub-efi-ia32-signed, efibootmgr [linux-any]
+Recommends: grub-efi-ia32-signed [i386], efibootmgr [linux-any]
 Replaces: grub2 (<< ${source:Version}), grub-common (<= 1.97~beta2-1), grub-efi, grub-efi-ia32 (<< 1.99-1)
 Multi-Arch: foreign
 XB-Efi-Vendor: ${efi:Vendor}
@@ -301,6 +302,7 @@ Description: GRand Unified Bootloader, version 2 (EFI-IA32 version)
 
 Package: grub-efi-ia32-signed-template
 Architecture: i386
+Depends: ${misc:Depends}
 Description: GRand Unified Bootloader, version 2 (EFI-IA32 signing template)
  This package contains template files for grub-efi-ia32-signed.
  This is only needed for Secure Boot signing.
@@ -308,7 +310,7 @@ Description: GRand Unified Bootloader, version 2 (EFI-IA32 signing template)
 Package: grub-efi-amd64-bin
 Architecture: i386 kopensolaris-i386 any-amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}, grub-common (= ${binary:Version})
-Recommends: grub-efi-amd64-signed, efibootmgr [linux-any]
+Recommends: grub-efi-amd64-signed [amd64], efibootmgr [linux-any]
 Replaces: grub2 (<< ${source:Version}), grub-common (<= 1.97~beta2-1), grub-efi-amd64 (<< 1.99-1)
 Multi-Arch: foreign
 XB-Efi-Vendor: ${efi:Vendor}
@@ -362,6 +364,7 @@ Description: GRand Unified Bootloader, version 2 (EFI-AMD64 version)
 
 Package: grub-efi-amd64-signed-template
 Architecture: amd64
+Depends: ${misc:Depends}
 Description: GRand Unified Bootloader, version 2 (EFI-AMD64 signing template)
  This package contains template files for grub-efi-amd64-signed.
  This is only needed for Secure Boot signing.
@@ -469,7 +472,7 @@ Description: GRand Unified Bootloader, version 2 (ARM UEFI version)
 Package: grub-efi-arm64-bin
 Architecture: any-arm64
 Depends: ${shlibs:Depends}, ${misc:Depends}, grub-common (= ${binary:Version})
-Recommends: grub-efi-arm64-signed, efibootmgr [linux-any]
+Recommends: grub-efi-arm64-signed [arm64], efibootmgr [linux-any]
 Multi-Arch: foreign
 XB-Efi-Vendor: ${efi:Vendor}
 Description: GRand Unified Bootloader, version 2 (ARM64 UEFI modules)
@@ -518,6 +521,7 @@ Description: GRand Unified Bootloader, version 2 (ARM64 UEFI version)
 
 Package: grub-efi-arm64-signed-template
 Architecture: arm64
+Depends: ${misc:Depends}
 Description: GRand Unified Bootloader, version 2 (ARM64 UEFI signing template)
  This package contains template files for grub-efi-arm64-signed.
  This is only needed for Secure Boot signing.
@@ -577,8 +581,8 @@ Description: GRand Unified Bootloader, version 2 (Open Firmware version)
 Package: grub-firmware-qemu
 Architecture: any-i386 any-amd64
 Depends: ${misc:Depends}
-Recommends: qemu
-Enhances: qemu
+Recommends: qemu-system-x86
+Enhances: qemu-system-x86
 Multi-Arch: foreign
 Description: GRUB firmware image for QEMU
  This package contains a binary of GRUB that has been built for use as

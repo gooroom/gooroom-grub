@@ -53,8 +53,8 @@ grub_xnu_resume (char *imagename)
   grub_addr_t target_image;
   grub_err_t err;
 
-  grub_file_filter_disable_compression ();
-  file = grub_file_open (imagename);
+  file = grub_file_open (imagename, GRUB_FILE_TYPE_XNU_HIBERNATE_IMAGE
+			 | GRUB_FILE_TYPE_NO_DECOMPRESS);
   if (! file)
     return 0;
 
@@ -129,7 +129,7 @@ grub_xnu_resume (char *imagename)
   {
     grub_relocator_chunk_t ch;
     err = grub_relocator_alloc_chunk_align (grub_xnu_relocator, &ch, 0,
-					    (0xffffffff - hibhead.image_size) + 1,
+					    UP_TO_TOP32 (hibhead.image_size),
 					    hibhead.image_size,
 					    GRUB_XNU_PAGESIZE,
 					    GRUB_RELOCATOR_PREFERENCE_NONE, 0);

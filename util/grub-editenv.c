@@ -125,6 +125,7 @@ open_envblk_file (const char *name)
 {
   FILE *fp;
   char *buf;
+  long loc;
   size_t size;
   grub_envblk_t envblk;
 
@@ -143,7 +144,12 @@ open_envblk_file (const char *name)
     grub_util_error (_("cannot seek `%s': %s"), name,
 		     strerror (errno));
 
-  size = (size_t) ftell (fp);
+  loc = ftell (fp);
+  if (loc < 0)
+    grub_util_error (_("cannot get file location `%s': %s"), name,
+		     strerror (errno));
+
+  size = (size_t) loc;
 
   if (fseek (fp, 0, SEEK_SET) < 0)
     grub_util_error (_("cannot seek `%s': %s"), name,
@@ -197,7 +203,8 @@ write_envblk (const char *name, grub_envblk_t envblk)
     grub_util_error (_("cannot write to `%s': %s"), name,
 		     strerror (errno));
 
-  grub_util_file_sync (fp);
+  if (grub_util_file_sync (fp) < 0)
+    grub_util_error (_("cannot sync `%s': %s"), name, strerror (errno));
   fclose (fp);
 }
 

@@ -107,7 +107,9 @@ static const struct
     [GRUB_INSTALL_PLATFORM_X86_64_EFI] = { "x86_64-efi", "efinet", ".efi" },
     [GRUB_INSTALL_PLATFORM_IA64_EFI] = { "ia64-efi", "efinet", ".efi" },
     [GRUB_INSTALL_PLATFORM_ARM_EFI] = { "arm-efi", "efinet", ".efi" },
-    [GRUB_INSTALL_PLATFORM_ARM64_EFI] = { "arm64-efi", "efinet", ".efi" }
+    [GRUB_INSTALL_PLATFORM_ARM64_EFI] = { "arm64-efi", "efinet", ".efi" },
+    [GRUB_INSTALL_PLATFORM_RISCV32_EFI] = { "riscv32-efi", "efinet", ".efi" },
+    [GRUB_INSTALL_PLATFORM_RISCV64_EFI] = { "riscv64-efi", "efinet", ".efi" },
   };
 
 static void
@@ -157,6 +159,9 @@ process_input_dir (const char *input_dir, enum grub_install_plat platform)
   grub_install_make_image_wrap (input_dir, prefix, output,
 				0, load_cfg,
 				targets[platform].mkimage_target, 0);
+
+  grub_set_install_backup_ponr ();
+
   grub_install_pop_module ();
 
   /* TRANSLATORS: First %s is replaced by platform name. Second one by filename.  */

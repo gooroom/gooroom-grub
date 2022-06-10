@@ -175,9 +175,9 @@ grub_partition_msdos_iterate (grub_disk_t disk,
 	  e = mbr.entries + p.index;
 
 	  p.start = p.offset
-	    + (grub_le_to_cpu32 (e->start)
+	    + ((grub_disk_addr_t)grub_le_to_cpu32 (e->start)
 	       << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS)) - delta;
-	  p.len = grub_le_to_cpu32 (e->length)
+	  p.len = (grub_uint64_t)grub_le_to_cpu32 (e->length)
 	    << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS);
 	  p.msdostype = e->type;
 
@@ -210,7 +210,7 @@ grub_partition_msdos_iterate (grub_disk_t disk,
 	  if (grub_msdos_partition_is_extended (e->type))
 	    {
 	      p.offset = ext_offset
-		+ (grub_le_to_cpu32 (e->start)
+		+ ((grub_disk_addr_t)grub_le_to_cpu32 (e->start)
 		   << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS));
 	      if (! ext_offset)
 		ext_offset = p.offset;
@@ -236,7 +236,8 @@ static grub_err_t
 pc_partition_map_embed (struct grub_disk *disk, unsigned int *nsectors,
 			unsigned int max_nsectors,
 			grub_embed_type_t embed_type,
-			grub_disk_addr_t **sectors)
+			grub_disk_addr_t **sectors,
+			int warn_short)
 {
   grub_disk_addr_t end = ~0ULL;
   struct grub_msdos_partition_mbr mbr;
@@ -294,9 +295,9 @@ pc_partition_map_embed (struct grub_disk *disk, unsigned int *nsectors,
 
 	  if (!grub_msdos_partition_is_empty (e->type)
 	      && end > offset
-	      + (grub_le_to_cpu32 (e->start)
+	      + ((grub_disk_addr_t)grub_le_to_cpu32 (e->start)
 		 << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS)))
-	    end = offset + (grub_le_to_cpu32 (e->start)
+	    end = offset + ((grub_disk_addr_t)grub_le_to_cpu32 (e->start)
 			    << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS));
 
 	  /* If this is a GPT partition, this MBR is just a dummy.  */
@@ -312,7 +313,7 @@ pc_partition_map_embed (struct grub_disk *disk, unsigned int *nsectors,
 	  if (grub_msdos_partition_is_extended (e->type))
 	    {
 	      offset = ext_offset 
-		+ (grub_le_to_cpu32 (e->start) 
+		+ ((grub_disk_addr_t)grub_le_to_cpu32 (e->start)
 		   << (disk->log_sector_size - GRUB_DISK_SECTOR_BITS));
 	      if (! ext_offset)
 		ext_offset = offset;
@@ -337,7 +338,7 @@ pc_partition_map_embed (struct grub_disk *disk, unsigned int *nsectors,
       avail_nsectors = *nsectors;
       if (*nsectors > max_nsectors)
 	*nsectors = max_nsectors;
-      *sectors = grub_malloc (*nsectors * sizeof (**sectors));
+      *sectors = grub_calloc (*nsectors, sizeof (**sectors));
       if (!*sectors)
 	return grub_errno;
       for (i = 0; i < *nsectors; i++)
@@ -389,6 +390,9 @@ pc_partition_map_embed (struct grub_disk *disk, unsigned int *nsectors,
 
       return GRUB_ERR_NONE;
     }
+
+  if (end < GRUB_MIN_RECOMMENDED_MBR_GAP && warn_short)
+    grub_util_warn ("You have a short MBR gap and use advanced config. Please increase post-MBR gap.");
 
   if (end <= 1)
     return grub_error (GRUB_ERR_FILE_NOT_FOUND,
