@@ -1,3 +1,9 @@
+gooroom-grub (2.06-3+dev) gooroom-3.0; urgency=medium
+
+  * Rebased on gooroom-3.0
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Sat, 02 Jul 2022 18:24:51 +0900
+
 grub2 (2.06-3) unstable; urgency=medium
 
   [ Colin Watson ]

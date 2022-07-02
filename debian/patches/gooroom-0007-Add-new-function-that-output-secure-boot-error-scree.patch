@@ -1,0 +1,240 @@
+From 7a5279dd7e56cf7b545dc3e6df260eacca44ee74 Mon Sep 17 00:00:00 2001
+From: Dave Park <parkparkqw@gmail.com>
+Date: Thu, 30 Jun 2022 11:56:47 +0900
+Subject: [PATCH 7/8] Add new function that output secure boot error screen
+
+---
+ grub-core/commands/configfile.c   | 17 ++++++
+ grub-core/loader/i386/efi/linux.c | 16 ++++-
+ grub-core/loader/linux.c          | 99 ++++++++++++++++++++++++++++++-
+ include/grub/linux.h              | 10 ++++
+ 4 files changed, 140 insertions(+), 2 deletions(-)
+
+diff --git a/grub-core/commands/configfile.c b/grub-core/commands/configfile.c
+index f2d2abb5f..1b2a0ad48 100644
+--- a/grub-core/commands/configfile.c
++++ b/grub-core/commands/configfile.c
+@@ -24,6 +24,8 @@
+ #include <grub/command.h>
+ #include <grub/i18n.h>
+ 
++#include <grub/linux.h>
++
+ GRUB_MOD_LICENSE ("GPLv3+");
+ 
+ static grub_err_t
+@@ -31,9 +33,24 @@ grub_cmd_source (grub_command_t cmd, int argc, char **args)
+ {
+   int new_env, extractor;
+ 
++  grub_file_t file = 0;
++
+   if (argc != 1)
+     return grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
+ 
++  file = grub_file_open (args[0], GRUB_FILE_TYPE_CONFIG);
++
++  // gooroom grub
++  if (! file)
++    {
++      grub_verified_boot_fail();
++      return grub_error (GRUB_ERR_FILE_READ_ERROR, N_("file open failed"));
++    }
++  else
++    {
++      grub_file_close (file);
++    }
++
+   extractor = (cmd->name[0] == 'e');
+   new_env = (cmd->name[extractor ? sizeof ("extract_entries_") - 1 : 0] == 'c');
+ 
+diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
+index 532e4e512..c730825ae 100644
+--- a/grub-core/loader/i386/efi/linux.c
++++ b/grub-core/loader/i386/efi/linux.c
+@@ -195,8 +195,14 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   file = grub_file_open (argv[0], GRUB_FILE_TYPE_LINUX_KERNEL);
++  // gooroom grub
++//  if (! file)
++//    goto fail;
+   if (! file)
+-    goto fail;
++    {
++      grub_verified_boot_fail();
++      goto fail;
++    }
+ 
+   filelen = grub_file_size (file);
+ 
+@@ -214,12 +220,20 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+       goto fail;
+     }
+ 
++  // gooroom grub
++/*
+   if (! grub_linuxefi_secure_validate (kernel, filelen))
+     {
+       grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
+       grub_free (kernel);
+       goto fail;
+     }
++*/
++  if (grub_efi_get_secureboot () != GRUB_EFI_SECUREBOOT_MODE_ENABLED)
++    {
++      grub_verified_boot_config_error();
++      goto fail;
++    }
+ 
+   grub_file_seek (file, 0);
+ 
+diff --git a/grub-core/loader/linux.c b/grub-core/loader/linux.c
+index 3fe390f17..81d405b0f 100644
+--- a/grub-core/loader/linux.c
++++ b/grub-core/loader/linux.c
+@@ -6,6 +6,11 @@
+ #include <grub/mm.h>
+ #include <grub/safemath.h>
+ 
++#include <grub/video.h>
++#include <grub/gfxterm.h>
++#include <grub/bitmap.h>
++#include <grub/bitmap_scale.h>
++
+ struct newc_head
+ {
+   char magic[6];
+@@ -218,6 +223,8 @@ grub_initrd_init (int argc, char *argv[],
+       if (!initrd_ctx->components[i].file)
+ 	{
+ 	  grub_initrd_close (initrd_ctx);
++          // gooroom grub
++          grub_verified_boot_fail();
+ 	  return grub_errno;
+ 	}
+       initrd_ctx->nfiles++;
+@@ -239,7 +246,7 @@ grub_initrd_init (int argc, char *argv[],
+       free_dir (root);
+       root = 0;
+     }
+-  
++
+   return GRUB_ERR_NONE;
+ 
+  overflow:
+@@ -333,3 +340,93 @@ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+   root = 0;
+   return GRUB_ERR_NONE;
+ }
++
++// gooroom grub
++void
++grub_verified_boot_fail (void)
++{
++  grub_cls();
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_fail.png");
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++  grub_getkey ();
++
++  grub_reboot ();
++}
++
++void
++grub_verified_boot_config_error (void)
++{
++  grub_cls();
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++  grub_gfxterm_warning_image("(memdisk)/themes/warningimages/verified_boot_config_error.png");
++  grub_printf_ (N_(" "));
++  grub_refresh ();
++
++  grub_getkey ();
++
++  grub_reboot ();
++}
++
++grub_err_t
++grub_gfxterm_warning_image (const char *filename)
++{
++	/* Check that we have video adapter active.  */
++	if (grub_video_get_info(NULL) != GRUB_ERR_NONE)
++		return grub_errno;
++
++	/* Destroy existing background bitmap if loaded.  */
++	if (grub_gfxterm_background.bitmap)
++	{
++		grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
++		grub_gfxterm_background.bitmap = 0;
++		grub_gfxterm_background.blend_text_bg = 0;
++
++		/* Mark whole screen as dirty.  */
++		grub_gfxterm_schedule_repaint ();
++	}
++
++	/* Try to load new one.  */
++	grub_video_bitmap_load (&grub_gfxterm_background.bitmap, filename);
++	if (grub_errno != GRUB_ERR_NONE)
++		return grub_errno;
++
++	unsigned int width, height;
++	grub_gfxterm_get_dimensions (&width, &height);
++	if (width != grub_video_bitmap_get_width (grub_gfxterm_background.bitmap)
++	|| height != grub_video_bitmap_get_height (grub_gfxterm_background.bitmap))
++	{
++		struct grub_video_bitmap *scaled_bitmap;
++
++		grub_video_bitmap_create_scaled (&scaled_bitmap,
++						  width,
++						  height,
++						  grub_gfxterm_background.bitmap,
++						  GRUB_VIDEO_BITMAP_SCALE_METHOD_BEST);
++		if (grub_errno == GRUB_ERR_NONE)
++		{
++			/* Replace the original bitmap with the scaled one.  */
++			grub_video_bitmap_destroy (grub_gfxterm_background.bitmap);
++			grub_gfxterm_background.bitmap = scaled_bitmap;
++		}
++	}
++
++	/* If bitmap was loaded correctly, display it.  */
++	if (grub_gfxterm_background.bitmap)
++	{
++		grub_gfxterm_background.blend_text_bg = 1;
++
++		/* Mark whole screen as dirty.  */
++		grub_gfxterm_schedule_repaint ();
++	}
++
++	/* All was ok.  */
++	grub_errno = GRUB_ERR_NONE;
++	return grub_errno;
++}
+diff --git a/include/grub/linux.h b/include/grub/linux.h
+index 594a3f307..fcc796841 100644
+--- a/include/grub/linux.h
++++ b/include/grub/linux.h
+@@ -22,3 +22,13 @@ grub_initrd_close (struct grub_linux_initrd_context *initrd_ctx);
+ grub_err_t
+ grub_initrd_load (struct grub_linux_initrd_context *initrd_ctx,
+ 		  char *argv[], void *target);
++
++// gooroom grub
++grub_err_t
++EXPORT_FUNC(grub_gfxterm_warning_image) (const char *filename);
++
++void
++EXPORT_FUNC(grub_verified_boot_fail) (void);
++
++void
++EXPORT_FUNC(grub_verified_boot_config_error) (void);
+-- 
+2.30.2
+

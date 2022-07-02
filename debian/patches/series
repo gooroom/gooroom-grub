@@ -90,3 +90,14 @@ minilzo-2.10.patch
 0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch
 0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
 0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
+
+# Gooroom Patchset
+gooroom-0001-Add-embedded.cfg-to-support-stand-alone-mode.patch
+gooroom-0002-Change-GRUB-title-from-GNU-GRUB-to-Gooroom-GRUB-and-.patch
+gooroom-0003-Modify-embedded.cfg-to-use-partition-label.patch
+#gooroom-0004-Add-background-and-warning-images.patch
+gooroom-0005-Move-GRM_GRUB_VERSION-from-config.h-to-main.c.patch
+gooroom-0006-Modify-embedded.cfg-to-be-able-to-print-warning-imag.patch
+gooroom-0007-Add-new-function-that-output-secure-boot-error-scree.patch
+gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
+gooroom-0100-supports-python3.patch
