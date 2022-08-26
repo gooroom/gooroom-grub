@@ -55,8 +55,9 @@ BUILD_PACKAGES := $(strip $(shell dh_listpackages))
 # REAL_PACKAGES build an actual grub variant (and therefore have both configure
 # and build stages). EXTRA_PACKAGES do not build grub but may depend on a
 # REAL_PACKAGE (and therefore only have a build stage)
-REAL_PACKAGES = gooroom-grub-common gooroom-grub-efi-amd64
+REAL_PACKAGES = gooroom-grub-common grub-pc gooroom-grub-efi-amd64
 #REAL_PACKAGES = gooroom-grub-efi-amd64
+#EXTRA_PACKAGES = grub-rescue-pc
 
 ifneq (,$(filter i386 amd64,$(DEB_HOST_ARCH_CPU)))
 COMMON_PLATFORM := pc
@@ -111,18 +112,12 @@ DEFAULT_HIDDEN_TIMEOUT_BOOL := false
 endif
 
 # Secure Boot
-debian/stamps/build-grub-efi-ia32 install/grub-efi-ia32: export SB_PLATFORM := i386-efi
-debian/stamps/build-grub-efi-ia32 install/grub-efi-ia32: export SB_EFI_NAME := ia32
-debian/stamps/build-grub-efi-amd64 install/grub-efi-amd64: export SB_PLATFORM := x86_64-efi
-debian/stamps/build-grub-efi-amd64 install/grub-efi-amd64: export SB_EFI_NAME := x64
-debian/stamps/build-grub-efi-arm64 install/grub-efi-arm64: export SB_PLATFORM := arm64-efi
-debian/stamps/build-grub-efi-arm64 install/grub-efi-arm64: export SB_EFI_NAME := aa64
+debian/stamps/build-goroom-grub-efi-amd64 install/gooroom-grub-efi-amd64: export SB_PLATFORM := x86_64-efi
+debian/stamps/build-goroom-grub-efi-amd64 install/gooroom-grub-efi-amd64: export SB_EFI_NAME := x64
 SB_PACKAGE :=
 ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
 ifeq ($(DEB_HOST_ARCH),amd64)
-SB_PACKAGE := gooroom-grub-efi-amd64
-SB_PLATFORM := x86_64-efi
-SB_EFI_NAME := x64
+SB_PACKAGE := grub-efi-amd64
 endif
 ifeq ($(DEB_HOST_ARCH),arm64)
 SB_PACKAGE := grub-efi-arm64
@@ -133,7 +128,10 @@ endif
 # rebuild grub, need a programmatic way to get the vendor, as it's used by build-efi-images
 # to create the monolithic Grub image and thus is needed to create the partitions on the EFI
 # media. Add it to the control file user metadata: XB-Efi-Vendor: $vendor
-SB_EFI_VENDOR ?= $(shell dpkg-vendor --query vendor | tr '[:upper:]' '[:lower:]')
+SB_EFI_VENDOR := gooroom
+SB_PACKAGE := gooroom-grub-efi-amd64
+SB_PLATFORM := x86_64-efi
+SB_EFI_NAME := x64
 
 %:
 	dh $@ --with=bash_completion
@@ -145,8 +143,7 @@ override_dh_auto_build: $(patsubst %,build/%,$(BUILD_PACKAGES))
 override_dh_auto_install: $(patsubst %,install/%,$(BUILD_PACKAGES))
 
 $(patsubst %,configure/%,$(REAL_PACKAGES)) :: configure/% : debian/stamps/configure-%
-$(patsubst %,build/%,$(REAL_PACKAGES)) :: build/% : debian/stamps/build-%
-#$(patsubst %,build/%,$(REAL_PACKAGES) $(EXTRA_PACKAGES)) :: build/% : debian/stamps/build-%
+$(patsubst %,build/%,$(REAL_PACKAGES) $(EXTRA_PACKAGES)) :: build/% : debian/stamps/build-%
 
 debian/stamps/configure-%: package = $(subst debian/stamps/configure-,,$@)
 debian/stamps/configure-%: export DH_OPTIONS = -p$(package) -Bobj/$(package)
@@ -167,8 +164,8 @@ override_dh_autoreconf:
 		cp -a debian/grub-extras/$$extra debian/grub-extras-enabled/; \
 	done
 	env -u DH_OPTIONS GRUB_CONTRIB=$(CURDIR)/debian/grub-extras-enabled \
+		PYTHON=python3 \
 		dh_autoreconf -- ./autogen.sh
-	touch $@
 
 debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMMON_PLATFORM)
 	touch $@
@@ -176,7 +173,7 @@ debian/stamps/configure-gooroom-grub-common: debian/stamps/configure-grub-$(COMM
 debian/stamps/build-gooroom-grub-common: debian/stamps/build-grub-$(COMMON_PLATFORM)
 	touch $@
 
-debian/stamps/configure-grub-pc: debian/stamps/configure-grub-pc
+debian/stamps/configure-grub-pc:
 	mkdir -p debian/stamps obj/$(package)
 	#dh_auto_configure -- $(confflags) --with-platform=$(subst grub-,,$(package))
 	dh_auto_configure -- $(confflags) --with-platform=efi
@@ -195,8 +192,19 @@ debian/stamps/configure-gooroom-grub-efi-amd64:
 	dh_auto_configure -- $(confflags) --with-platform=efi --target=amd64-pe --program-prefix=""
 	touch $@
 
-debian/stamps/build-gooroom-grub-efi-amd64 : debian/stamps/build-%: debian/stamps/configure-%
+debian/stamps/build-gooroom-grub-efi-amd64: debian/stamps/build-%: debian/stamps/configure-% debian/stamps/build-grub-$(COMMON_PLATFORM)
 	dh_auto_build
+	grub_dir=`mktemp -d` ; \
+	sed -e "s/@DEB_VERSION@/$(deb_version)/g" \
+		-e "s/@UPSTREAM_VERSION@/$(upstream_version)/g" \
+		<debian/sbat.$(SB_EFI_VENDOR).csv.in \
+		>$${grub_dir}/sbat.$(SB_EFI_VENDOR).csv; \
+	debian/build-efi-images \
+		obj/grub-$(COMMON_PLATFORM)/grub-mkimage \
+		obj/$(package)/grub-core \
+		obj/monolithic/$(package) \
+		$(DEB_HOST_ARCH) $(SB_PLATFORM) $(SB_EFI_NAME) \
+		$${grub_dir}/sbat.$(SB_EFI_VENDOR).csv $(SB_EFI_VENDOR)
 	touch $@
 
 platform_subst = \
@@ -209,7 +217,7 @@ platform_subst = \
 			debian/$(1) >> debian/$(2).$(3); \
 	fi
 
-install/gooroom-grub-efi-amd64:
+install/grub-pc install/gooroom-grub-efi-amd64:
 	set -e ; \
 	if [ "$@" = "install/grub-xen" ] ; then \
 		dh_auto_install -Bobj/grub-xen-i386 --destdir=debian/tmp-$(package); \
@@ -318,21 +326,25 @@ install/gooroom-grub-efi-amd64:
 	# files.
 	mkdir -p debian/tmp-$(package)/usr/share/locale
 
+common_subst = \
+	if [ -e debian/gooroom-grub-common.$(1) ]; then \
+		sed 's/@COMMON_PLATFORM@/$(COMMON_PLATFORM)/g' \
+			debian/gooroom-grub-common.$(1) >> debian/gooroom-grub-common.$(2).new; \
+	fi
+
 install/gooroom-grub-common:
 	set -e ; for i in $(AUTOGEN_DEB_FILES) ; do \
-		if [ -e debian/gooroom-grub-common.$$i.in ] ; then \
-			cat debian/gooroom-grub-common.$$i.in \
-				> debian/gooroom-grub-common.$$i ; \
-		fi ; \
-		if [ -e debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_CPU).in ] ; then \
-			cat debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_CPU).in \
-				>> debian/gooroom-grub-common.$$i ; \
-		fi ; \
-		if [ -e debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_OS).in ] ; then \
-			cat debian/gooroom-grub-common.$$i.$(DEB_HOST_ARCH_OS).in \
-				>> debian/gooroom-grub-common.$$i ; \
-		fi ; \
+		> debian/gooroom-grub-common.$$i.new; \
+		$(call common_subst,$$i.in,$$i); \
+		$(call common_subst,$$i.$(DEB_HOST_ARCH_CPU).in,$$i); \
+		$(call common_subst,$$i.$(DEB_HOST_ARCH_OS).in,$$i); \
+		if [ -s debian/gooroom-grub-common.$$i.new ] ; then \
+			mv debian/gooroom-grub-common.$$i.new debian/gooroom-grub-common.$$i; \
+		else \
+			rm -f debian/gooroom-grub-common.$$i.new; \
+		fi; \
 	done
+
 ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
 	install -D -m 0755 debian/gooroom-grub-common.pm-sleep \
 		$(CURDIR)/debian/$(package)/etc/pm/sleep.d/10_grub-common
@@ -340,7 +352,7 @@ endif
 
 #NON_PLATFORM_PACKAGES = $(filter grub2 grub-linuxbios grub-efi grub-rescue-pc ,$(BUILD_PACKAGES))
 COMMON_PLATFORM_PACKAGES = $(filter gooroom-grub-common gooroom-grub2-common ,$(BUILD_PACKAGES))
-PLATFORM_PACKAGES = $(filter grub-pc gooroom-grub-efi-amd64 ,$(BUILD_PACKAGES))
+PLATFORM_PACKAGES = $(filter gooroom-grub-efi-amd64 ,$(BUILD_PACKAGES))
 
 override_dh_install:
 #ifneq (,$(NON_PLATFORM_PACKAGES))
@@ -355,16 +367,6 @@ ifneq (,$(PLATFORM_PACKAGES))
 		dh_install -p$$package-bin --sourcedir=debian/tmp-$$package; \
 		dh_install -p$$package-dbg --sourcedir=debian/tmp-$$package; \
 	done
-endif
-ifneq (,$(filter gooroom-grub2-common,$(BUILD_PACKAGES)))
-	sed -i \
-		-e "s/@DEFAULT_CMDLINE@/$(DEFAULT_CMDLINE)/g" \
-		-e "s/@DEFAULT_TIMEOUT@/$(DEFAULT_TIMEOUT)/g" \
-		debian/gooroom-grub2-common/usr/share/grub/default/grub
-ifneq (,$(DEFAULT_HIDDEN_TIMEOUT))
-	perl -pi -e 's/^GRUB_TIMEOUT=.*/GRUB_HIDDEN_TIMEOUT=0\nGRUB_HIDDEN_TIMEOUT_QUIET=true\n$$&/' \
-		debian/gooroom-grub2-common/usr/share/grub/default/grub
-endif
 endif
 #ifeq (yes,$(shell dpkg-vendor --derives-from Ubuntu && echo yes))
 #ifneq (,$(filter grub-pc,$(BUILD_PACKAGES)))
