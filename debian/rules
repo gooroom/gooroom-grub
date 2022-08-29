@@ -1,7 +1,8 @@
 #!/usr/bin/make -f
 SHELL		:= bash
 
-deb_version		:= $(shell dpkg-parsechangelog | sed -ne "s/^Version: \(.*\)/\1/p")
+grm_version		:= $(shell dpkg-parsechangelog | sed -ne "s/^Version: \(.*\)/\1/p")
+deb_version		:= $(shell dpkg-parsechangelog | sed -ne "s/^Version: \(.*\)/\1/p" | sed -ne "s/+grm\(.*\)//p")
 upstream_version	:= $(shell echo $(deb_version) | sed -e "s/-[^-]*$$//")
 
 package		:= gooroom-grub
@@ -42,7 +43,7 @@ endif
 CC := gcc-10
 
 confflags = \
-	PACKAGE_VERSION="$(deb_version)" PACKAGE_STRING="GRUB $(deb_version)" \
+	PACKAGE_VERSION="$(grm_version)" PACKAGE_STRING="GRUB $(grm_version)" \
 	CC=$(CC) TARGET_CC=$(CC) \
 	--libdir=\$${prefix}/lib --libexecdir=\$${prefix}/lib \
 	--enable-grub-mkfont \
@@ -195,7 +196,8 @@ debian/stamps/configure-gooroom-grub-efi-amd64:
 debian/stamps/build-gooroom-grub-efi-amd64: debian/stamps/build-%: debian/stamps/configure-% debian/stamps/build-grub-$(COMMON_PLATFORM)
 	dh_auto_build
 	grub_dir=`mktemp -d` ; \
-	sed -e "s/@DEB_VERSION@/$(deb_version)/g" \
+	sed -e "s/@GRM_VERSION@/$(grm_version)/g" \
+		-e "s/@DEB_VERSION@/$(deb_version)/g" \
 		-e "s/@UPSTREAM_VERSION@/$(upstream_version)/g" \
 		<debian/sbat.$(SB_EFI_VENDOR).csv.in \
 		>$${grub_dir}/sbat.$(SB_EFI_VENDOR).csv; \
@@ -405,12 +407,12 @@ endif
 override_dh_gencontrol:
 	dh_gencontrol -- -Vlegacy-doc-br="$(LEGACY_DOC_BR)" -V"efi:Vendor=$(SB_EFI_VENDOR)" $(substvars)
 
-TARNAME := gooroom_grub_$(deb_version)_$(DEB_HOST_ARCH).tar.gz
+TARNAME := gooroom_grub_$(grm_version)_$(DEB_HOST_ARCH).tar.gz
 
 override_dh_builddeb:
 	dh_builddeb
 ifneq (,$(SB_PACKAGE))
-	echo $(deb_version) > obj/monolithic/$(SB_PACKAGE)/version
+	echo $(grm_version) > obj/monolithic/$(SB_PACKAGE)/version
 	tar -c -f ../$(TARNAME) -a -C obj/monolithic/$(SB_PACKAGE) -v .
 	dpkg-distaddfile $(TARNAME) raw-uefi -
 endif
