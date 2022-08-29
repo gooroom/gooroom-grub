@@ -1,3 +1,10 @@
+gooroom-grub (2.06-3+grm3u3) gooroom-3.0; urgency=medium
+
+  [ jongkyung.woo ]
+  * [fc75d918] Added GRM_VERSION in sbat.gooroom.csv.in
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Mon, 29 Aug 2022 19:54:52 +0900
+
 gooroom-grub (2.06-3+grm3u2) gooroom-3.0; urgency=medium
 
   [ jongkyung.woo ]
