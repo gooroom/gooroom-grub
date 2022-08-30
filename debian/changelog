@@ -1,3 +1,10 @@
+gooroom-grub (2.06-3+grm3u5) gooroom-3.0; urgency=medium
+
+  [ jongkyung.woo ]
+  * [34db935b] Added gooroom-0008-Disable-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 30 Aug 2022 18:53:06 +0900
+
 gooroom-grub (2.06-3+grm3u4) gooroom-3.0; urgency=medium
 
   [ jongkyung.woo ]
