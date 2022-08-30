@@ -1,0 +1,28 @@
+diff --git a/grub-core/loader/i386/efi/linux.c b/grub-core/loader/i386/efi/linux.c
+index c730825ae..b82a47c58 100644
+--- a/grub-core/loader/i386/efi/linux.c
++++ b/grub-core/loader/i386/efi/linux.c
+@@ -221,17 +221,16 @@ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+     }
+ 
+   // gooroom grub
+-/*
+-  if (! grub_linuxefi_secure_validate (kernel, filelen))
++  if (grub_efi_get_secureboot () != GRUB_EFI_SECUREBOOT_MODE_ENABLED)
+     {
+-      grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
+-      grub_free (kernel);
++      grub_verified_boot_config_error();
+       goto fail;
+     }
+-*/
+-  if (grub_efi_get_secureboot () != GRUB_EFI_SECUREBOOT_MODE_ENABLED)
++    
++  if (! grub_linuxefi_secure_validate (kernel, filelen))
+     {
+-      grub_verified_boot_config_error();
++      grub_error (GRUB_ERR_ACCESS_DENIED, N_("%s has invalid signature"), argv[0]);
++      grub_free (kernel);
+       goto fail;
+     }
+ 
