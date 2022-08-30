@@ -99,4 +99,3 @@ gooroom-0003-Modify-embedded.cfg-to-use-partition-label.patch
 gooroom-0005-Move-GRM_GRUB_VERSION-from-config.h-to-main.c.patch
 gooroom-0006-Modify-embedded.cfg-to-be-able-to-print-warning-imag.patch
 gooroom-0007-Add-new-function-that-output-secure-boot-error-scree.patch
-gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
