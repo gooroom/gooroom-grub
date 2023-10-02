@@ -1,4 +1,4 @@
-grub2 (2.06-3~deb11u6) bullseye-security; urgency=medium
+grub2 (2.06-13+deb12u1) bookworm-security; urgency=medium
 
   [ Mate Kukri ]
   * SECURITY UPDATE: Crafted file system images can cause out-of-bounds write
@@ -33,45 +33,164 @@ grub2 (2.06-3~deb11u6) bullseye-security; urgency=medium
 
  -- Julian Andres Klode <jak@debian.org>  Mon, 02 Oct 2023 16:11:34 +0200
 
-grub2 (2.06-3~deb11u5) bullseye; urgency=high
+grub2 (2.06-13) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * When *also* installing to the removable media path, include the
+    relevant mokmanager binary. Closes: #1034409
+
+  [ General Chaos ]
+  * Allow initrd to contain spaces. Closes: #838177, #820838.
+
+  [ Translators ]
+  * Update lots of translations of debconf templates, thanks to the
+    following:
+    + Welsh (Dafydd Tomos)
+    + German (Helge Kreutzmann). Closes: #1034850
+    + Croatian (Tomislav Krznar)
+    + Greek (Emmanuel Galatoulas)
+    + Esperanto (Felipe Castro)
+    + French (Baptiste Jammet). Closes: #1035761
+    + Italian (Luca Monducci). Closes: #1034825
+    + Kazakh (Baurzhan Muftakhidinov)
+    + Korean (Changwoo Ryu). Closes: #1034868
+    + Latvian (Rudolfs Mazurs)
+    + Dutch (Frans Spiesschaert). Closes: #1035399
+    + Norwegian Bokmål (Petter Reinholdtsen, Sverre Vaabenoe)
+    + Brazilian Portuguese (Adriano Rafael Gomes). Closes: #1035905
+    + Romanian (Remus-Gabriel Chelu)
+    + Russian (Yuri Kozlov). Closes: #1035294
+    + Turkish (Atila KOÇ). Closes: #1035846
+    + Swedish (Luna Jernberg)
+
+ -- Steve McIntyre <93sam@debian.org>  Sun, 23 Apr 2023 20:55:54 +0100
+
+grub2 (2.06-12) unstable; urgency=medium
+
+  * Fix up arm64 SB patch to fix build failure on 32-bit arm systems
+
+ -- Steve McIntyre <93sam@debian.org>  Fri, 21 Apr 2023 13:30:26 +0100
+
+grub2 (2.06-11) unstable; urgency=medium
+
+  * And try again... :-/
+
+ -- Steve McIntyre <93sam@debian.org>  Fri, 21 Apr 2023 01:50:26 +0100
+
+grub2 (2.06-10) unstable; urgency=medium
+
+  * Fix 32-bit build with the osdep/devmapper/getroot patches.
+
+ -- Steve McIntyre <93sam@debian.org>  Fri, 21 Apr 2023 01:14:13 +0100
+
+grub2 (2.06-9) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * postinst: make config_item() more robust
+  * Add debconf logic for GRUB_DISABLE_OS_PROBER to make it easier to
+    control things here. Particularly useful for the installer.
+    Closes: #1031594, #1012865, #1025698.
+  * Add luks2 to the signed grub efi images. Closes: #1001248
+
+  [ Ben Hutchings ]
+  * Fix probing of LUKS2 devices (Closes: #1028301):
+    - disk/cryptodisk: When cheatmounting, use the sector info of the cheat
+      device
+    - osdep/devmapper/getroot: Have devmapper recognize LUKS2
+    - osdep/devmapper/getroot: Set up cheated LUKS2 cryptodisk mount from DM
+      parameters
+
+  [ Emanuele Rocca ]
+  * Add arm64-handover-to-kernel-if-sb-enabled.patch to fix Secure Boot on
+    arm64 (Closes: #1033657)
+
+  [ Mattia Rizzolo ]
+  * Don't warn about os-prober if it's not installed. Closes: #1020769
+
+ -- Steve McIntyre <93sam@debian.org>  Thu, 20 Apr 2023 20:35:11 +0100
+
+grub2 (2.06-8.1) experimental; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix an issue where a logical volume rename would lead grub to fail to
+    boot (Closes: #987008)
+
+ -- Antoine Beaupré <anarcat@debian.org>  Sat, 25 Feb 2023 15:16:55 -0500
+
+grub2 (2.06-8) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * Fix an issue in an f2fs security fix which caused mount
+    failures. Closes: #1021846. Thanks to программист некто for helping
+    to debug the problem!
+  * Switch build-deps from gcc-10 to gcc-12. Closes: #1022184
+  * Include upstream patch to enable EFI zboot support on arm64.
+    Closes: #1026092
+  * grub-mkconfig: Restore umask for the grub.cfg. CVE-2021-3981
+    Closes: #1001414
+  * postinst: be more verbose when using grub-install to install onto
+    devices.
+  * /etc/default/grub: Fix comment about text-mode console.
+    Fixes #845683
+  * grub-install: Don't install the shim fallback program when called
+    with --removable. Closes: #1016737
+  * grub-install: Don't use our grub CD EFI image for --removable.
+    Closes: #1026915. Thanks to Pascal Hambourg for the patch.
+  * Ignore some new ext2 flags to stay compatible with latest mke2fs
+    defaults. Closes: #1030846
+
+  [ Colin Watson ]
+  * Remove myself from Uploaders.
+
+ -- Steve McIntyre <93sam@debian.org>  Thu, 09 Feb 2023 01:09:00 +0000
+
+grub2 (2.06-7) unstable; urgency=medium
+
+  [ Steve McIntyre ]
+  * Fix bug in core file code so errors are handled better. This makes
+    the fallback font-handling patch work properly.
+    Closes: #1025469, #1025477.
+
+ -- Steve McIntyre <93sam@debian.org>  Tue, 06 Dec 2022 03:14:53 +0000
+
+grub2 (2.06-6) unstable; urgency=medium
 
   [ Steve McIntyre ]
   * Include fonts in the memdisk build for EFI images.
+    Closes: #1024395, #1025352, #1024447
   * Bump Debian SBAT level to 4
     - Due to a mistake in the buster upload (2.06-3~deb10u2) that left
       the CVE-2022-2601 bugs in place, we need to bump SBAT for all of
       the Debian GRUB binaries. :-(
-  * Fix bug in core file code so errors are handled better. This makes
-    the above font-handling patch work!
+  * Switch away from git-dpm
 
- -- Steve McIntyre <93sam@debian.org>  Thu, 08 Nov 2022 17:29:17 +0000
+ -- Steve McIntyre <93sam@debian.org>  Sun, 04 Dec 2022 20:42:23 +0000
 
-grub2 (2.06-3~deb11u4) bullseye-security; urgency=high
+grub2 (2.06-5) unstable; urgency=high
 
   [ Steve McIntyre ]
+  * Explicitly unset SOURCE_DATE_EPOCH before running fs tests
   * Pull in upstream patches to harden font and image handling -
     CVE-2022-2601, CVE-2022-3775.
-  * Bump SBAT level to 3 for grub-efi packages.
+  * Bump SBAT level to 3 for grub-efi packages
 
- -- Steve McIntyre <93sam@debian.org>  Sun, 13 Nov 2022 00:53:50 +0000
+ -- Steve McIntyre <93sam@debian.org>  Sun, 13 Nov 2022 00:33:35 +0000
 
-grub2 (2.06-3~deb11u2) bullseye; urgency=high
+grub2 (2.06-4) unstable; urgency=high
 
   [ Steve McIntyre ]
+  * Updated the 2.06-3 changelog to mention closure of CVE-2022-28736
+  * Add a commented-out GRUB_DISABLE_OS_PROBER section to
+    /etc/default/grub to make it easier for users to turn os-prober
+    back on if they want it. Closes: #1013797, #1009336
+  * Add smbios to the signed grub efi images. Closes: #1008106
+  * Add serial to the signed grub efi images. Closes: #1013962
+  * grub2-common: Remove dependency on install-info, it's apparently
+    not needed. Closes: #1013698
   * Don't strip Xen binaries so they work again. Closes: #1017944.
     Thanks to Valentin Kleibel for the patch.
 
- -- Steve McIntyre <93sam@debian.org>  Wed, 14 Sep 2022 23:40:50 +0100
-
-grub2 (2.06-3~deb11u1) bullseye; urgency=medium
-
-  [ Steve McIntyre ]
-  * Rebuild for bullseye.
-  * Updated the 2.06-3 changelog to mention closure of CVE-2022-28736
-  * Re-enable os-prober by default, don't make that change in a stable
-    update.
-
- -- Steve McIntyre <93sam@debian.org>  Mon, 01 Aug 2022 20:26:34 +0100
+ -- Steve McIntyre <93sam@debian.org>  Wed, 14 Sep 2022 22:35:49 +0100
 
 grub2 (2.06-3) unstable; urgency=medium
 

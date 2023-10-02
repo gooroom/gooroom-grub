@@ -2,7 +2,7 @@ Source: grub2
 Section: admin
 Priority: optional
 Maintainer: GRUB Maintainers <pkg-grub-devel@alioth-lists.debian.net>
-Uploaders: Felix Zielcke <fzielcke@z-51.de>, Jordi Mallach <jordi@debian.org>, Colin Watson <cjwatson@debian.org>, Steve McIntyre <93sam@debian.org>, Julian Andres Klode <jak@debian.org>
+Uploaders: Felix Zielcke <fzielcke@z-51.de>, Jordi Mallach <jordi@debian.org>, Steve McIntyre <93sam@debian.org>, Julian Andres Klode <jak@debian.org>
 Build-Depends: debhelper-compat (= 13),
  patchutils,
  python3,
@@ -11,8 +11,8 @@ Build-Depends: debhelper-compat (= 13),
  po-debconf,
  help2man,
  texinfo,
- gcc-10,
- gcc-10-multilib [i386 kopensolaris-i386 any-amd64 any-ppc64 any-sparc],
+ gcc-12,
+ gcc-12-multilib [i386 kopensolaris-i386 any-amd64 any-ppc64 any-sparc],
  xfonts-unifont,
  libfreetype6-dev,
  gettext,
@@ -92,7 +92,7 @@ Package: grub2-common
 # only built when there is a real platform (e.g. grub-install), and the rest
 # of the package is not very useful in a utilities-only build.
 Architecture: any-i386 any-amd64 any-powerpc any-ppc64 any-ppc64el any-sparc any-sparc64 any-mipsel any-ia64 any-arm any-arm64
-Depends: grub-common (= ${binary:Version}), dpkg (>= 1.15.4) | install-info, ${shlibs:Depends}, ${misc:Depends}
+Depends: grub-common (= ${binary:Version}), dpkg (>= 1.15.4), ${shlibs:Depends}, ${misc:Depends}
 Replaces: grub, grub-legacy, ${legacy-doc-br}, grub-common (<< 1.99-1), grub-pc (<< 2.02+dfsg1-7), grub-coreboot (<< 2.02+dfsg1-7), grub-efi-ia32 (<< 2.02+dfsg1-7), grub-efi-amd64 (<< 2.02+dfsg1-7), grub-efi-ia64 (<< 2.02+dfsg1-7), grub-efi-arm (<< 2.02+dfsg1-7), grub-efi-arm64 (<< 2.02+dfsg1-7), grub-ieee1275 (<< 2.02+dfsg1-7), grub-uboot (<< 2.02+dfsg1-7), grub-xen (<< 2.02+dfsg1-7), grub-yeeloong (<< 2.02+dfsg1-7), grub-cloud-amd64 (<< 0.0.4)
 Conflicts: grub-legacy
 Breaks: grub (<< 0.97-54), ${legacy-doc-br}, shim (<< 0.9+1474479173.6c180c6-0ubuntu1~), grub-pc (<< 2.02+dfsg1-7), grub-coreboot (<< 2.02+dfsg1-7), grub-efi-ia32 (<< 2.02+dfsg1-7), grub-efi-amd64 (<< 2.02+dfsg1-7), grub-efi-ia64 (<< 2.02+dfsg1-7), grub-efi-arm (<< 2.02+dfsg1-7), grub-efi-arm64 (<< 2.02+dfsg1-7), grub-ieee1275 (<< 2.02+dfsg1-7), grub-uboot (<< 2.02+dfsg1-7), grub-xen (<< 2.02+dfsg1-7), grub-yeeloong (<< 2.02+dfsg1-7), grub-cloud-amd64 (<< 0.0.4)

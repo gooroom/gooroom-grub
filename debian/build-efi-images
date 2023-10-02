@@ -164,7 +164,9 @@ CD_MODULES="
 	search_fs_uuid
 	search_fs_file
 	search_label
+	serial
 	sleep
+        smbios
 	squash4
 	test
 	true
@@ -212,6 +214,7 @@ GRUB_MODULES="$CD_MODULES
 	gcry_twofish
 	gcry_whirlpool
 	luks
+	luks2
 	lvm
 	mdraid09
 	mdraid1x
