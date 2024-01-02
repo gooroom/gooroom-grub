@@ -90,6 +90,29 @@ minilzo-2.10.patch
 0090-fs-btrfs-Fix-several-fuzz-issues-with-invalid-dir-it.patch
 0091-fs-btrfs-Fix-more-ASAN-and-SEGV-issues-found-with-fu.patch
 0092-fs-btrfs-Fix-more-fuzz-issues-related-to-chunks.patch
+reenable_os-prober.patch
+cve_2022_2601/0001-video-readers-Add-artificial-limit-to-image-dimensio.patch
+cve_2022_2601/0002-font-Reject-glyphs-exceeds-font-max_glyph_width-or-f.patch
+cve_2022_2601/0003-font-Fix-size-overflow-in-grub_font_get_glyph_intern.patch
+cve_2022_2601/0004-font-Fix-several-integer-overflows-in-grub_font_cons.patch
+cve_2022_2601/0005-font-Remove-grub_font_dup_glyph.patch
+cve_2022_2601/0006-font-Fix-integer-overflow-in-ensure_comb_space.patch
+cve_2022_2601/0007-font-Fix-integer-overflow-in-BMP-index.patch
+cve_2022_2601/0008-font-Fix-integer-underflow-in-binary-search-of-char-.patch
+cve_2022_2601/0009-kern-efi-sb-Enforce-verification-of-font-files.patch
+cve_2022_2601/0010-fbutil-Fix-integer-overflow.patch
+cve_2022_2601/0011-font-Fix-an-integer-underflow-in-blit_comb.patch
+cve_2022_2601/0012-font-Harden-grub_font_blit_glyph-and-grub_font_blit_.patch
+cve_2022_2601/0013-font-Assign-null_font-to-glyphs-in-ascii_font_glyph.patch
+cve_2022_2601/0014-normal-charset-Fix-an-integer-overflow-in-grub_unico.patch
+font-Try-opening-fonts-from-the-bundled-memdisk.patch
+kern-file-Fix-error-handling-in-grub_file_open.patch
+ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-write-when-parsing-the-ATTRIBUTE_LIST-.patch
+ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-reading-data-from-the-reside.patch
+ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-directory-entries-fr.patch
+ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-bitmaps-for-index-at.patch
+ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-a-volume-label.patch
+ntfs-cve-fixes/fs-ntfs-Make-code-more-readable.patch
 
 # Gooroom Patchset
 gooroom-0001-Add-embedded.cfg-to-support-stand-alone-mode.patch

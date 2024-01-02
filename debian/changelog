@@ -1,3 +1,84 @@
+gooroom-grub (2.06-3~deb11u6+grm3u1) gooroom-3.0; urgency=medium
+
+  * Rebased on gooroom-3.0
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Tue, 02 Jan 2024 11:03:48 +0900
+
+grub2 (2.06-3~deb11u6) bullseye-security; urgency=medium
+
+  [ Mate Kukri ]
+  * SECURITY UPDATE: Crafted file system images can cause out-of-bounds write
+    and may leak sensitive information into the GRUB pager.
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-a-volume-
+      label.patch:
+      fs/ntfs: Fix an OOB read when parsing a volume label
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-bs-for-
+      index-at.patch:
+      fs/ntfs: Fix an OOB read when parsing bitmaps for index attributes
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-parsing-dory-
+      entries-fr.patch:
+      fs/ntfs: Fix an OOB read when parsing directory entries from resident and
+      non-resident index attributes
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-read-when-reading-data-fhe-
+      reside.patch:
+      fs/ntfs: Fix an OOB read when reading data from the resident $DATA +
+      attribute
+    - CVE-2023-4693
+  * SECURITY UPDATE: Crafted file system images can cause heap-based buffer
+    overflow and may allow arbitrary code execution and secure boot bypass.
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Fix-an-OOB-write-when-parsing-the-
+      ATTRIBUTE_LIST-.patch:
+      fs/ntfs: Fix an OOB write when parsing the $ATTRIBUTE_LIST attribute for
+      the $MFT file
+    - d/patches/ntfs-cve-fixes/fs-ntfs-Make-code-more-readable.patch
+      fs/ntfs: Make code more readable
+    - CVE-2023-4692
+
+  [ Julian Andres Klode ]
+  * Bump SBAT to grub,4
+
+ -- Julian Andres Klode <jak@debian.org>  Mon, 02 Oct 2023 16:11:34 +0200
+
+grub2 (2.06-3~deb11u5) bullseye; urgency=high
+
+  [ Steve McIntyre ]
+  * Include fonts in the memdisk build for EFI images.
+  * Bump Debian SBAT level to 4
+    - Due to a mistake in the buster upload (2.06-3~deb10u2) that left
+      the CVE-2022-2601 bugs in place, we need to bump SBAT for all of
+      the Debian GRUB binaries. :-(
+  * Fix bug in core file code so errors are handled better. This makes
+    the above font-handling patch work!
+
+ -- Steve McIntyre <93sam@debian.org>  Thu, 08 Nov 2022 17:29:17 +0000
+
+grub2 (2.06-3~deb11u4) bullseye-security; urgency=high
+
+  [ Steve McIntyre ]
+  * Pull in upstream patches to harden font and image handling -
+    CVE-2022-2601, CVE-2022-3775.
+  * Bump SBAT level to 3 for grub-efi packages.
+
+ -- Steve McIntyre <93sam@debian.org>  Sun, 13 Nov 2022 00:53:50 +0000
+
+grub2 (2.06-3~deb11u2) bullseye; urgency=high
+
+  [ Steve McIntyre ]
+  * Don't strip Xen binaries so they work again. Closes: #1017944.
+    Thanks to Valentin Kleibel for the patch.
+
+ -- Steve McIntyre <93sam@debian.org>  Wed, 14 Sep 2022 23:40:50 +0100
+
+grub2 (2.06-3~deb11u1) bullseye; urgency=medium
+
+  [ Steve McIntyre ]
+  * Rebuild for bullseye.
+  * Updated the 2.06-3 changelog to mention closure of CVE-2022-28736
+  * Re-enable os-prober by default, don't make that change in a stable
+    update.
+
+ -- Steve McIntyre <93sam@debian.org>  Mon, 01 Aug 2022 20:26:34 +0100
+
 gooroom-grub (2.06-3+grm3u5) gooroom-3.0; urgency=medium
 
   [ jongkyung.woo ]
@@ -91,6 +172,7 @@ grub2 (2.06-3) unstable; urgency=medium
       loader/efi/chainloader: Use grub_loader_set_ex
     - 0066-loader-i386-efi-linux-Use-grub_loader_set_ex.patch:
       loader/i386/efi/linux: Use grub_loader_set_ex
+    - CVE-2022-28736
   * Various fixes as a result of fuzzing and static analysis:
     - 0067-kern-file-Do-not-leak-device_name-on-error-in-grub_f.patch:
       kern/file: Do not leak device_name on error in grub_file_open()
