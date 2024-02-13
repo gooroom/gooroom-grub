@@ -1,3 +1,10 @@
+gooroom-grub (2.06-3.1~deb11u6+grm3u2) gooroom-3.0; urgency=medium
+
+  [ jongkyung.woo ]
+  * [f9a05529] Update grub,4 in sbat.gooroom.csv.in
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Tue, 13 Feb 2024 17:30:50 +0900
+
 gooroom-grub (2.06-3.1~deb11u6+grm3u1) gooroom-3.0; urgency=medium
 
   * Rebased on gooroom-3.0
