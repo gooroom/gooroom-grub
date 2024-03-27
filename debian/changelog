@@ -1,3 +1,10 @@
+gooroom-grub (2.06-13+deb12u1+grm4u3) bookworm; urgency=medium
+
+  [ gooroom ]
+  * [5b3dea3e] Added gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
+
+ -- Gooroom Autobuilder <jenkins@gooroom.kr>  Wed, 27 Mar 2024 14:50:50 +0900
+
 gooroom-grub (2.06-13+deb12u1+grm4u2) bookworm; urgency=medium
 
   [ jongkyung.woo ]
