@@ -144,3 +144,12 @@ cve-2025-jan/fs-ext2-Rework-out-of-bounds-read-for-inline-and-external.patch
 cve-2025-jan/fs-xfs-Fix-grub_xfs_iterate_dir-return-value-in-case-of-f.patch
 cve-2025-jan/fs-xfs-Propagate-incorrect-inode-error-from-grub_xfs_read.patch
 cve-2025-jan/fs-xfs-Handle-root-inode-read-failure-in-grub_xfs_mount.patch
+
+# Gooroom Patchset
+gooroom-0001-Add-embedded.cfg-to-support-stand-alone-mode.patch
+gooroom-0002-Change-GRUB-title-to-Gooroom-GRUB-and-add-version.patch
+gooroom-0003-Modify-embedded.cfg-to-use-partition-label.patch
+#gooroom-0004-Add-background-and-warning-images.patch
+gooroom-0006-Modify-embedded.cfg-to-be-able-to-print-warning-imag.patch
+gooroom-0007-Add-new-function-that-output-secure-boot-error-scree.patch
+gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch

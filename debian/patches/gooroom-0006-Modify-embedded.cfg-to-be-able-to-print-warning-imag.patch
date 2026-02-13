@@ -1,0 +1,41 @@
+From c038e0497ce4b915bad80c9c90610ea12201d24f Mon Sep 17 00:00:00 2001
+From: Dave Park <parkparkqw@gmail.com>
+Date: Fri, 24 Jun 2022 16:50:25 +0900
+Subject: [PATCH 6/8] Modify embedded.cfg to be able to print warning image
+
+---
+ grubconf/embedded.cfg | 20 +++++++++++++++++++-
+ 1 file changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/grubconf/embedded.cfg b/grubconf/embedded.cfg
+index 12a5e91e4..2977eadcb 100644
+--- a/grubconf/embedded.cfg
++++ b/grubconf/embedded.cfg
+@@ -1,5 +1,23 @@
+-#search.fs_uuid 163fe221-ab68-4935-8cb4-3a654d98b039 root hd0,gpt2 
+ search --no-floppy --label --set=root GRM_ROOT_VOL
+ 
++function load_video {
++  if [ x$feature_all_video_module = xy ]; then
++    insmod all_video
++  else
++    insmod efi_gop
++    insmod efi_uga
++    insmod ieee1275_fb
++    insmod vbe
++    insmod vga
++    insmod video_bochs
++    insmod video_cirrus
++  fi
++}
++
++set gfxmode=auto
++load_video
++insmod gfxterm
++terminal_output gfxterm
++
+ set prefix=($root)'/boot/grub'
+ configfile $prefix/grub.cfg
+-- 
+2.30.2
+

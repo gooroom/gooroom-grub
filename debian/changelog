@@ -1,3 +1,10 @@
+gooroom-grub (2.12-9+grm5~alpha1) gooroom-5.0; urgency=medium
+
+  [ jongkyung.woo ]
+  * Rebased on gooroom-5.0
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Mon, 09 Feb 2026 14:20:28 +0900
+
 grub2 (2.12-9) unstable; urgency=medium
 
   * Apply patch by Ben Hutchings to not strip .exec or .image files
