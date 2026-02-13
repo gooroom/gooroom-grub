@@ -30,13 +30,13 @@ Build-Depends: debhelper-compat (= 13),
  liblzo2-dev,
  lzop,
  dosfstools [any-i386 any-amd64 any-arm64],
- squashfs-tools [any-i386 any-arm any-amd64 any-arm64 any-ia64 any-loong64 any-riscv64],
+ squashfs-tools [any-i386 any-arm any-amd64 any-arm64 any-ia64 any-riscv64],
  wamerican,
  libparted-dev [any-powerpc any-ppc64 any-ppc64el],
  pkgconf,
  bash-completion,
- libefiboot-dev [i386 amd64 ia64 x32 armel armhf arm64 riscv64 loong64],
- libefivar-dev [i386 amd64 ia64 x32 armel armhf arm64 riscv64 loong64],
+ libefiboot-dev [i386 amd64 ia64 x32 armel armhf arm64 riscv64],
+ libefivar-dev [i386 amd64 ia64 x32 armel armhf arm64 riscv64],
 Build-Conflicts: autoconf2.13, libzfs-dev, libnvpair-dev
 Standards-Version: 3.9.6
 Homepage: https://www.gooroom.kr
