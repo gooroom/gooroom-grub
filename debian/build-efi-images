@@ -58,13 +58,21 @@ workdir="$(mktemp -d build-efi-images.XXXXXX)"
 echo 'normal (memdisk)/grub.cfg' >"$workdir/grub-bootstrap.cfg"
 
 # Skeleton configuration file which finds the real boot disk.
+# Gooroom installs a separate /boot partition labeled GRM_BOOTEFI; prefer
+# that label search so installed systems find /grub/grub.cfg without
+# relying on /.disk/info (which exists only on the live ISO root).
 mkdir "$workdir/memdisk-cd"
 cat >"$workdir/memdisk-cd/grub.cfg" <<EOF
 if [ -z "\$prefix" -o ! -e "\$prefix" ]; then
-	if ! search --file --set=root /.disk/info; then
-		search --file --set=root /.disk/mini-info
+	search --no-floppy --label --set=root GRM_BOOTEFI
+	if [ -z "\$root" ]; then
+		if ! search --file --set=root /.disk/info; then
+			search --file --set=root /.disk/mini-info
+		fi
+		set prefix=(\$root)/boot/grub
+	else
+		set prefix=(\$root)/grub
 	fi
-	set prefix=(\$root)/boot/grub
 fi
 if [ -e \$prefix/$platform/grub.cfg ]; then
 	source \$prefix/$platform/grub.cfg
