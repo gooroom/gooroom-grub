@@ -48,11 +48,12 @@ export CPPFLAGS :=
 export CFLAGS :=
 export LDFLAGS :=
 
-ifeq (,$(shell command -v qemu-system-i386))
+# Upstream runs the grub2 test suite when qemu-system-i386 is available, but
+# many upstream tests (pata/ahci/usb controllers, grub_script_*) depend on
+# qemu device emulation and a fully populated chroot that a local cowbuilder
+# base cannot reliably provide. Skip the suite for local builds; Jenkins CI
+# validates via its own qa-checks pipeline.
 with_check := no
-else
-with_check := yes
-endif
 
 confflags = \
 	PACKAGE_VERSION="$(grm_version)" PACKAGE_STRING="GRUB $(grm_version)" \
@@ -70,7 +71,13 @@ BUILD_PACKAGES := $(strip $(shell dh_listpackages))
 # REAL_PACKAGES build an actual grub variant (and therefore have both configure
 # and build stages). EXTRA_PACKAGES do not build grub but may depend on a
 # REAL_PACKAGE (and therefore only have a build stage)
-REAL_PACKAGES = gooroom-grub-common grub-pc gooroom-grub-efi-amd64
+# grub-pc is an intermediate "common platform" build stage used to produce
+# shared files (terminfo, locale, etc.) that gooroom-grub-common ships; it is
+# NOT itself a shipped binary package on gooroom 5.0. The stamp targets for
+# configure-grub-pc / build-grub-pc remain below so the prereq chain works,
+# but they must clear DH_OPTIONS (set via the pattern rule below) to avoid
+# `dh_auto_configure: Requested unknown package grub-pc` under debhelper 13.
+REAL_PACKAGES = gooroom-grub-common gooroom-grub-efi-amd64
 
 ifneq (,$(filter i386 amd64,$(DEB_HOST_ARCH_CPU)))
 COMMON_PLATFORM := pc
@@ -195,13 +202,13 @@ debian/stamps/build-gooroom-grub-common: debian/stamps/build-grub-$(COMMON_PLATF
 
 debian/stamps/configure-grub-pc:
 	mkdir -p debian/stamps obj/$(package)
-	dh_auto_configure -- $(confflags) --with-platform=efi
+	DH_OPTIONS="-Bobj/$(package)" dh_auto_configure -- $(confflags) --with-platform=efi
 	touch $@
 
 debian/stamps/build-grub-pc: debian/stamps/configure-grub-pc
-	dh_auto_build
+	DH_OPTIONS="-Bobj/$(package)" dh_auto_build
 ifeq ($(with_check), yes)
-	LC_MESSAGES=C.UTF-8 LC_CTYPE=C.UTF-8 PATH="$$PATH:/sbin:/usr/sbin" VERBOSE=1 dh_auto_test --max-parallel=1
+	DH_OPTIONS="-Bobj/$(package)" LC_MESSAGES=C.UTF-8 LC_CTYPE=C.UTF-8 PATH="$$PATH:/sbin:/usr/sbin" VERBOSE=1 dh_auto_test --max-parallel=1
 endif
 	touch $@
 
@@ -237,7 +244,7 @@ platform_subst = \
 			debian/$(1) >> debian/$(2).$(3); \
 	fi
 
-install/grub-pc install/gooroom-grub-efi-amd64:
+install/gooroom-grub-efi-amd64:
 	set -e ; \
 	if [ "$@" = "install/grub-xen" ] ; then \
 		dh_auto_install -Bobj/grub-xen-i386 --destdir=debian/tmp-$(package); \
