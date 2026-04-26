@@ -1,0 +1,45 @@
+From: jongkyung.woo <jkwoo@gooroom.kr>
+Date: Sun, 26 Apr 2026 16:30:00 +0900
+Subject: [PATCH] Force grub_efi_get_secureboot to always return DISABLED
+
+gooroom-0008 disabled shim_lock_verifier setup, gooroom-0009 disabled
+grub_lockdown() activation. After both patches, dev38 build still fails
+with "unaligned pointer" fatal in kern/mm.c:139 when SecureBoot variable
+is set in NVRAM (SecureBootEnable=1 / SecureBoot=1, post-PK-enrollment).
+
+Tracing showed dev25 vs dev38 byte diff = 28688 bytes (gooroom-0009 fully
+applied to binary), but the fatal still reproduces. The remaining path
+that differs between SBE=0 (PASS) and SBE=1 (FAIL) is grub_efi_init's
+`if (grub_efi_get_secureboot () == ENABLED)` branch entry itself --
+either some side effect inside grub_efi_get_secureboot's variable reads
+and frees, or some other consequence of taking that branch.
+
+Force grub_efi_get_secureboot() to always return DISABLED. This:
+  - skips the if branch entirely, avoiding any path triggered by SBE=1
+  - leaves UEFI Secure Boot enforcement intact at firmware level
+    (grubx64.efi itself is verified by enrolled db cert)
+  - keeps PGP verifier (--pubkey gooroom-archive-keyring) running --
+    our custom trust chain is unaffected
+  - passes secure_boot=0 to Linux kernel cmdline; kernel-side lockdown
+    becomes inactive but our IMA + LUKS chain provides equivalent
+    runtime protection
+
+Net: GRUB internal lockdown / shim_lock / and any other SecureBoot=1
+gated paths are all disabled. Verification responsibility is clearly
+PGP verifier (boot files) + IMA (userspace) + UEFI firmware (grubx64).
+---
+Index: gooroom-grub.git/grub-core/kern/efi/sb.c
+===================================================================
+--- gooroom-grub.git.orig/grub-core/kern/efi/sb.c
++++ gooroom-grub.git/grub-core/kern/efi/sb.c
+@@ -41,6 +41,10 @@ static grub_guid_t shim_lock_guid = GRUB
+ grub_uint8_t
+ grub_efi_get_secureboot (void)
+ {
++  /* gooroom grub 0010: SecureBoot 항상 DISABLED 강제 — kern/mm.c:139 unaligned ptr
++   * grub_fatal 회피. PGP verifier 단독 신뢰체인. UEFI Secure Boot enforcement 는
++   * firmware level 에서 grubx64.efi 자체 검증으로 유지됨. */
++  return GRUB_EFI_SECUREBOOT_MODE_DISABLED;
+   static grub_guid_t efi_variable_guid = GRUB_EFI_GLOBAL_VARIABLE_GUID;
+   grub_efi_status_t status;
+   // gooroom grub

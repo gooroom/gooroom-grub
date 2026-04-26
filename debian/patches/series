@@ -155,3 +155,4 @@ gooroom-0007-Add-new-function-that-output-secure-boot-error-scree.patch
 gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
 linuxefi.patch
 gooroom-0009-Disable-grub-lockdown-activation-under-custom-GPG-tr.patch
+gooroom-0010-Force-SecureBoot-DISABLED-return.patch
