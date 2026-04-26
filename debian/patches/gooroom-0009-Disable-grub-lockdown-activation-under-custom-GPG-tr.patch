@@ -1,0 +1,52 @@
+From: jongkyung.woo <jkwoo@gooroom.kr>
+Date: Sun, 26 Apr 2026 15:00:00 +0900
+Subject: [PATCH] Disable grub_lockdown() activation under custom GPG trust chain
+
+gooroom-0008 disabled grub_shim_lock_verifier_setup() to prevent shim's
+PE verifier from being registered when our linuxefi chain loads a raw
+(non-PE) Linux kernel. However the surrounding grub_lockdown() call in
+init.c was kept active.
+
+Empirically, when SecureBoot variable is set to 1 in NVRAM (which OVMF
+auto-sets after PK enrollment via efi-updatevar), the boot fails with:
+
+    error: /vmlinuz-... has invalid signature.
+    unaligned pointer 0x7bd9b509
+    Aborted.
+
+Tracing showed the fatal originates in kern/mm.c:139 get_header_from_pointer()
+when grub_free() is invoked with a non-16-byte-aligned pointer. The path
+that produces the bad pointer is reachable only when grub_lockdown() has
+been called -- swapping NVRAM SecureBootEnable byte from 0x01 to 0x00
+(which causes grub_efi_get_secureboot() to return DISABLED and skips both
+grub_lockdown() and shim_lock setup) makes the same vmlinuz / sig / GRUB
+binary boot cleanly through PGP verification, kernel start, and initramfs.
+
+Since our trust chain is:
+  - UEFI Secure Boot (firmware level) verifies grubx64.efi via enrolled db
+  - GRUB PGP verifier (--pubkey gooroom-archive-keyring) verifies
+    vmlinuz / initrd / grub.cfg.ima
+  - IMA verifies userspace files
+
+GRUB's internal lockdown mode adds no security to this chain (we do not
+load arbitrary modules or use commands grub_lockdown gates). Disabling
+grub_lockdown() activation removes the indirect path that triggers
+grub_free() with a corrupt pointer while keeping all our verification.
+
+Linux kernel still receives secure_boot=1 via grub_efi_get_secureboot()
+in loader/i386/linux.c (kernel-side lockdown stays on as expected).
+---
+Index: gooroom-grub.git/grub-core/kern/efi/init.c
+===================================================================
+--- gooroom-grub.git.orig/grub-core/kern/efi/init.c
++++ gooroom-grub.git/grub-core/kern/efi/init.c
+@@ -122,7 +122,8 @@ grub_efi_init (void)
+    */
+   if (grub_efi_get_secureboot () == GRUB_EFI_SECUREBOOT_MODE_ENABLED)
+     {
+-      grub_lockdown ();
++      // gooroom grub 0009: grub_lockdown() 비활성 — kern/mm.c:139 unaligned ptr grub_fatal 회피
++      // grub_lockdown ();
+       // gooroom grub
+       // grub_shim_lock_verifier_setup ();
+     }
