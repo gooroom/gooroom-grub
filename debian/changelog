@@ -1,3 +1,9 @@
+gooroom-grub (2.12-9+grm5u1) gooroom-5.0; urgency=medium
+
+  * Release for gooroom-5.0 (Debian Trixie)
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Thu, 07 May 2026 15:58:38 +0900
+
 gooroom-grub (2.12-9+grm5~alpha1) gooroom-5.0; urgency=medium
 
   [ jongkyung.woo ]

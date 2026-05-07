@@ -1,7 +1,8 @@
 Source: gooroom-grub
 Section: admin
 Priority: optional
-Maintainer: gooroom <gooroom@gooroom.kr>
+Maintainer: Gooroom <gooroom@gooroom.kr>
+XSBC-Original-Maintainer: gooroom <gooroom@gooroom.kr>
 XSBC-Maintainer: GRUB Maintainers <pkg-grub-devel@alioth-lists.debian.net>
 Uploaders: Felix Zielcke <fzielcke@z-51.de>, Jordi Mallach <jordi@debian.org>, Steve McIntyre <93sam@debian.org>, Julian Andres Klode <jak@debian.org>, Mate Kukri <mate.kukri@canonical.com>
 Build-Depends: debhelper-compat (= 13),

@@ -1,0 +1,4 @@
+gooroom-grub source: no-nmu-in-changelog
+gooroom-grub source: source-nmu-has-incorrect-version-number
+gooroom-grub source: latest-debian-changelog-entry-without-new-date
+gooroom-grub source: unknown-field Original-Maintainer
