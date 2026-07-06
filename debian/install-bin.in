@@ -3,3 +3,6 @@ usr/lib/grub/@CPU_PLATFORM@/*.lst
 usr/lib/grub/@CPU_PLATFORM@/*.mod
 usr/lib/grub/@CPU_PLATFORM@/config.h
 usr/lib/grub/@CPU_PLATFORM@/modinfo.sh
+../../themes/background/* usr/lib/grub/@CPU_PLATFORM@/themes/background/
+../../themes/warningimages/* usr/lib/grub/@CPU_PLATFORM@/themes/warningimages/
+../../grubconf/* usr/lib/grub/@CPU_PLATFORM@/grubconf/
