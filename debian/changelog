@@ -1,3 +1,11 @@
+gooroom-grub (2.12-9+grm5u2) gooroom-5.0; urgency=medium
+
+  * Add Conflicts with grub-efi-amd64-unsigned
+  * Restore themes and grubconf install to efi-amd64-bin
+  * Version 2.12-9+grm5u1 released
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Mon, 06 Jul 2026 18:00:11 +0900
+
 gooroom-grub (2.12-9+grm5u1) gooroom-5.0; urgency=medium
 
   * Release for gooroom-5.0 (Debian Trixie)
