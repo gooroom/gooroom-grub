@@ -156,3 +156,4 @@ gooroom-0008-Remove-shim-verifier-filter-so-that-grub-can-run-wit.patch
 linuxefi.patch
 gooroom-0009-Disable-grub-lockdown-activation-under-custom-GPG-tr.patch
 gooroom-0010-Force-SecureBoot-DISABLED-return.patch
+gooroom-0011-Keep-the-signed-grub.cfg-of-gooroom-boot-protector.patch
