@@ -1,0 +1,39 @@
+From: jongkyung.woo <jkwoo@gooroom.kr>
+Date: Fri, 16 Oct 2026 05:00:00 +0900
+Subject: [PATCH] Keep the signed grub.cfg of gooroom-boot-protector
+
+gooroom-boot-protector ships grub.cfg with a detached signature made at
+package build time, and the stand-alone grub (embedded pubkey) refuses to
+load a grub.cfg whose signature does not match. update-grub, the kernel
+postinst hook and grub package postinsts all call grub-mkconfig, which
+overwrote the signed file so the next boot stopped at the trusted boot
+failure screen. When /boot/grub/grub.cfg has a .sig and the protector's
+signed files are installed, write the generated config to
+grub.cfg.gbp-generated instead of overwriting the signed one.
+---
+Index: wt-gbp-4.0/util/grub-mkconfig.in
+===================================================================
+--- wt-gbp-4.0.orig/util/grub-mkconfig.in
++++ wt-gbp-4.0/util/grub-mkconfig.in
+@@ -317,7 +317,20 @@ and /etc/grub.d/* files or please file a
+     # none of the children aborted with error, install the new grub.cfg
+     oldumask=$(umask)
+     umask 077
+-    cat ${grub_cfg}.new > ${grub_cfg}
++    # gooroom grub: gooroom-boot-protector installs grub.cfg together with a
++    # detached signature (grub.cfg.sig) made at package build time, and the
++    # stand-alone grub refuses to load a grub.cfg whose signature does not match.
++    # Overwriting it here would stop the next boot at the trusted boot failure
++    # screen, so keep the signed file and leave the generated one beside it.
++    gbp_dir=/usr/share/gooroom/security/gooroom-boot-protector
++    if [ "$(readlink -f "${grub_cfg}")" = "/boot/grub/grub.cfg" ] && \
++       [ -f "${grub_cfg}.sig" ] && \
++       { [ -f "${gbp_dir}/grub.cfg.sig" ] || [ -f "${gbp_dir}/grub.cfg.ima.sig" ]; }; then
++      cat ${grub_cfg}.new > ${grub_cfg}.gbp-generated
++      gettext_printf "Kept the signed %s of gooroom-boot-protector; the generated config is in %s\n" "${grub_cfg}" "${grub_cfg}.gbp-generated" >&2
++    else
++      cat ${grub_cfg}.new > ${grub_cfg}
++    fi
+     umask $oldumask
+     rm -f ${grub_cfg}.new
+   fi
