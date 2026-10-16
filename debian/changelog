@@ -1,3 +1,10 @@
+gooroom-grub (2.12-9+grm5u3) gooroom-5.0; urgency=medium
+
+  * [#1520] Keep the signed grub.cfg of gooroom-boot-protector when update-grub
+    runs; the generated config is written to grub.cfg.gbp-generated.
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Fri, 16 Oct 2026 11:24:36 +0900
+
 gooroom-grub (2.12-9+grm5u2) gooroom-5.0; urgency=medium
 
   * Add Conflicts with grub-efi-amd64-unsigned
