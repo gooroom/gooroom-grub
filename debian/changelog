@@ -1,3 +1,11 @@
+gooroom-grub (2.12-9+grm5u4) gooroom-5.0; urgency=medium
+
+  * [#1631] Depend on ucf and create /var/lib/grub/ucf before copying the
+    template, so gooroom-grub-efi-amd64 and gooroom-boot-protector configure
+    cleanly when the ISO installer replaces the Debian grub packages.
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Tue, 24 Nov 2026 19:02:06 +0900
+
 gooroom-grub (2.12-9+grm5u3) gooroom-5.0; urgency=medium
 
   * [#1520] Keep the signed grub.cfg of gooroom-boot-protector when update-grub
