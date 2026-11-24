@@ -113,7 +113,7 @@ Description: Gooroom GRand Unified Bootloader, version 2 (EFI-AMD64 debug files)
 Package: gooroom-grub-efi-amd64
 Architecture: any-amd64
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${shlibs:Depends}, ${misc:Depends}, gooroom-grub2-common (= ${binary:Version}), gooroom-grub-efi-amd64-bin (= ${binary:Version})
+Depends: ${shlibs:Depends}, ${misc:Depends}, gooroom-grub2-common (= ${binary:Version}), gooroom-grub-efi-amd64-bin (= ${binary:Version}), ucf
 Replaces: grub-efi-amd64
 Conflicts: grub-efi-amd64
 Description: Gooroom GRand Unified Bootloader, version 2 (EFI-AMD64 version)
