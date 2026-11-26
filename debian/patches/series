@@ -157,3 +157,4 @@ linuxefi.patch
 gooroom-0009-Disable-grub-lockdown-activation-under-custom-GPG-tr.patch
 gooroom-0010-Force-SecureBoot-DISABLED-return.patch
 gooroom-0011-Keep-the-signed-grub.cfg-of-gooroom-boot-protector.patch
+gooroom-0012-Check-SecureBoot-in-linuxefi-before-loading-kernel.patch

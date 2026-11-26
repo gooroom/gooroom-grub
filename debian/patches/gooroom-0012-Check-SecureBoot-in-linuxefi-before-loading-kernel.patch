@@ -1,0 +1,57 @@
+From: jongkyung.woo <jkwoo@gooroom.kr>
+Date: Thu, 26 Nov 2026 16:00:00 +0900
+Subject: [PATCH] Check SecureBoot in linuxefi before loading kernel
+
+Gooroom 3.0 stopped at the trusted boot failure screen when firmware
+Secure Boot was off. On 5.0 the check from gooroom-0007 lives in the
+generic efi/linux.c loader, but our grub.cfg boots with linuxefi
+(linuxefi.patch), so the check never ran. gooroom-0010 also forces
+grub_efi_get_secureboot () to DISABLED, so this reads the SecureBoot
+variable directly and shows the config error screen when it is not 1.
+---
+Index: gooroom-grub.git/grub-core/loader/i386/efi/linux.c
+===================================================================
+--- gooroom-grub.git.orig/grub-core/loader/i386/efi/linux.c
++++ gooroom-grub.git/grub-core/loader/i386/efi/linux.c
+@@ -176,6 +176,24 @@ grub_cmd_initrd (grub_command_t cmd __at
+   return grub_errno;
+ }
+ 
++/* gooroom grub 0012: read the SecureBoot variable directly. gooroom-0010
++   forces grub_efi_get_secureboot () to DISABLED, so it cannot tell whether
++   firmware Secure Boot is on. */
++static int
++gooroom_secureboot_enabled (void)
++{
++  static grub_guid_t global = GRUB_EFI_GLOBAL_VARIABLE_GUID;
++  grub_size_t size = 0;
++  grub_uint8_t *sb = NULL;
++  int on = 0;
++
++  if (grub_efi_get_variable ("SecureBoot", &global, &size, (void **) &sb)
++      == GRUB_EFI_SUCCESS && sb && size >= 1 && *sb == 1)
++    on = 1;
++  grub_free (sb);
++  return on;
++}
++
+ static grub_err_t
+ grub_cmd_linux (grub_command_t cmd __attribute__ ((unused)),
+ 		int argc, char *argv[])
+@@ -187,6 +205,16 @@ grub_cmd_linux (grub_command_t cmd __att
+ 
+   grub_dl_ref (my_mod);
+ 
++  /* gooroom grub 0012: refuse to boot when firmware Secure Boot is off
++     (same as gooroom 3.0). gooroom-0007 put this check in the generic
++     efi/linux.c loader, but our grub.cfg boots with linuxefi. */
++  if (! gooroom_secureboot_enabled ())
++    {
++      grub_verified_boot_config_error ();
++      grub_error (GRUB_ERR_ACCESS_DENIED, N_("secure boot is not enabled"));
++      goto fail;
++    }
++
+   if (argc == 0)
+     {
+       grub_error (GRUB_ERR_BAD_ARGUMENT, N_("filename expected"));
