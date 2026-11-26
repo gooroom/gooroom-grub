@@ -1,3 +1,10 @@
+gooroom-grub (2.12-9+grm5u5) gooroom-5.0; urgency=medium
+
+  * [#1634] Stop booting with the trusted boot failure screen when
+    firmware Secure Boot is off, as in Gooroom 3.0
+
+ -- jongkyung.woo <jkwoo@gooroom.kr>  Thu, 26 Nov 2026 16:31:17 +0900
+
 gooroom-grub (2.12-9+grm5u4) gooroom-5.0; urgency=medium
 
   * [#1631] Depend on ucf and create /var/lib/grub/ucf before copying the
